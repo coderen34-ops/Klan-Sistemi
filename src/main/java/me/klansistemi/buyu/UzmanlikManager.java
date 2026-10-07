@@ -122,7 +122,9 @@ public class UzmanlikManager {
         ItemStack item = esya().olustur(mat, alan, BuyuEsyasi.Katman.KLAN, k.id, k.isim, kod, uuid, simdi);
         ItemStack kalan = plugin.esya().kasayaKoy(k, item);
         if (kalan != null) { m().gonder(s, "buyu-kasa-dolu", "&c{klan} klanının eşya kasası dolu.", "klan", k.isim); return; }
-        defter.ekle(new KayitDefteri.Kayit(kod, uuid, k.id, k.isim, k.id, alan.kod, BuyuEsyasi.Katman.KLAN, KayitDefteri.Durum.KASADA, simdi));
+        KayitDefteri.Kayit kayit = new KayitDefteri.Kayit(kod, uuid, k.id, k.isim, k.id, alan.kod, BuyuEsyasi.Katman.KLAN, KayitDefteri.Durum.KASADA, simdi);
+        kayit.malzeme = mat.name();
+        defter.ekle(kayit);
         plugin.log().yaz(k, s.getName(), "BUYU_URETILDI_ADMIN", kod + " | " + alan.kod + " | " + mat.name());
         m().gonder(s, "buyu-uretildi-admin", "&a{klan} kasasına test eşyası üretildi: &e{kod} &7({esya})", "klan", k.isim, "kod", kod, "esya", mat.name());
     }

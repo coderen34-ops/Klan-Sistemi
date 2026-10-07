@@ -257,7 +257,7 @@ public class DiplomasiPanel implements Listener {
             if (k.sure > 0) aciklama.add(ChatColor.GRAY + "Süre: " + ChatColor.WHITE + Zaman.sure(k.sure));
             if (k.kazanan != null) {
                 aciklama.add(ChatColor.GRAY + (kazandik ? "Kazanılan ganimet: " : "Kaybedilen: ") + ChatColor.GOLD + Para.yaz(k.ganimetPara)
-                        + ChatColor.GRAY + " + " + k.ganimetEsya + " yığın eşya");
+                        + ChatColor.GRAY + " + " + k.ganimetEsya + " yığın eşya" + (k.ganimetBuyu > 0 ? " + " + k.ganimetBuyu + " büyülü eşya" : ""));
             }
             icerik.add(esya(mat, baslik, aciklama));
         }

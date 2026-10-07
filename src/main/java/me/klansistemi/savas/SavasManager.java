@@ -232,6 +232,9 @@ public class SavasManager implements Listener {
         savaslar.add(s);
         klanSavasi.put(rakip.id, s);
         klanSavasi.put(benim.id, s);
+        // Kasalar kilitlendi: üyelerdeki kasa-bağlı büyülü eşyalar kasaya döner
+        plugin.buyuSavas().savasOncesiTopla(rakip);
+        plugin.buyuSavas().savasOncesiTopla(benim);
 
         plugin.log().yaz(benim, p.getName(), "DUELLO_KABUL", rakip.isim + " | arena " + arena.isim);
         Bukkit.broadcastMessage(m().onek() + m().metin("savas-duyuru", "&4&l⚔ {a} ile {b} arasında DÜELLO kabul edildi! &7(Arena: {arena})",
@@ -392,6 +395,7 @@ public class SavasManager implements Listener {
             donusKonumlari.put(p.getUniqueId(), p.getLocation().clone());
             plugin.meslek().saglikMuafiyeti(p.getUniqueId(), true);
             isinla(p, takimSpawn(s, e.getValue()));
+            plugin.buyuSavas().arenaSeviyeDusur(p); // Arena dengesi: üst seviye büyüler vanilla sınırına
             s.bar.addPlayer(p);
             p.showTitle(net.kyori.adventure.title.Title.title(
                     m().bilesen("savas-basladi-baslik", "&4&lSAVAŞ!"),
@@ -471,6 +475,7 @@ public class SavasManager implements Listener {
 
         double para = 0;
         int esya = 0;
+        int buyuGanimet = 0;
         if (kazanan != null && a != null && b != null) {
             Klan kazananKlan = kazanan.equals(a.id) ? a : b;
             Klan kaybeden = kazanan.equals(a.id) ? b : a;
@@ -480,18 +485,19 @@ public class SavasManager implements Listener {
             kaybeden.kasa = Para.kurus(kaybeden.kasa - para);
             kazananKlan.kasa = Para.kurus(kazananKlan.kasa + para);
             esya = plugin.esya().ganimetAktar(kaybeden, kazananKlan, oran);
+            buyuGanimet = plugin.buyuSavas().ganimetAktar(kaybeden, kazananKlan, fark / (double) Math.max(1, hedefPuan()));
             kaybedenBekleme.put(kaybeden.id, simdi);
             plugin.log().yaz(kazananKlan, "-", "GANIMET", kaybeden.isim + " -> %" + Math.round(oran) + " | " + Para.yaz(para) + " + " + esya + " yığın eşya");
         }
         if (!"IPTAL".equals(sonuc) || s.durum == Savas.Durum.AKTIF) ciftBekleme.put(cift(s.klanA, s.klanB), simdi);
 
         String isimA = a != null ? a.isim : "?", isimB = b != null ? b.isim : "?";
-        gecmis.add(0, new SavasKaydi(s.klanA, s.klanB, isimA, isimB, s.puanA, s.puanB, kazanan, sonuc, para, esya, simdi,
+        gecmis.add(0, new SavasKaydi(s.klanA, s.klanB, isimA, isimB, s.puanA, s.puanB, kazanan, sonuc, para, esya, buyuGanimet, simdi,
                 s.baslangic > 0 ? simdi - s.baslangic : 0));
         while (gecmis.size() > GECMIS_MAX) gecmis.remove(gecmis.size() - 1);
 
         String sonucMetni = switch (sonuc) {
-            case "KAZANDI" -> m().metin("savas-sonuc-kazandi", "&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya",
+            case "KAZANDI" -> m().metin("savas-sonuc-kazandi", "&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya + {buyu} büyülü eşya", "buyu", buyuGanimet,
                     "kazanan", kazanan.equals(s.klanA) ? isimA : isimB, "pa", s.puanA, "pb", s.puanB, "para", Para.yaz(para), "esya", esya);
             case "BERABERE" -> m().metin("savas-sonuc-berabere", "&eBERABERE! &7({pa} - {pb}) Kasalar değişmedi.", "pa", s.puanA, "pb", s.puanB);
             default -> m().metin("savas-sonuc-iptal", "&7Savaş iptal edildi.");
@@ -514,6 +520,7 @@ public class SavasManager implements Listener {
             return;
         }
         if (p.isDead()) return;    // Konum saklı kalır; yeniden doğunca orada doğar (onRespawn)
+        plugin.buyuSavas().arenaSeviyeGeriYukle(p);
         donusKonumlari.remove(p.getUniqueId());
         if (plugin.meslek().hapisteMi(p.getUniqueId())) {
             // Savaşta hapis cezası aldı: eski konumuna değil, Meslek hücresine gider (muafiyet kalkınca)

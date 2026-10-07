@@ -11,11 +11,12 @@ public class SavasKaydi {
     public final String sonuc;          // "KAZANDI", "BERABERE", "IPTAL"
     public final double ganimetPara;
     public final int ganimetEsya;
+    public final int ganimetBuyu;       // Ele geçirilen büyülü (klan katmanı) eşya sayısı
     public final long zaman;
     public final long sure;
 
     public SavasKaydi(UUID klanA, UUID klanB, String isimA, String isimB, int puanA, int puanB, UUID kazanan,
-                      String sonuc, double ganimetPara, int ganimetEsya, long zaman, long sure) {
+                      String sonuc, double ganimetPara, int ganimetEsya, int ganimetBuyu, long zaman, long sure) {
         this.klanA = klanA;
         this.klanB = klanB;
         this.isimA = isimA;
@@ -26,6 +27,7 @@ public class SavasKaydi {
         this.sonuc = sonuc;
         this.ganimetPara = ganimetPara;
         this.ganimetEsya = ganimetEsya;
+        this.ganimetBuyu = ganimetBuyu;
         this.zaman = zaman;
         this.sure = sure;
     }

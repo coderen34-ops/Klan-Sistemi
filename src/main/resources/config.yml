@@ -56,6 +56,8 @@ savas:
   klan-ici-hasar: false          # Aynı klan üyeleri arenada birbirine hasar verebilir mi
   ganimet-min: 25                # Kazanan, kaybedenin kasasından %min-%max alır (puan farkına göre)
   ganimet-max: 50
+  buyu-ganimet-min: 25           # Kazanan, kaybedenin klan katmanı büyülü eşyalarından %min-%max alır (puan farkına göre)
+  buyu-ganimet-max: 50           # Kasadakiler ve ödünç verilmiş olanlar dahil; ticari eşyalar dahil değil
   kaybeden-bekleme-saat: 6
   ayni-klanlar-bekleme-saat: 12
   # Savaştaki oyuncunun kullanamayacağı komutlar ("eklenti:komut" yazımı da engellenir)
@@ -279,10 +281,14 @@ mesajlar:
   bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
   bilgi-uzmanlik: '&7Uzmanlık: {alanlar}'
+  buyu-arena-dusuruldu: '&7Arena dengesi: eşyalarınızdaki üst seviye büyüler savaş boyunca vanilla sınırına indirildi.'
   buyu-atilamaz: '&cKlan eşyaları yere atılamaz. Kasaya geri koyun.'
   buyu-creative: '&cKlan eşyaları yaratıcı modda kullanılamaz.'
   buyu-envanter-dolu: '&cEnvanterinizde yer yok.'
   buyu-esya-uygun-degil: '&cBu eşya {alan} alanına uygun değil.'
+  buyu-ganimet-alindi: '&c{kod} kimlikli klan eşyası savaş ganimeti olarak alındı.'
+  buyu-ganimet-kaybeden: '&c{sayi} büyülü eşyanız {klan} klanına geçti.'
+  buyu-ganimet-kazanan: '&6{sayi} büyülü eşya ele geçirildi ve klan kasasına kondu!'
   buyu-gecersiz: '&cBu eşyanın kaydı geçersiz, kullanılamaz. Yetkililere bildirin.'
   buyu-iade: '&e{kod} kimlikli klan eşyası sahibi klanın kasasına iade edildi.'
   buyu-kasa-dolu: '&c{klan} klanının eşya kasası dolu.'
@@ -291,6 +297,7 @@ mesajlar:
   buyu-kayit-yok: '&cBu kimlikte bir kayıt yok.'
   buyu-odunc-limit: '&cAynı anda en fazla {max} klan eşyası taşıyabilirsiniz.'
   buyu-olum-iade: '&e{sayi} klan eşyanız öldüğünüz için klan kasasına geri döndü.'
+  buyu-savas-oncesi: '&eSavaş öncesi üyelerdeki {sayi} klan eşyası kasaya geri alındı.'
   buyu-silindi: '&c{kod} kimlikli eşya geçersiz olduğu için kaldırıldı. &7({sebep})'
   buyu-tasima-yasak: '&cKlan eşyaları sadece klan kasasında saklanabilir, başka bir yere konamaz.'
   buyu-uretildi-admin: '&a{klan} kasasına test eşyası üretildi: &e{kod} &7({esya})'
@@ -444,7 +451,7 @@ mesajlar:
   savas-sebep-sure: 'Süre doldu'
   savas-sonuc-berabere: '&eBERABERE! &7({pa} - {pb}) Kasalar değişmedi.'
   savas-sonuc-iptal: '&7Savaş iptal edildi.'
-  savas-sonuc-kazandi: '&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya'
+  savas-sonuc-kazandi: '&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya + {buyu} büyülü eşya'
   savas-teklif-butonlar: '&7Yanıtınız: '
   savas-teklif-geldi-klan: '&c&l{klan} klanı bize DÜELLO teklif etti! &7(Karar Liderde)'
   savas-teklif-gonderildi: '&a{klan} klanına düello teklifi gönderildi. ({sure} geçerli)'

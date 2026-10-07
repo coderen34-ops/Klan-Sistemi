@@ -42,6 +42,7 @@ public class KlanSistemi extends JavaPlugin {
     private me.klansistemi.buyu.UzmanlikManager uzmanlik;
     private me.klansistemi.buyu.KasaBagliKurallar buyuKurallari;
     private me.klansistemi.buyu.Atolye atolye;
+    private me.klansistemi.buyu.BuyuSavas buyuSavas;
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
     private SavasManager savasManager;
@@ -82,6 +83,7 @@ public class KlanSistemi extends JavaPlugin {
         uzmanlik = new me.klansistemi.buyu.UzmanlikManager(this);
         buyuKurallari = new me.klansistemi.buyu.KasaBagliKurallar(this);
         atolye = new me.klansistemi.buyu.Atolye(this);
+        buyuSavas = new me.klansistemi.buyu.BuyuSavas(this);
         arenaManager = new ArenaManager(this);
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
@@ -211,6 +213,7 @@ public class KlanSistemi extends JavaPlugin {
     public me.klansistemi.buyu.UzmanlikManager uzmanlik() { return uzmanlik; }
     public me.klansistemi.buyu.KasaBagliKurallar buyuKurallari() { return buyuKurallari; }
     public me.klansistemi.buyu.Atolye atolye() { return atolye; }
+    public me.klansistemi.buyu.BuyuSavas buyuSavas() { return buyuSavas; }
     public DiplomasiPanel panel() { return panel; }
 
     public ArenaManager arenalar() { return arenaManager; }

@@ -187,6 +187,8 @@ public class KasaBagliKurallar implements Listener {
      * Sahte/kopya/geçersiz olanları siler; başka klana ait ya da klandan ayrılmış oyuncudakileri kasaya iade eder.
      */
     public void oyuncuyuDogrula(Player p) {
+        // Savaşta olmayan oyuncunun arena dengesi için düşürülmüş büyüleri geri yüklenir (çökme sonrası dahil)
+        if (plugin.savas().katilimciSavasi(p.getUniqueId()) == null) plugin.buyuSavas().arenaSeviyeGeriYukle(p);
         Klan oyuncuKlani = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         Set<String> goruldu = new HashSet<>();
         boolean degisti = envanteriDogrula(p, p.getInventory(), oyuncuKlani, goruldu, true);
@@ -228,6 +230,8 @@ public class KasaBagliKurallar implements Listener {
             return "Sahip klan yok";
         }
         if (!kullanilabilir || oyuncuKlani == null || !oyuncuKlani.id.equals(sahip.id)) return "IADE";
+        // Klan savaştayken (kasa kilitli) klan eşyaları kasada kalır
+        if (plugin.kasaKilitliMi(sahip)) return "IADE";
         if (kayit.durum == KayitDefteri.Durum.ODUNC) {
             if (p.getUniqueId().equals(kayit.oduncOyuncu)) return null;
             return "Kopya (kayıtta başka oyuncuda)";

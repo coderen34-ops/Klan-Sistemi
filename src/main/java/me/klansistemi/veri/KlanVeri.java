@@ -176,6 +176,7 @@ public class KlanVeri {
                 m.put("sonuc", k.sonuc);
                 m.put("ganimetPara", k.ganimetPara);
                 m.put("ganimetEsya", k.ganimetEsya);
+                m.put("ganimetBuyu", k.ganimetBuyu);
                 m.put("zaman", k.zaman);
                 m.put("sure", k.sure);
                 gecmis.add(m);
@@ -309,6 +310,7 @@ public class KlanVeri {
                         ((Number) m.get("puanA")).intValue(), ((Number) m.get("puanB")).intValue(),
                         kazanan.isEmpty() ? null : UUID.fromString(kazanan), String.valueOf(m.get("sonuc")),
                         ((Number) m.get("ganimetPara")).doubleValue(), ((Number) m.get("ganimetEsya")).intValue(),
+                        m.get("ganimetBuyu") instanceof Number gb ? gb.intValue() : 0,
                         ((Number) m.get("zaman")).longValue(), ((Number) m.get("sure")).longValue()));
             } catch (Exception ignored) {}
         }

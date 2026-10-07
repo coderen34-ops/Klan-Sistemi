@@ -37,7 +37,8 @@ public class KayitDefteri {
 
     public static class Kayit {
         public final String kod;          // Kısa kod (lore'daki ID)
-        public final UUID uuid;           // Eşyadaki uzun kimlik; kısa kodla birlikte doğrulanır
+        public UUID uuid;                 // Eşyadaki uzun kimlik; kısa kodla birlikte doğrulanır (ganimette yenilenebilir)
+        public String malzeme;            // Eşya türü (örn. DIAMOND_PICKAXE); fiziksel eşya yeniden üretilirken kullanılır
         public final UUID kaynakKlan;
         public final String kaynakKlanAdi;
         public UUID sahipKlan;            // Şu an eşyanın ait olduğu klan (ganimetle değişebilir)
@@ -146,6 +147,7 @@ public class KayitDefteri {
             y.set(yol + ".uretim", k.uretim);
             y.set(yol + ".guncelleme", k.guncelleme);
             y.set(yol + ".not", k.not);
+            y.set(yol + ".malzeme", k.malzeme);
         }
         return y;
     }
@@ -195,6 +197,7 @@ public class KayitDefteri {
                 k.oduncOyuncu = odunc == null ? null : UUID.fromString(odunc);
                 k.guncelleme = c.getLong("guncelleme", k.uretim);
                 k.not = c.getString("not");
+                k.malzeme = c.getString("malzeme");
                 kayitlar.put(kod, k);
             } catch (Exception e) {
                 plugin.getLogger().log(Level.WARNING, "Büyü kaydı yüklenemedi: " + kod, e);

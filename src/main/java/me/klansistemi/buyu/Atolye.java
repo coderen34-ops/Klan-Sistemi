@@ -188,7 +188,9 @@ public class Atolye implements Listener {
         UUID uuid = UUID.randomUUID();
         ItemStack yeni = plugin.buyuEsyasi().olustur(mat, alan, BuyuEsyasi.Katman.KLAN, k.id, k.isim, kod, uuid, simdi);
         plugin.esya().kasayaKoy(k, yeni);
-        defter.ekle(new KayitDefteri.Kayit(kod, uuid, k.id, k.isim, k.id, alan.kod, BuyuEsyasi.Katman.KLAN, KayitDefteri.Durum.KASADA, simdi));
+        KayitDefteri.Kayit kayit = new KayitDefteri.Kayit(kod, uuid, k.id, k.isim, k.id, alan.kod, BuyuEsyasi.Katman.KLAN, KayitDefteri.Durum.KASADA, simdi);
+        kayit.malzeme = mat.name();
+        defter.ekle(kayit);
 
         long bugun = LocalDate.now().toEpochDay();
         if (k.atolyeGun != bugun) { k.atolyeGun = bugun; k.atolyeSayi = 0; }
