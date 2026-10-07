@@ -1,0 +1,25 @@
+name: build
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # MeslekAPI için Meslek-Sistemi derlenip yerel Maven deposuna kurulur
+      - uses: actions/checkout@v4
+        with:
+          repository: coderen34-ops/Meslek-Sistemi
+          path: meslek-sistemi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - run: mvn -B -f meslek-sistemi/pom.xml install
+      - run: mvn -B package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aile-sistemi
+          path: target/*.jar

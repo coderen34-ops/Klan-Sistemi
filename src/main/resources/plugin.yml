@@ -1,0 +1,24 @@
+name: AileSistemi
+version: '1.0'
+main: me.ailesistemi.AileSistemi
+api-version: '26.2'
+description: Aile kurma, roller, kasa, aidat ve aile sohbeti
+depend: [MeslekSistemi]
+
+commands:
+  aile:
+    description: Aile sistemi komutları
+    usage: /aile [yardim]
+    permission: aile.kullan
+  ac:
+    description: Aile sohbetine mesaj gönderir
+    usage: /ac <mesaj>
+    permission: aile.kullan
+
+permissions:
+  aile.kullan:
+    description: Aile sistemini kullanma
+    default: true
+  aile.admin:
+    description: Aile yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme)
+    default: op

@@ -1,0 +1,148 @@
+# ================================================================
+#  AİLE SİSTEMİ AYARLARI
+#  Tüm süreler: saat/gün/dakika cinsinden ondalıklı yazılabilir.
+#  Değişiklikten sonra: /aile admin yenile
+# ================================================================
+
+aile:
+  kurma-ucreti: 50000            # Banka hesabından çekilir
+  max-uye: 10
+  isim-min: 3
+  isim-max: 16
+  ayrilma-bekleme-saat: 24       # Aileden ayrılan/atılan bu süre başka aileye giremez
+  yeni-aile-savas-koruma-saat: 24
+  davet-gecerlilik-dakika: 5
+
+kasa:
+  ust-sinir: 10000000            # Yatırma ile aşılamaz (aidat ödemeleri hariç)
+  yardimci-gunluk-cekim-limiti: 20000
+
+aidat:
+  aktif: true
+  miktar: 5000                   # Yeni ailelerin varsayılan aidatı
+  min-miktar: 1000               # Patronun ayarlayabileceği aralık
+  max-miktar: 50000
+  periyot-gun: 7
+  ek-sure-gun: 2
+  patron-muaf: true
+  yeni-uye-muaf-gun: 7           # Katıldığı dönem her zaman muaftır; bu süre daha uzunsa sonraki dönemler de
+  otomatik-atma: true
+  otomatik-atma-donem: 3         # Üst üste bu kadar dönem ödemeyen atılır
+  patron-bildirim-donem: 2       # Üst üste bu kadar dönem ödemeyen için patrona bildirim
+  cevrimdisi-koruma: true        # Ek süre bittiğinde oyunda olmayanın ek süresi girişte yeniden başlar
+
+# Aile adlarında geçemeyecek kelimeler (büyük/küçük harf ve Türkçe karakter farkı gözetilmez)
+# Not: Kelime aile adının herhangi bir yerinde geçerse engellenir; çok kısa kelimeler masum isimleri
+# de engelleyebilir (örn. "sik" -> "Işık"). Listeyi sunucunuza göre düzenleyin.
+yasakli-kelimeler:
+  - amk
+  - orospu
+  - siktir
+  - yarrak
+  - ibne
+  - pezevenk
+  - gavat
+  - discord
+  - http
+  - www
+
+# Mesajlar (& renk kodları kullanılabilir, {...} yer tutucuları otomatik doldurulur)
+mesajlar:
+  onek: '&8[&6Aile&8] &r'
+  admin-dagitildi: '&a{aile} ailesi zorla dağıtıldı.'
+  admin-kasa-duzeltildi: '&a{aile} kasası {eski} -> {yeni} olarak düzeltildi.'
+  admin-yenilendi: '&aAile ayarları yeniden yüklendi.'
+  aidat-aralik: '&cAidat {min} ile {max} arasında olmalı.'
+  aidat-atan: 'Aidat Sistemi'
+  aidat-bakiye: '&cAidat ({miktar}) için banka hesabınızda yeterli bakiye yok.'
+  aidat-bilgi-baslik: '&6&l--- AİDAT BİLGİSİ ---'
+  aidat-bilgi-durum: '&7Durumunuz: {durum}'
+  aidat-bilgi-miktar: '&7Dönem aidatı: &e{miktar} &7| Periyot: &e{periyot}'
+  aidat-bilgi-son: '&7Son ödeme: &e{tarih} &7({kalan} kaldı)'
+  aidat-bilgi-son-odeme: '&7Son ödemeniz: &f{tarih}'
+  aidat-bilgi-sonraki: '&7Sonraki dönem: &e{tarih}'
+  aidat-bilgi-toplam: '&7Ailenin toplam aidat geliri: &a{toplam}'
+  aidat-borclu: '&cAidatınızı ödemediğiniz için BORÇLU oldunuz! Kasa çekme yetkiniz kapandı. &e/aile aidat ode'
+  aidat-degisti: '&eAile aidatı {miktar} olarak belirlendi.'
+  aidat-ek-sure-basladi: '&6Siz yokken aidat süresi doldu. Ödemeniz için {sure} ek süreniz başladı: &e/aile aidat ode'
+  aidat-giris-bekliyor: '&eÖdenmemiş aile aidatınız var ({miktar}). Son ödeme: &6{tarih}'
+  aidat-giris-borclu: '&cAidat borcunuz var! Kasa çekme yetkiniz kapalı. &e/aile aidat ode'
+  aidat-hatirlatma-1: '&c&lSON 1 SAAT! &eAile aidatınızı ({miktar}) ödemeyi unutmayın: &6/aile aidat ode'
+  aidat-hatirlatma-24: '&eAile aidatınızı ({miktar}) ödemek için {kalan} kaldı: &6/aile aidat ode'
+  aidat-kapali: '&cAidat sistemi şu an kapalı.'
+  aidat-muaf: '&bBu dönem aidattan muafsınız.'
+  aidat-odendi: '&a{miktar} aidat ödendi. Teşekkürler! Kasa: &e{kasa}'
+  aidat-patron-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
+  aidat-zaten-odendi: '&aBu dönemin aidatını zaten ödediniz.'
+  aile-dolu: '&cAileniz dolu! (En fazla {max} üye)'
+  aile-yok: '&cBöyle bir aile bulunamadı.'
+  ailede-degil: '&cBir ailede değilsiniz.'
+  atildin: '&c{aile} ailesinden atıldınız. &7({atan})'
+  ayril-dagilma-uyari: '&cAilenizde yardımcı olmadığı için ayrılırsanız aile DAĞILIR ve kasa üyelere bölünür. Onaylamak için: &e/aile ayril onayla'
+  ayrildin: '&e{aile} ailesinden ayrıldınız.'
+  ayrilma-bekleme: '&cAileden ayrıldığınız için {sure} boyunca yeni bir aileye giremezsiniz.'
+  banka-yetersiz: '&cBanka hesabınızda yeterli bakiye yok.'
+  bilgi-baslik: '&6&l--- {aile} ---'
+  bilgi-kasa: '&7Kasa: &a{kasa}'
+  bilgi-koruma: '&7Yeni aile koruması: &b{sure} &7(savaşa girilemez)'
+  bilgi-kurulus: '&7Kuruluş: &f{tarih}'
+  bilgi-patron: '&7Patron: &6{patron}'
+  bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
+  cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/aile aidat ode&c.'
+  cek-limit: '&cGünlük çekim limitiniz doldu. Bugün en fazla {kalan} daha çekebilirsiniz.'
+  cek-yetki-yok: '&cÜyeler kasadan para çekemez, sadece yatırabilir.'
+  cekildi: '&a{miktar} kasadan banka hesabınıza aktarıldı. Kasa: &e{kasa}'
+  dagildi: '&c{aile} ailesi dağıldı. &7({sebep})'
+  dagildi-admin: 'Yönetim tarafından dağıtıldı'
+  dagildi-patron: 'Patron aileyi dağıttı'
+  dagildi-patron-ayrildi: 'Patron aileden ayrıldı'
+  dagilma-payi: '&eAile kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.'
+  dagit-uyari: '&cAileyi dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/aile dagit onayla'
+  davet-alindi: '&e{oyuncu} &7sizi &6{aile} &7ailesine davet etti. '
+  davet-buton: '&a&l[KATIL]'
+  davet-buton-ipucu: '&7{aile} ailesine katıl'
+  davet-gonderildi: '&a{oyuncu} adlı oyuncuya aile daveti gönderildi.'
+  davet-yok: '&cBu aileden geçerli bir davetiniz yok.'
+  gecersiz-miktar: '&cGeçerli bir miktar yazın.'
+  gecersiz-sayi: '&cGeçerli bir sayı yazın.'
+  hedef-ailede: '&c{oyuncu} zaten bir ailede.'
+  indir-olmaz: '&cSadece Yardımcılar Üye''ye indirilebilir.'
+  indirildi: '&e{oyuncu} artık Üye.'
+  isim-alinmis: '&cBu isimde bir aile zaten var.'
+  isim-karakter: '&cAile adında boşluk ve özel karakter olamaz (harf, rakam ve _ kullanın).'
+  isim-uzunluk: '&cAile adı {min}-{max} karakter olmalı.'
+  isim-yasakli: '&cBu aile adı uygunsuz bir ifade içeriyor.'
+  kasa-ust-sinir: '&cKasa üst sınırı {sinir}. En fazla {bosluk} yatırabilirsiniz.'
+  kasa-yetersiz: '&cKasada yeterli para yok. Kasa: {kasa}'
+  katildi: '&a{oyuncu} aileye katıldı!'
+  katilma-dolu: '&cBu aile dolu.'
+  kendini-atamaz: '&cKendinizi atamazsınız, /aile ayril kullanın.'
+  kidem-ayarlandi: '&aKıdem sırası güncellendi: &e{liste}'
+  kidem-sadece-yardimci: '&cKıdem sadece Yardımcılara verilir.'
+  kullanim: '&cKullanım: &e{kullanim}'
+  kurma-bakiye: '&cAile kurmak için banka hesabınızda {ucret} olmalı.'
+  kuruldu: '&a{aile} ailesi kuruldu! Artık ailenin &6Patronu&a sizsiniz. ({ucret} bankanızdan çekildi)'
+  kuruldu-duyuru: '&e{oyuncu} &7yeni bir aile kurdu: &6{aile}'
+  liste-baslik: '&6&l--- AİLELER ({sayfa}/{toplam}) ---'
+  liste-bos: '&7Henüz hiç aile kurulmadı.'
+  liste-satir: '&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye'
+  liste-sonraki: '&7Sonraki sayfa: &e/aile liste {sayfa}'
+  menu-ana-baslik: '&6&l{aile} &8| &7Aile Menüsü'
+  menu-kasa-baslik: '&6&l{aile} &8| &7Kasa'
+  menu-uyeler-baslik: '&6&l{aile} &8| &7Üyeler'
+  oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
+  patron-devri: '&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}'
+  sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
+  sadece-patron: '&cBunu sadece aile Patronu yapabilir.'
+  sohbet-acildi: '&aAile sohbeti açıldı. Mesajlarınız sadece ailenize gidiyor. Kapatmak için tekrar &e/aile sohbet'
+  sohbet-format: '&8[&6{aile}&8] {rol}&r {oyuncu}&7: &f{mesaj}'
+  sohbet-kapandi: '&eAile sohbeti kapatıldı. Mesajlarınız genel sohbete gidiyor.'
+  terfi-edildi: '&a{oyuncu} &eYardımcı&a oldu! (Kıdem sırası: {kidem})'
+  terfi-olmaz: '&cSadece Üye rolündekiler Yardımcı yapılabilir.'
+  uye-atildi: '&c{oyuncu} aileden atıldı. &7({atan})'
+  uye-ayrildi: '&e{oyuncu} aileden ayrıldı.'
+  uye-bulunamadi: '&cAilenizde bu isimde bir üye yok.'
+  yardim-baslik: '&6&l--- AİLE KOMUTLARI ---'
+  yatirildi: '&a{miktar} aile kasasına yatırıldı. Kasa: &e{kasa}'
+  yetki-yok: '&cBu işlem için yetkiniz yok.'
+  zaten-ailede: '&cZaten bir ailedesiniz.'
