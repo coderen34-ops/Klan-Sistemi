@@ -194,7 +194,31 @@ public class KasaBagliKurallar implements Listener {
         boolean degisti = envanteriDogrula(p, p.getInventory(), oyuncuKlani, goruldu, true);
         // Ender sandığına konmuş olamaz; varsa (eski sürüm vb.) kasaya iade edilir
         degisti |= envanteriDogrula(p, p.getEnderChest(), oyuncuKlani, goruldu, false);
+        // Ticari eşyalar serbesttir; sadece sahte / silinmiş / aynı oyuncuda kopya olanlar kaldırılır
+        Set<String> ticariGoruldu = new HashSet<>();
+        degisti |= ticariDogrula(p, p.getInventory(), ticariGoruldu);
+        degisti |= ticariDogrula(p, p.getEnderChest(), ticariGoruldu);
         if (degisti) p.updateInventory();
+    }
+
+    private boolean ticariDogrula(Player p, Inventory inv, Set<String> goruldu) {
+        boolean degisti = false;
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack item = inv.getItem(i);
+            if (item == null || esya().katman(item) != BuyuEsyasi.Katman.TICARI) continue;
+            String kod = esya().kisaKod(item);
+            KayitDefteri.Kayit kayit = defter().get(kod);
+            String sebep = null;
+            if (kayit == null || !kayit.uuid.toString().equals(esya().uuidMetni(item))) sebep = "Kayıtsız / sahte";
+            else if (kayit.durum == KayitDefteri.Durum.SILINDI) sebep = "Kayıt silinmiş: " + (kayit.not != null ? kayit.not : "-");
+            else if (!goruldu.add(kod)) sebep = "Kopya (aynı kimlik iki kez)";
+            if (sebep == null) { esya().loreYenile(item); continue; }
+            inv.setItem(i, null);
+            degisti = true;
+            plugin.log().yaz(kayit != null ? plugin.klanManager().klanGetir(kayit.kaynakKlan) : null, p.getName(), "BUYU_SILINDI", kod + " | " + sebep);
+            m().gonder(p, "buyu-silindi", "&c{kod} kimlikli eşya geçersiz olduğu için kaldırıldı. &7({sebep})", "kod", kod, "sebep", sebep);
+        }
+        return degisti;
     }
 
     private boolean envanteriDogrula(Player p, Inventory inv, Klan oyuncuKlani, Set<String> goruldu, boolean kullanilabilir) {

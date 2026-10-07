@@ -93,6 +93,15 @@ buyu:
   atolye:
     gunluk-klan-kota: 5          # Klanın günde üretebileceği toplam eşya
     gunluk-uye-kota: 2           # Bir üyenin günde üretebileceği eşya
+  # Ticari katman: Büyü Ustası (/klan buyu ya da NPC) ile dışarıya büyü satışı
+  ticari:
+    disariya-hizmet: false       # true olunca Büyü Ustası açılır
+    fiyat-min: 5000              # Liderin belirleyebileceği büyü fiyatı aralığı
+    fiyat-max: 100000
+    vergi-yuzde: 10              # Satış ücretinin bu kadarı sunucudan çıkar, kalanı klan kasasına girer
+    gunluk-klan-satis-kota: 10   # Bir klanın günde satabileceği büyü
+    gunluk-alici-sinir: 2        # Bir oyuncunun aynı klandan günde alabileceği büyü
+    ayni-ip-uyari: true          # Satıcı klan üyesiyle aynı IP'den alımda log ve admin uyarısı
   alanlar:
     KAZMA:
       aktif: true
@@ -219,7 +228,6 @@ yasakli-kelimeler:
 
 # Mesajlar (& renk kodları kullanılabilir, {...} yer tutucuları otomatik doldurulur)
 mesajlar:
-  onek: '&8[&6Klan&8] &r'
   admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
   admin-kasa-duzeltildi: '&a{klan} kasası {eski} -> {yeni} olarak düzeltildi.'
   admin-yenilendi: '&aKlan ayarları yeniden yüklendi.'
@@ -286,19 +294,39 @@ mesajlar:
   buyu-creative: '&cKlan eşyaları yaratıcı modda kullanılamaz.'
   buyu-envanter-dolu: '&cEnvanterinizde yer yok.'
   buyu-esya-uygun-degil: '&cBu eşya {alan} alanına uygun değil.'
+  buyu-fiyat-aralik: '&cFiyat {min} ile {max} arasında olmalı.'
+  buyu-fiyat-ayarlandi: '&a{buyu} fiyatı {fiyat} olarak ayarlandı.'
+  buyu-fiyat-gecersiz-buyu: '&cKlanınız bu büyüyü satamaz. Satılabilir: &e{liste}'
+  buyu-fiyat-lider: '&cBüyü fiyatlarını sadece klan lideri belirleyebilir.'
+  buyu-fiyat-silindi: '&e{buyu} artık satılmıyor.'
+  buyu-fiyatlar-baslik: '&6--- Büyü Fiyatları &7(bugün {satis}/{kota} satış) &6---'
+  buyu-fiyatlar-satir: '&e{buyu}&7: {fiyat}'
   buyu-ganimet-alindi: '&c{kod} kimlikli klan eşyası savaş ganimeti olarak alındı.'
   buyu-ganimet-kaybeden: '&c{sayi} büyülü eşyanız {klan} klanına geçti.'
   buyu-ganimet-kazanan: '&6{sayi} büyülü eşya ele geçirildi ve klan kasasına kondu!'
   buyu-gecersiz: '&cBu eşyanın kaydı geçersiz, kullanılamaz. Yetkililere bildirin.'
+  buyu-gecmis-baslik: '&6--- Son Büyü Satışları ---'
+  buyu-gecmis-bos: '&7Henüz büyü satışı yok.'
+  buyu-gecmis-satir: '&8{tarih} &e{alici} &7- {buyu} {seviye} &a{fiyat} &8(ID: {kod})'
+  buyu-hizmet-kapali: '&cBüyü Ustası şu an hizmet vermiyor (sunucu ayarı).'
   buyu-iade: '&e{kod} kimlikli klan eşyası sahibi klanın kasasına iade edildi.'
   buyu-kasa-dolu: '&c{klan} klanının eşya kasası dolu.'
   buyu-kasa-islem: '&cKlan eşyalarını kasadan sadece tıklayarak ya da Shift ile alıp koyabilirsiniz.'
   buyu-kasa-yabanci: '&cBu eşya klanınıza ait değil, kasaya konamaz.'
   buyu-kayit-yok: '&cBu kimlikte bir kayıt yok.'
+  buyu-npc-isim: '&5&lBüyü Ustası'
+  buyu-npc-kuruldu: '&aBüyü Ustası NPC''si kuruldu.'
+  buyu-npc-silindi: '&e{sayi} Büyü Ustası NPC''si silindi.'
   buyu-odunc-limit: '&cAynı anda en fazla {max} klan eşyası taşıyabilirsiniz.'
   buyu-olum-iade: '&e{sayi} klan eşyanız öldüğünüz için klan kasasına geri döndü.'
+  buyu-para-yok: '&cBanka hesabınızda yeterli para yok. Gereken: {fiyat}'
+  buyu-satin-alinamaz: '&cSatın alınamaz: {sebep}'
+  buyu-satin-alindi: '&a{buyu} {seviye} eşyanıza basıldı. &7({fiyat}, ID: {kod})'
+  buyu-satis-klana: '&6{oyuncu} klanımızdan {buyu} {seviye} aldı. Kasaya {miktar} girdi.'
+  buyu-satista-degil: '&cBu büyü artık satılmıyor.'
   buyu-savas-oncesi: '&eSavaş öncesi üyelerdeki {sayi} klan eşyası kasaya geri alındı.'
   buyu-silindi: '&c{kod} kimlikli eşya geçersiz olduğu için kaldırıldı. &7({sebep})'
+  buyu-supheli-satis: '&c[Büyü] Şüpheli satış: &e{oyuncu} &7<- &6{klan} &7(ID: {kod}): {sebep}'
   buyu-tasima-yasak: '&cKlan eşyaları sadece klan kasasında saklanabilir, başka bir yere konamaz.'
   buyu-uretildi-admin: '&a{klan} kasasına test eşyası üretildi: &e{kod} &7({esya})'
   cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/klan aidat ode&c.'
@@ -382,11 +410,14 @@ mesajlar:
   liste-sonraki: '&7Sonraki sayfa: &e/klan liste {sayfa}'
   menu-ana-baslik: '&6&l{klan} &8| &7Klan Menüsü'
   menu-atolye-baslik: '&6&l{klan} &8| &7Atölye'
+  menu-buyu-klan-baslik: '&5&lBüyü Ustası &8| &6{klan}'
+  menu-buyu-ustasi-baslik: '&5&lBüyü Ustası &8| &7Klan Seç'
   menu-esya-baslik: '&6&l{klan} &8| &7Eşya Kasası {sayfa}'
   menu-kasa-baslik: '&6&l{klan} &8| &7Kasa'
   menu-panel-baslik: '&4&lDiplomasi Paneli &8| &7{sekme}'
   menu-panel-detay-baslik: '&4&lDiplomasi &8| &6{klan}'
   menu-uyeler-baslik: '&6&l{klan} &8| &7Üyeler'
+  onek: '&8[&6Klan&8] &r'
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
   panel-yetki-yok: '&cDiplomasi Paneline sadece klan Lideri girebilir.'
   prestij-baslik: '&6&l--- KLAN PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'

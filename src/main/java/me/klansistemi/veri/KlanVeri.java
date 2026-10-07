@@ -108,6 +108,23 @@ public class KlanVeri {
             y.set(yol + ".uzmanliklar", new ArrayList<>(a.uzmanliklar));
             y.set(yol + ".atolye-gun", a.atolyeGun);
             y.set(yol + ".atolye-sayi", a.atolyeSayi);
+            for (Map.Entry<String, Double> e : a.buyuFiyatlari.entrySet()) y.set(yol + ".buyu-fiyatlari." + e.getKey(), e.getValue());
+            y.set(yol + ".satis-gun", a.satisGun);
+            y.set(yol + ".satis-sayi", a.satisSayi);
+            List<Map<String, Object>> satislar = new ArrayList<>();
+            for (Klan.SatisKaydi k : a.satislar) {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("zaman", k.zaman);
+                m.put("alici", k.alici.toString());
+                m.put("alici-adi", k.aliciAdi);
+                m.put("buyu", k.buyu);
+                m.put("seviye", k.seviye);
+                m.put("esya", k.esyaKodu);
+                m.put("fiyat", k.fiyat);
+                m.put("vergi", k.vergi);
+                satislar.add(m);
+            }
+            y.set(yol + ".satislar", satislar);
             for (Map.Entry<UUID, Integer> e : a.prestijRakip.entrySet()) y.set(yol + ".prestij-rakip." + e.getKey(), e.getValue());
             List<List<String>> esya = plugin.esya().kayitVerisi(a.id);
             for (int s = 0; s < esya.size(); s++) y.set(yol + ".esya-kasasi." + s, esya.get(s));
@@ -212,6 +229,17 @@ public class KlanVeri {
                     a.uzmanliklar.addAll(c.getStringList("uzmanliklar"));
                     a.atolyeGun = c.getLong("atolye-gun");
                     a.atolyeSayi = c.getInt("atolye-sayi");
+                    ConfigurationSection fiyat = c.getConfigurationSection("buyu-fiyatlari");
+                    if (fiyat != null) for (String b : fiyat.getKeys(false)) a.buyuFiyatlari.put(b, fiyat.getDouble(b));
+                    a.satisGun = c.getLong("satis-gun");
+                    a.satisSayi = c.getInt("satis-sayi");
+                    for (Map<?, ?> m : c.getMapList("satislar")) {
+                        try {
+                            a.satislar.add(new Klan.SatisKaydi(((Number) m.get("zaman")).longValue(), UUID.fromString(String.valueOf(m.get("alici"))),
+                                    String.valueOf(m.get("alici-adi")), String.valueOf(m.get("buyu")), ((Number) m.get("seviye")).intValue(),
+                                    String.valueOf(m.get("esya")), ((Number) m.get("fiyat")).doubleValue(), ((Number) m.get("vergi")).doubleValue()));
+                        } catch (Exception ignored) {}
+                    }
                     ConfigurationSection pr = c.getConfigurationSection("prestij-rakip");
                     if (pr != null) for (String k : pr.getKeys(false)) {
                         try { a.prestijRakip.put(UUID.fromString(k), pr.getInt(k)); } catch (Exception ignored) {}

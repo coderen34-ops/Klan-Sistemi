@@ -28,6 +28,31 @@ public class Klan {
     public long atolyeGun;
     public int atolyeSayi;
 
+    // Ticari büyü satışı (Büyü Ustası): büyü adı (örn. efficiency) -> fiyat, günlük satış sayacı ve geçmiş
+    public final Map<String, Double> buyuFiyatlari = new java.util.LinkedHashMap<>();
+    public long satisGun;
+    public int satisSayi;
+    public final java.util.List<SatisKaydi> satislar = new java.util.ArrayList<>(); // En yenisi başta
+
+    public static class SatisKaydi {
+        public final long zaman;
+        public final UUID alici;
+        public final String aliciAdi, buyu, esyaKodu;
+        public final int seviye;
+        public final double fiyat, vergi;
+
+        public SatisKaydi(long zaman, UUID alici, String aliciAdi, String buyu, int seviye, String esyaKodu, double fiyat, double vergi) {
+            this.zaman = zaman;
+            this.alici = alici;
+            this.aliciAdi = aliciAdi;
+            this.buyu = buyu;
+            this.seviye = seviye;
+            this.esyaKodu = esyaKodu;
+            this.fiyat = fiyat;
+            this.vergi = vergi;
+        }
+    }
+
     public Klan(UUID id, String isim, long kurulus) {
         this.id = id;
         this.isim = isim;

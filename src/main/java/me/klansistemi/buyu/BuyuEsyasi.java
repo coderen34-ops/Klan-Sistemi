@@ -121,18 +121,30 @@ public class BuyuEsyasi {
             // Eşyaya uygun olmayan büyü (örn. kazmaya Keskinlik) basılmaz
             if (e.getKey().canEnchantItem(item)) item.addUnsafeEnchantment(e.getKey(), e.getValue());
         }
+        kimlikYaz(item, alan.kod, katman, klanId, klanAdi, kisaKod, uuid, tarih);
+        return item;
+    }
+
+    /** Var olan bir eşyaya büyü kimliğini yazar (ticari satışta alıcının kendi eşyası için). */
+    public void kimlikYaz(ItemStack item, String alanKod, Katman katman, UUID klanId, String klanAdi, String kisaKod, UUID uuid, long tarih) {
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(idKey, PersistentDataType.STRING, kisaKod);
         pdc.set(uuidKey, PersistentDataType.STRING, uuid.toString());
         pdc.set(klanKey, PersistentDataType.STRING, klanId.toString());
         pdc.set(klanAdiKey, PersistentDataType.STRING, klanAdi);
-        pdc.set(alanKey, PersistentDataType.STRING, alan.kod);
+        pdc.set(alanKey, PersistentDataType.STRING, alanKod);
         pdc.set(katmanKey, PersistentDataType.STRING, katman.name());
         pdc.set(tarihKey, PersistentDataType.LONG, tarih);
         item.setItemMeta(meta);
         loreYenile(item);
-        return item;
+    }
+
+    /** Eşyanın kaynak klanı (kimliği yoksa null). */
+    public UUID kaynakKlan(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        String k = item.getItemMeta().getPersistentDataContainer().get(klanKey, PersistentDataType.STRING);
+        return k == null ? null : UUID.fromString(k);
     }
 
     // ------------------------------------------------------------------ OKUMA

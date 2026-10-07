@@ -66,3 +66,17 @@ Denemeden önce `plugins/` klasörünün yedeğini al.
 - [ ] Kaybeden tarafta ödünçteki büyülü eşya: çevrimiçiyse anında alınıyor, çevrimdışıysa girişte kayboluyor
 - [ ] Arenada ganimet olarak alınan eşya kazananın kasasına asıl seviyesiyle (düşürülmemiş) giriyor
 - [ ] Savaş sırasında sunucu kapanırsa / oyuncu çıkarsa girişte büyü seviyeleri geri yükleniyor
+
+### Büyü Ustası (ticari katman)
+- [ ] config'te `buyu.ticari.disariya-hizmet: true` yap → `/klan admin yenile`; kapalıyken `/klan buyu` "hizmet vermiyor" diyor
+- [ ] Lider: `/klan buyu fiyat efficiency 20000` (5.000-100.000 dışı reddediliyor), `/klan buyu fiyatlar`, `fiyat <büyü> sil`
+- [ ] `/klan buyu` ve `/klan admin buyu npc kur|sil` ile Büyü Ustası NPC'si: klan listesinde sadece fiyat koymuş, savaşta olmayan klanlar
+- [ ] Başka klandan oyuncu elinde kazmayla büyü alıyor: bankadan para düşüyor, klan kasasına %90 giriyor, Efficiency 5 basılıyor
+- [ ] Lore: "Büyü Kaynağı: <Klan> | Ticari | ID: ..."; eşya sandığa konabiliyor, takas edilebiliyor, yere atılabiliyor
+- [ ] Aynı eşyaya aynı klandan ikinci büyü (fortune) eklenebiliyor, ID değişmiyor; başka klan eklemiyor; klan eşyasına satış yok
+- [ ] Çakışan büyü (örn. Silk Touch varken Fortune) ve zaten olan seviye reddediliyor
+- [ ] Kotalar: klan günde 10 satış, bir alıcı aynı klandan günde 2
+- [ ] Klan üyesi kendi klanından alınca ya da aynı IP'den alımda adminlere uyarı + log
+- [ ] Diplomasi Paneli → "Büyü Satışları" sekmesi ve `/klan buyu gecmis`
+- [ ] Ticari eşya örs/taş çarkı/büyü masasında birleştirilemiyor; arenada vanilla seviyesine iniyor
+- [ ] Ticari eşya kopyalanınca (aynı oyuncuda iki tane) fazlası siliniyor; kırılınca defterde SILINDI

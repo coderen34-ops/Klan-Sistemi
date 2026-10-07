@@ -26,7 +26,7 @@ public class KlanKomut implements TabExecutor {
 
     private static final List<String> ALT_KOMUTLAR = List.of(
             "kur", "davet", "katil", "ayril", "at", "bilgi", "liste", "yatir", "cek", "kasa",
-            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "uzmanlik", "atolye", "ganimet", "yardim");
+            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "uzmanlik", "atolye", "buyu", "ganimet", "yardim");
     private static final int LISTE_SAYFA = 10;
 
     private final KlanSistemi plugin;
@@ -113,6 +113,7 @@ public class KlanKomut implements TabExecutor {
             case "ganimet" -> plugin.esya().bekleyenleriVer(p);
             case "savas" -> savas(p, args);
             case "atolye" -> plugin.atolye().ac(p);
+            case "buyu" -> plugin.buyuUstasi().komut(p, args);
             case "uzmanlik" -> {
                 String islem = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "liste";
                 switch (islem) {
@@ -259,7 +260,8 @@ public class KlanKomut implements TabExecutor {
             case "buyu" -> {
                 if (args.length >= 5 && args[2].equalsIgnoreCase("uret")) plugin.uzmanlik().adminUret(s, args[3], args[4], args.length > 5 ? args[5] : null);
                 else if (args.length >= 4 && args[2].equalsIgnoreCase("defter")) plugin.uzmanlik().adminDefter(s, args[3]);
-                else kullanim(s, "/klan admin buyu <uret <klan> <alan> [eşya] | defter <kod>>");
+                else if (args.length >= 4 && args[2].equalsIgnoreCase("npc")) plugin.buyuUstasi().npcKomut(s, args[3]);
+                else kullanim(s, "/klan admin buyu <uret <klan> <alan> [eşya] | defter <kod> | npc <kur|sil>>");
             }
             case "savas" -> {
                 if (args.length < 4 || !args[2].equalsIgnoreCase("bitir")) { kullanim(s, "/klan admin savas bitir <klan>"); return; }
@@ -287,7 +289,7 @@ public class KlanKomut implements TabExecutor {
                 {"iliski <klan> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Lider)"}, {"iliski liste", "İlişkilerimiz"},
                 {"savas teklif <klan>", "Düello teklif et (Lider, husumet şart)"}, {"savas <kabul|red> [klan]", "Teklifi yanıtla (Lider)"},
                 {"savas katil", "Hazırlıktaki savaşa katıl"}, {"savas birak", "Savaştan ayrıl"}, {"savas", "Savaş durumu"},
-                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"uzmanlik <liste|al|birak>", "Büyü alanları (Lider)"}, {"atolye", "Büyülü eşya üretimi (klan kasasından)"}, {"ganimet", "Bekleyen eşyalarını al"}};
+                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"uzmanlik <liste|al|birak>", "Büyü alanları (Lider)"}, {"atolye", "Büyülü eşya üretimi (klan kasasından)"}, {"buyu [fiyat|fiyatlar|gecmis]", "Büyü Ustası (ticari büyü satışı)"}, {"ganimet", "Bekleyen eşyalarını al"}};
         for (String[] satir : satirlar) {
             s.sendMessage(Mesaj.renk("&e/klan " + satir[0] + " &7- " + satir[1].replace("{ucret}", Para.yaz(plugin.ayar().kurmaUcreti()))));
         }
@@ -331,6 +333,7 @@ public class KlanKomut implements TabExecutor {
                     case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
                     case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "guvenli", "buyu", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
                     case "uzmanlik" -> oneriler.addAll(List.of("liste", "al", "birak"));
+                    case "buyu" -> oneriler.addAll(List.of("fiyat", "fiyatlar", "gecmis"));
                     case "savas" -> oneriler.addAll(List.of("teklif", "kabul", "red", "katil", "birak", "durum"));
                     default -> { }
                 }
@@ -342,7 +345,9 @@ public class KlanKomut implements TabExecutor {
                 } else if (alt.equals("uzmanlik") && (args[1].equalsIgnoreCase("al") || args[1].equalsIgnoreCase("birak"))) {
                     oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu")) {
-                    oneriler.addAll(List.of("uret", "defter"));
+                    oneriler.addAll(List.of("uret", "defter", "npc"));
+                } else if (alt.equals("buyu") && args[1].equalsIgnoreCase("fiyat")) {
+                    oneriler.addAll(plugin.buyuUstasi().tumBuyuAdlari());
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("guvenli")) {
                     oneriler.addAll(List.of("merkez", "kur", "sil", "pos1", "pos2", "liste"));
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("savas")) {
@@ -360,6 +365,7 @@ public class KlanKomut implements TabExecutor {
                 else if (args[1].equalsIgnoreCase("arena") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.arenalar().isimler());
                 else if (args[1].equalsIgnoreCase("guvenli") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.guvenliBolgeler().isimler());
                 else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) am().klanlar().forEach(x -> oneriler.add(x.isim));
+                else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("npc")) oneriler.addAll(List.of("kur", "sil"));
             } else if (args.length == 5 && alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) {
                 oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
             }

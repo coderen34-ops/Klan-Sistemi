@@ -43,6 +43,7 @@ public class KlanSistemi extends JavaPlugin {
     private me.klansistemi.buyu.KasaBagliKurallar buyuKurallari;
     private me.klansistemi.buyu.Atolye atolye;
     private me.klansistemi.buyu.BuyuSavas buyuSavas;
+    private me.klansistemi.buyu.BuyuUstasi buyuUstasi;
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
     private SavasManager savasManager;
@@ -84,6 +85,7 @@ public class KlanSistemi extends JavaPlugin {
         buyuKurallari = new me.klansistemi.buyu.KasaBagliKurallar(this);
         atolye = new me.klansistemi.buyu.Atolye(this);
         buyuSavas = new me.klansistemi.buyu.BuyuSavas(this);
+        buyuUstasi = new me.klansistemi.buyu.BuyuUstasi(this);
         arenaManager = new ArenaManager(this);
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
@@ -111,6 +113,7 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(prestijManager, this);
         getServer().getPluginManager().registerEvents(buyuKurallari, this);
         getServer().getPluginManager().registerEvents(atolye, this);
+        getServer().getPluginManager().registerEvents(buyuUstasi, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
@@ -214,6 +217,7 @@ public class KlanSistemi extends JavaPlugin {
     public me.klansistemi.buyu.KasaBagliKurallar buyuKurallari() { return buyuKurallari; }
     public me.klansistemi.buyu.Atolye atolye() { return atolye; }
     public me.klansistemi.buyu.BuyuSavas buyuSavas() { return buyuSavas; }
+    public me.klansistemi.buyu.BuyuUstasi buyuUstasi() { return buyuUstasi; }
     public DiplomasiPanel panel() { return panel; }
 
     public ArenaManager arenalar() { return arenaManager; }
