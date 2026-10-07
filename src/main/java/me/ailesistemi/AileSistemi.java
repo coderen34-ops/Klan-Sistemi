@@ -14,6 +14,8 @@ import me.ailesistemi.gui.DiplomasiPanel;
 import me.ailesistemi.model.Aile;
 import me.ailesistemi.savas.ArenaManager;
 import me.ailesistemi.savas.SavasManager;
+import me.ailesistemi.savas.GuvenliBolgeManager;
+import me.ailesistemi.savas.PrestijManager;
 import me.ailesistemi.komut.AcKomut;
 import me.ailesistemi.komut.AileKomut;
 import me.ailesistemi.veri.AileVeri;
@@ -38,6 +40,8 @@ public class AileSistemi extends JavaPlugin {
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
     private SavasManager savasManager;
+    private GuvenliBolgeManager guvenliBolgeler;
+    private PrestijManager prestijManager;
 
     @Override
     public void onEnable() {
@@ -69,6 +73,8 @@ public class AileSistemi extends JavaPlugin {
         esya = new EsyaKasasi(this);
         arenaManager = new ArenaManager(this);
         savasManager = new SavasManager(this);
+        guvenliBolgeler = new GuvenliBolgeManager(this);
+        prestijManager = new PrestijManager(this);
         veri = new AileVeri(this);
         veri.yukle();
         menu = new AileMenu(this);
@@ -89,6 +95,7 @@ public class AileSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(esya, this);
         getServer().getPluginManager().registerEvents(iliski, this);
         getServer().getPluginManager().registerEvents(savasManager, this);
+        getServer().getPluginManager().registerEvents(prestijManager, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
@@ -143,6 +150,8 @@ public class AileSistemi extends JavaPlugin {
 
     public ArenaManager arenalar() { return arenaManager; }
     public SavasManager savas() { return savasManager; }
+    public GuvenliBolgeManager guvenliBolgeler() { return guvenliBolgeler; }
+    public PrestijManager prestij() { return prestijManager; }
 
     /** Savaş kabul edildiği andan bitene kadar ailenin kasası kilitlidir. */
     public boolean kasaKilitliMi(Aile aile) {

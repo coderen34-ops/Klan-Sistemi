@@ -17,6 +17,11 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
+        <!-- GriefPrevention3D (claim içleri prestij için güvenli bölge sayılır) -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -31,6 +36,12 @@
             <groupId>me.mesleksistemi</groupId>
             <artifactId>MeslekSistemi</artifactId>
             <version>1.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.castledking</groupId>
+            <artifactId>GriefPrevention3D</artifactId>
+            <version>18.4.8</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

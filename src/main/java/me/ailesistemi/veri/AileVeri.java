@@ -104,6 +104,8 @@ public class AileVeri {
             y.set(yol + ".aidat-miktari", a.aidatMiktari);
             y.set(yol + ".aidat-baslangic", a.aidatBaslangic);
             y.set(yol + ".toplam-aidat", a.toplamAidat);
+            y.set(yol + ".prestij", a.prestij);
+            for (Map.Entry<UUID, Integer> e : a.prestijRakip.entrySet()) y.set(yol + ".prestij-rakip." + e.getKey(), e.getValue());
             List<List<String>> esya = plugin.esya().kayitVerisi(a.id);
             for (int s = 0; s < esya.size(); s++) y.set(yol + ".esya-kasasi." + s, esya.get(s));
             for (AileUyesi u : a.uyeler.values()) {
@@ -200,6 +202,11 @@ public class AileVeri {
                     a.aidatMiktari = c.getDouble("aidat-miktari");
                     a.aidatBaslangic = c.getLong("aidat-baslangic");
                     a.toplamAidat = c.getDouble("toplam-aidat");
+                    a.prestij = c.getInt("prestij");
+                    ConfigurationSection pr = c.getConfigurationSection("prestij-rakip");
+                    if (pr != null) for (String k : pr.getKeys(false)) {
+                        try { a.prestijRakip.put(UUID.fromString(k), pr.getInt(k)); } catch (Exception ignored) {}
+                    }
                     ConfigurationSection uyeler = c.getConfigurationSection("uyeler");
                     if (uyeler != null) {
                         for (String uStr : uyeler.getKeys(false)) {

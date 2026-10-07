@@ -495,6 +495,7 @@ public class AileManager {
         a.kasa = 0;
         aileler.remove(a.id);
         isimIndeksi.remove(anahtar(a.isim));
+        for (Aile diger : aileler.values()) diger.prestijRakip.remove(a.id);
         for (Map<UUID, Long> d : davetler.values()) d.remove(a.id);
         plugin.log().yaz(a, "-", "AILE_DAGILDI", sebep);
     }

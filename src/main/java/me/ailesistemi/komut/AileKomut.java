@@ -26,7 +26,7 @@ public class AileKomut implements TabExecutor {
 
     private static final List<String> ALT_KOMUTLAR = List.of(
             "kur", "davet", "katil", "ayril", "at", "bilgi", "liste", "yatir", "cek", "kasa",
-            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "ganimet", "yardim");
+            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "ganimet", "yardim");
     private static final int LISTE_SAYFA = 10;
 
     private final AileSistemi plugin;
@@ -112,6 +112,7 @@ public class AileKomut implements TabExecutor {
             case "iliski" -> iliski(p, args);
             case "ganimet" -> plugin.esya().bekleyenleriVer(p);
             case "savas" -> savas(p, args);
+            case "prestij", "top" -> plugin.prestij().siralama(p, args.length > 1 ? sayi(args[1], 1) : 1);
             default -> yardim(p);
         }
         return true;
@@ -186,6 +187,7 @@ public class AileKomut implements TabExecutor {
         p.sendMessage(m().metin("bilgi-patron", "&7Patron: &6{patron}", "patron", patron != null ? patron.isim : "-"));
         p.sendMessage(m().metin("bilgi-kurulus", "&7Kuruluş: &f{tarih}", "tarih", Zaman.tarih(a.kurulus)));
         p.sendMessage(m().metin("bilgi-uye-sayisi", "&7Üyeler: &f{sayi}/{max}", "sayi", a.uyeler.size(), "max", plugin.ayar().maxUye()));
+        p.sendMessage(m().metin("bilgi-prestij", "&7Prestij: &a{prestij} &7({sira}. sırada)", "prestij", a.prestij, "sira", plugin.prestij().sira(a)));
         StringBuilder sb = new StringBuilder();
         for (AileUyesi u : a.siraliUyeler()) {
             boolean cevrimici = Bukkit.getPlayer(u.uuid) != null;
@@ -207,15 +209,15 @@ public class AileKomut implements TabExecutor {
         for (int i = (sayfa - 1) * LISTE_SAYFA; i < Math.min(liste.size(), sayfa * LISTE_SAYFA); i++) {
             Aile a = liste.get(i);
             AileUyesi patron = a.patron();
-            p.sendMessage(m().metin("liste-satir", "&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye",
-                    "sira", i + 1, "aile", a.isim, "patron", patron != null ? patron.isim : "-", "uye", a.uyeler.size()));
+            p.sendMessage(m().metin("liste-satir", "&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye &7- &a{prestij} prestij",
+                    "sira", i + 1, "aile", a.isim, "patron", patron != null ? patron.isim : "-", "uye", a.uyeler.size(), "prestij", a.prestij));
         }
         if (sayfa < sayfaSayisi) p.sendMessage(m().metin("liste-sonraki", "&7Sonraki sayfa: &e/aile liste {sayfa}", "sayfa", sayfa + 1));
     }
 
     private void admin(CommandSender s, String[] args) {
         if (!s.hasPermission("aile.admin")) { m().gonder(s, "yetki-yok", "&cBu işlem için yetkiniz yok."); return; }
-        if (args.length < 2) { kullanim(s, "/aile admin <arena|savas bitir|kasa duzelt|dagit|etiketyenile|yenile>"); return; }
+        if (args.length < 2) { kullanim(s, "/aile admin <arena|guvenli|savas bitir|kasa duzelt|dagit|etiketyenile|yenile>"); return; }
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "kasa" -> {
                 if (args.length < 5 || !args[2].equalsIgnoreCase("duzelt")) { kullanim(s, "/aile admin kasa duzelt <aile> <miktar>"); return; }
@@ -240,6 +242,7 @@ public class AileKomut implements TabExecutor {
                 else m().gonder(s, "etiket-yenilendi", "&a{sayi} oyuncunun aile etiketi yeniden uygulandı.", "sayi", sayi);
             }
             case "arena" -> plugin.arenalar().komut(s, args);
+            case "guvenli" -> plugin.guvenliBolgeler().komut(s, args);
             case "savas" -> {
                 if (args.length < 4 || !args[2].equalsIgnoreCase("bitir")) { kullanim(s, "/aile admin savas bitir <aile>"); return; }
                 Aile a = am().aileBul(args[3]);
@@ -250,7 +253,7 @@ public class AileKomut implements TabExecutor {
                 plugin.reloadConfig();
                 m().gonder(s, "admin-yenilendi", "&aAile ayarları yeniden yüklendi.");
             }
-            default -> kullanim(s, "/aile admin <arena|savas bitir|kasa duzelt|dagit|etiketyenile|yenile>");
+            default -> kullanim(s, "/aile admin <arena|guvenli|savas bitir|kasa duzelt|dagit|etiketyenile|yenile>");
         }
     }
 
@@ -266,7 +269,7 @@ public class AileKomut implements TabExecutor {
                 {"iliski <aile> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Patron)"}, {"iliski liste", "İlişkilerimiz"},
                 {"savas teklif <aile>", "Düello teklif et (Patron, husumet şart)"}, {"savas <kabul|red> [aile]", "Teklifi yanıtla (Patron)"},
                 {"savas katil", "Hazırlıktaki savaşa katıl"}, {"savas birak", "Savaştan ayrıl"}, {"savas", "Savaş durumu"},
-                {"ganimet", "Bekleyen eşyalarını al"}};
+                {"prestij [sayfa]", "Aile prestij sıralaması"}, {"ganimet", "Bekleyen eşyalarını al"}};
         for (String[] satir : satirlar) {
             s.sendMessage(Mesaj.renk("&e/aile " + satir[0] + " &7- " + satir[1].replace("{ucret}", Para.yaz(plugin.ayar().kurmaUcreti()))));
         }
@@ -308,7 +311,7 @@ public class AileKomut implements TabExecutor {
                     }
                     case "ayril", "dagit" -> oneriler.add("onayla");
                     case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
-                    case "admin" -> { if (p.hasPermission("aile.admin")) oneriler.addAll(List.of("arena", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
+                    case "admin" -> { if (p.hasPermission("aile.admin")) oneriler.addAll(List.of("arena", "guvenli", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
                     case "savas" -> oneriler.addAll(List.of("teklif", "kabul", "red", "katil", "birak", "durum"));
                     default -> { }
                 }
@@ -317,6 +320,8 @@ public class AileKomut implements TabExecutor {
                     am().aileler().forEach(x -> { if (a == null || !x.id.equals(a.id)) oneriler.add(x.isim); });
                 } else if (alt.equals("admin") && p.hasPermission("aile.admin") && args[1].equalsIgnoreCase("arena")) {
                     oneriler.addAll(List.of("kur", "sil", "pos1", "pos2", "spawn1", "spawn2", "liste"));
+                } else if (alt.equals("admin") && p.hasPermission("aile.admin") && args[1].equalsIgnoreCase("guvenli")) {
+                    oneriler.addAll(List.of("merkez", "kur", "sil", "pos1", "pos2", "liste"));
                 } else if (alt.equals("admin") && p.hasPermission("aile.admin") && args[1].equalsIgnoreCase("savas")) {
                     oneriler.add("bitir");
                 } else if (alt.equals("iliski") && !args[1].equalsIgnoreCase("liste")) {
@@ -330,6 +335,7 @@ public class AileKomut implements TabExecutor {
             } else if (args.length == 4 && alt.equals("admin") && p.hasPermission("aile.admin")) {
                 if (args[1].equalsIgnoreCase("kasa") || args[1].equalsIgnoreCase("savas")) am().aileler().forEach(x -> oneriler.add(x.isim));
                 else if (args[1].equalsIgnoreCase("arena") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.arenalar().isimler());
+                else if (args[1].equalsIgnoreCase("guvenli") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.guvenliBolgeler().isimler());
             }
         }
         String yazilan = args[args.length - 1].toLowerCase(Locale.ROOT);

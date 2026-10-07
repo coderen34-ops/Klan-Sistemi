@@ -61,6 +61,18 @@ savas:
   # Savaştaki oyuncunun kullanamayacağı komutlar ("eklenti:komut" yazımı da engellenir)
   yasak-komutlar: [tpa, tpahere, tpaccept, tpyes, home, homes, spawn, warp, warps, back, rtp, wild, tp, tphere, call, ehome, espawn, ewarp, eback]
 
+prestij:
+  # Husumetli bir ailenin üyesini açık dünyada ağır yaralamak (Meslek sağlık sistemi) ailene prestij kazandırır.
+  # Para/kasa transferi yoktur; sıralama: /aile prestij
+  aktif: true
+  puan: 1
+  ayni-kurban-bekleme-dakika: 30   # Aynı oyuncu bu süre içinde tekrar prestij kazandırmaz
+  yeni-uye-koruma-saat: 24         # Ailesine yeni katılan oyuncu bu süre prestij kazandırmaz
+  # Güvenli bölgelerde prestij verilmez:
+  claimler-guvenli: true           # GriefPrevention claim'lerinin içi (evler, arsalar, admin claim'leri)
+  merkez-cap: 400                  # Köy merkezi çevresi (blok çapı). Merkez: /aile admin guvenli merkez
+  # Ek bölgeler: /aile admin guvenli kur|pos1|pos2 <isim>. Arenalar da güvenli sayılır.
+
 # Tag-Manager (TagPlugin) entegrasyonu: aile etiketi meslek etiketinin ÖNÜNE eklenir,
 # mevcut önek/sonek bozulmaz. Yer tutucular: {aile}, {rol}
 etiket:
@@ -118,8 +130,8 @@ mesajlar:
   arena-eksik: '&7Eksik: &e{eksik}'
   arena-hazir: '&a{arena} arenası kullanıma hazır.'
   arena-kullanimda: '&cBu arenada şu an savaş var, silinemez.'
-  arena-kuruldu: '&a{arena} arenası oluşturuldu. Şimdi sınırları ve spawnları ayarlayın: &e/aile admin arena <pos1|pos2|spawn1|spawn2> {arena}'
   arena-kullanimda-degistir: '&cBu arenada şu an savaş var, değiştirilemez.'
+  arena-kuruldu: '&a{arena} arenası oluşturuldu. Şimdi sınırları ve spawnları ayarlayın: &e/aile admin arena <pos1|pos2|spawn1|spawn2> {arena}'
   arena-liste-baslik: '&6&l--- ARENALAR ---'
   arena-liste-bos: '&7Hiç arena tanımlanmamış. &e/aile admin arena kur <isim>'
   arena-silindi: '&a{arena} arenası silindi.'
@@ -140,6 +152,7 @@ mesajlar:
   bilgi-koruma: '&7Yeni aile koruması: &b{sure} &7(savaşa girilemez)'
   bilgi-kurulus: '&7Kuruluş: &f{tarih}'
   bilgi-patron: '&7Patron: &6{patron}'
+  bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
   cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/aile aidat ode&c.'
   cek-limit: '&cGünlük çekim limitiniz doldu. Bugün en fazla {kalan} daha çekebilirsiniz.'
@@ -175,6 +188,15 @@ mesajlar:
   gorus-reklam: '&cGörüş notunda bağlantı veya reklam olamaz.'
   gorus-uzun: '&cGörüş notu en fazla {max} karakter olabilir.'
   gorus-yasakli: '&cGörüş notunuz uygunsuz bir ifade içeriyor.'
+  guvenli-ayarlandi: '&a{bolge} bölgesinin {nokta} noktası ayarlandı.'
+  guvenli-kuruldu: '&a{bolge} güvenli bölgesi oluşturuldu. Köşeleri ayarlayın: &e/aile admin guvenli <pos1|pos2> {bolge}'
+  guvenli-liste-baslik: '&6&l--- GÜVENLİ BÖLGELER ---'
+  guvenli-liste-bos: '&7Hiç güvenli bölge tanımlanmamış. &e/aile admin guvenli kur <isim>'
+  guvenli-merkez: '&aKöy merkezi ayarlandı. Çevresindeki {cap} blok çaplı alan güvenli bölge.'
+  guvenli-merkez-bilgi: '&7Köy merkezi: &f{merkez} &7| Çap: &f{cap} &7| Claim''ler güvenli: &f{claim}'
+  guvenli-silindi: '&a{bolge} güvenli bölgesi silindi.'
+  guvenli-var: '&cBu isimde bir güvenli bölge zaten var.'
+  guvenli-yok: '&cBöyle bir güvenli bölge yok.'
   hedef-ailede: '&c{oyuncu} zaten bir ailede.'
   husumet-bekleme: '&cDostluk bozulduktan sonra husumet ilanı için {sure} beklemelisiniz.'
   husumet-ilan-edildi: '&c&l{aile} ailesine HUSUMET ilan ettiniz!'
@@ -205,7 +227,7 @@ mesajlar:
   kuruldu-duyuru: '&e{oyuncu} &7yeni bir aile kurdu: &6{aile}'
   liste-baslik: '&6&l--- AİLELER ({sayfa}/{toplam}) ---'
   liste-bos: '&7Henüz hiç aile kurulmadı.'
-  liste-satir: '&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye'
+  liste-satir: '&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye &7- &a{prestij} prestij'
   liste-sonraki: '&7Sonraki sayfa: &e/aile liste {sayfa}'
   menu-ana-baslik: '&6&l{aile} &8| &7Aile Menüsü'
   menu-esya-baslik: '&6&l{aile} &8| &7Eşya Kasası {sayfa}'
@@ -216,6 +238,15 @@ mesajlar:
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
   panel-yetki-yok: '&cDiplomasi Paneline sadece aile Patronu (reis) girebilir.'
   patron-devri: '&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}'
+  prestij-baslik: '&6&l--- AİLE PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'
+  prestij-bekleme: '&7{oyuncu} kısa süre önce yaralandı, {sure} sonra tekrar prestij kazandırır.'
+  prestij-guvenli: '&7Güvenli bölgede yaralama prestij kazandırmaz.'
+  prestij-kaybedildi: '&c{kurban} &7düşman &6{oyuncu} &7({aile}) tarafından ağır yaralandı! &8({biz} - {onlar})'
+  prestij-kazanildi: '&6{oyuncu} &7düşman &c{kurban} &7({aile}) oyuncusunu ağır yaraladı! &a+{puan} prestij &8({biz} - {onlar})'
+  prestij-kendi: '&7Aileniz: &e{aile} &7- &f{sira}. sırada &7({prestij} prestij)'
+  prestij-satir: '{renk}{sira}. &e{aile} &7- &a{prestij} prestij &8(Patron: {patron})'
+  prestij-sonraki: '&7Sonraki sayfa: &e/aile prestij {sayfa}'
+  prestij-yeni-uye: '&7{oyuncu} ailesine yeni katıldı, prestij kazandırmaz.'
   sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   sadece-patron: '&cBunu sadece aile Patronu yapabilir.'
   savas-admin-bitirildi: '&aSavaş bitirildi.'

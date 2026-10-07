@@ -18,6 +18,10 @@ public class Aile {
     public long aidatBaslangic;   // Aidat dönemlerinin başladığı an (dönem 0)
     public double toplamAidat;
 
+    // Açık dünyada husumetli aile üyelerini ağır yaralayarak kazanılan prestij
+    public int prestij;
+    public final Map<UUID, Integer> prestijRakip = new java.util.HashMap<>(); // rakip aile -> bu aileye karşı kazanılan puan
+
     public Aile(UUID id, String isim, long kurulus) {
         this.id = id;
         this.isim = isim;
