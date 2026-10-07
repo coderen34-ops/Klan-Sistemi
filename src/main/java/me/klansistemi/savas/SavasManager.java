@@ -50,7 +50,7 @@ import me.klansistemi.model.Rol;
 /**
  * Klanlar arası arena düellosu.
  *
- * Akış: teklif (husumet şart) -> karşı reis kabul (arena ayrılır, kasalar kilitlenir) -> hazırlık geri sayımı
+ * Akış: teklif (husumet şart) -> karşı lider kabul (arena ayrılır, kasalar kilitlenir) -> hazırlık geri sayımı
  * (üyeler /klan savas katil) -> arena -> puan / süre -> sonuç, ganimet, herkes eski konumuna.
  */
 public class SavasManager implements Listener {

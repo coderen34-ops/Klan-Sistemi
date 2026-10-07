@@ -79,7 +79,7 @@ public class DiplomasiPanel implements Listener {
     private Klan liderKlani(Player p) {
         Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (a == null || a.uyeler.get(p.getUniqueId()).rol != Rol.LIDER) {
-            plugin.mesaj().gonder(p, "panel-yetki-yok", "&cDiplomasi Paneline sadece klan Lideri (reis) girebilir.");
+            plugin.mesaj().gonder(p, "panel-yetki-yok", "&cDiplomasi Paneline sadece klan Lideri girebilir.");
             return null;
         }
         return a;
@@ -226,7 +226,7 @@ public class DiplomasiPanel implements Listener {
             if (hedef == null) continue;
             icerik.add(esya(Material.ORANGE_BANNER, ChatColor.GOLD + "Giden Teklif: " + hedef.isim,
                     List.of(ChatColor.GRAY + "Gönderildi: " + ChatColor.WHITE + Zaman.sure(simdi - e.getValue()) + " önce",
-                            ChatColor.GRAY + "Karşı reisin yanıtı bekleniyor.")));
+                            ChatColor.GRAY + "Karşı liderin yanıtı bekleniyor.")));
         }
         return icerik;
     }

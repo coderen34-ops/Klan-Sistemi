@@ -314,7 +314,7 @@ mesajlar:
   menu-panel-detay-baslik: '&4&lDiplomasi &8| &6{klan}'
   menu-uyeler-baslik: '&6&l{klan} &8| &7Üyeler'
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
-  panel-yetki-yok: '&cDiplomasi Paneline sadece klan Lideri (reis) girebilir.'
+  panel-yetki-yok: '&cDiplomasi Paneline sadece klan Lideri girebilir.'
   prestij-baslik: '&6&l--- KLAN PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'
   prestij-bekleme: '&7{oyuncu} kısa süre önce yaralandı, {sure} sonra tekrar prestij kazandırır.'
   prestij-guvenli: '&7Güvenli bölgede yaralama prestij kazandırmaz.'
