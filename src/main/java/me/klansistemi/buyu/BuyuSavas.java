@@ -26,7 +26,8 @@ import me.klansistemi.model.KlanUyesi;
 
 /**
  * Büyü sisteminin savaşla ilgili kısmı:
- *  - Savaş öncesi: kasa kilitlenirken iki klanın çevrimiçi üyelerindeki kasa-bağlı eşyalar kasaya döner
+
+ *  - Üyelerdeki klan eşyaları savaşta da kullanılabilir; arenada büyüleri vanilla sınırına iner
  *  - Ganimet: kazanan, kaybedenin klan katmanı eşyalarının %min-%max'ını alır (kayıt defterinden; kasadaki
  *    ve ödünçteki dahil). Ticari eşyalar ganimete girmez.
  *  - Arena dengesi: arenadaki oyuncuların eşyalarında vanilla üst sınırını aşan büyüler geçici olarak
@@ -48,45 +49,6 @@ public class BuyuSavas {
 
     private double ganimetMin() { return plugin.getConfig().getDouble("savas.buyu-ganimet-min", 25); }
     private double ganimetMax() { return plugin.getConfig().getDouble("savas.buyu-ganimet-max", 50); }
-
-    // ------------------------------------------------------------------ SAVAŞ ÖNCESİ
-    /** Kasa kilitlenirken: klanın çevrimiçi üyelerindeki kasa-bağlı eşyalar kasaya döner. */
-    public void savasOncesiTopla(Klan k) {
-        int sayi = 0;
-        for (KlanUyesi u : k.uyeler.values()) {
-            Player p = Bukkit.getPlayer(u.uuid);
-            if (p == null) continue; // Çevrimdışı olanlar girişte (klan savaştaysa) iade edilir
-            sayi += oyuncudanTopla(p, k, "Savaş başlıyor");
-        }
-        if (sayi > 0) {
-            plugin.log().yaz(k, "-", "BUYU_SAVAS_ONCESI_IADE", sayi + " eşya kasaya döndü");
-            plugin.klanManager().klanaGonder(k, "buyu-savas-oncesi", "&eSavaş öncesi üyelerdeki {sayi} klan eşyası kasaya geri alındı.", "sayi", sayi);
-        }
-    }
-
-    private int oyuncudanTopla(Player p, Klan k, String sebep) {
-        int sayi = 0;
-        ItemStack[] icerik = p.getInventory().getContents();
-        for (int i = 0; i < icerik.length; i++) {
-            ItemStack item = icerik[i];
-            if (!esya().kasaBagliMi(item)) continue;
-            KayitDefteri.Kayit kayit = defter().get(esya().kisaKod(item));
-            if (kayit == null || !k.id.equals(kayit.sahipKlan)) continue;
-            p.getInventory().setItem(i, null);
-            plugin.buyuKurallari().iadeEt(kayit, item, sebep);
-            sayi++;
-        }
-        if (esya().kasaBagliMi(p.getItemOnCursor())) {
-            KayitDefteri.Kayit kayit = defter().get(esya().kisaKod(p.getItemOnCursor()));
-            if (kayit != null && k.id.equals(kayit.sahipKlan)) {
-                ItemStack item = p.getItemOnCursor();
-                p.setItemOnCursor(null);
-                plugin.buyuKurallari().iadeEt(kayit, item, sebep);
-                sayi++;
-            }
-        }
-        return sayi;
-    }
 
     // ------------------------------------------------------------------ GANİMET
     /**
@@ -137,6 +99,7 @@ public class BuyuSavas {
             }
         }
         kayit.sahipKlan = kazanan.id;
+        geriYukle(fiziksel); // Arenadan alındıysa asıl büyü seviyeleri geri gelir
         ItemMeta meta = fiziksel.getItemMeta();
         meta.getPersistentDataContainer().set(esya().eleGecirenKey, PersistentDataType.STRING, kazanan.isim);
         fiziksel.setItemMeta(meta);
@@ -226,6 +189,11 @@ public class BuyuSavas {
         for (ItemStack item : p.getInventory().getContents()) degisti |= geriYukle(item);
         for (ItemStack item : p.getEnderChest().getContents()) degisti |= geriYukle(item);
         if (degisti) p.updateInventory();
+    }
+
+    /** Tek eşyanın arena için düşürülmüş büyülerini geri yükler (kasaya giren eşyalar için). */
+    public void arenaSeviyesiniGeriAl(ItemStack item) {
+        geriYukle(item);
     }
 
     private boolean geriYukle(ItemStack item) {

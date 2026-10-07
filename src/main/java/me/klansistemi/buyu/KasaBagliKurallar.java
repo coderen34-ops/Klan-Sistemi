@@ -230,8 +230,6 @@ public class KasaBagliKurallar implements Listener {
             return "Sahip klan yok";
         }
         if (!kullanilabilir || oyuncuKlani == null || !oyuncuKlani.id.equals(sahip.id)) return "IADE";
-        // Klan savaştayken (kasa kilitli) klan eşyaları kasada kalır
-        if (plugin.kasaKilitliMi(sahip)) return "IADE";
         if (kayit.durum == KayitDefteri.Durum.ODUNC) {
             if (p.getUniqueId().equals(kayit.oduncOyuncu)) return null;
             return "Kopya (kayıtta başka oyuncuda)";
@@ -286,6 +284,7 @@ public class KasaBagliKurallar implements Listener {
                     continue;
                 }
                 if (kayit.durum != KayitDefteri.Durum.KASADA) defter().durumAyarla(kayit, KayitDefteri.Durum.KASADA, null, "Kasada bulundu");
+                plugin.buyuSavas().arenaSeviyesiniGeriAl(item); // Arenadan kalmış düşük seviye varsa düzelt
                 esya().loreYenile(item);
             }
         }

@@ -232,9 +232,6 @@ public class SavasManager implements Listener {
         savaslar.add(s);
         klanSavasi.put(rakip.id, s);
         klanSavasi.put(benim.id, s);
-        // Kasalar kilitlendi: üyelerdeki kasa-bağlı büyülü eşyalar kasaya döner
-        plugin.buyuSavas().savasOncesiTopla(rakip);
-        plugin.buyuSavas().savasOncesiTopla(benim);
 
         plugin.log().yaz(benim, p.getName(), "DUELLO_KABUL", rakip.isim + " | arena " + arena.isim);
         Bukkit.broadcastMessage(m().onek() + m().metin("savas-duyuru", "&4&l⚔ {a} ile {b} arasında DÜELLO kabul edildi! &7(Arena: {arena})",

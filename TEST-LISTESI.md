@@ -61,7 +61,8 @@ Denemeden önce `plugins/` klasörünün yedeğini al.
 - [ ] Klan eşyasıyla öl → eşya kasaya dönüyor
 - [ ] Klan eşyası üzerindeyken klandan ayrıl / atıl → kasaya dönüyor (çevrimdışıysa girişte)
 - [ ] Eşya kırılınca `/klan admin buyu defter <kod>` → SILINDI
-- [ ] Savaş kabul edilince üyelerdeki klan eşyaları kasaya dönüyor
+- [ ] Savaşta üyeler klan eşyalarını kullanabiliyor; arenada büyüler vanilla seviyesinde (örn. Efficiency 7 → 5), savaştan çıkınca eski seviye geri geliyor
 - [ ] Savaşı kazanınca kaybedenin büyülü eşyalarının bir kısmı kazananın kasasına geçiyor, lore'da "Ele Geçirildi"
 - [ ] Kaybeden tarafta ödünçteki büyülü eşya: çevrimiçiyse anında alınıyor, çevrimdışıysa girişte kayboluyor
-- [ ] Arena dengesi: vanilla üstü büyülü bir eşyayla (örn. `/enchant` ile) arenaya gir → savaşta vanilla seviyesi, çıkınca eski seviye
+- [ ] Arenada ganimet olarak alınan eşya kazananın kasasına asıl seviyesiyle (düşürülmemiş) giriyor
+- [ ] Savaş sırasında sunucu kapanırsa / oyuncu çıkarsa girişte büyü seviyeleri geri yükleniyor
