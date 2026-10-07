@@ -508,11 +508,19 @@ public class SavasManager implements Listener {
             if (s.bar != null) s.bar.removePlayer(p);
             s.korumada.remove(p.getUniqueId());
         }
-        plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
         Location donus = donusKonumlari.get(p.getUniqueId());
-        if (donus == null) return; // Henüz arenaya ışınlanmamıştı (hazırlık)
+        if (donus == null) { // Henüz arenaya ışınlanmamıştı (hazırlık)
+            plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
+            return;
+        }
         if (p.isDead()) return;    // Konum saklı kalır; yeniden doğunca orada doğar (onRespawn)
         donusKonumlari.remove(p.getUniqueId());
+        if (plugin.meslek().hapisteMi(p.getUniqueId())) {
+            // Savaşta hapis cezası aldı: eski konumuna değil, Meslek hücresine gider (muafiyet kalkınca)
+            plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
+            plugin.veri().kaydet();
+            return;
+        }
         if (donus.getWorld() == null) donus = Bukkit.getWorlds().get(0).getSpawnLocation();
         p.removePotionEffect(PotionEffectType.BLINDNESS);
         p.removePotionEffect(PotionEffectType.SLOWNESS);
@@ -521,6 +529,7 @@ public class SavasManager implements Listener {
         p.setHealth(can != null ? can.getValue() : 20.0);
         p.setFoodLevel(20);
         isinla(p, donus);
+        plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false); // Işınlandıktan sonra (Meslek hücreye alma ile çakışmasın)
         plugin.veri().kaydet();
     }
 
@@ -595,8 +604,9 @@ public class SavasManager implements Listener {
         }
         // Savaş, oyuncu ölüyken bittiyse eski konumunda doğar
         Location donus = s == null ? donusKonumlari.remove(p.getUniqueId()) : null;
-        if (donus != null && donus.getWorld() != null) {
-            event.setRespawnLocation(donus);
+        if (donus != null) {
+            if (donus.getWorld() != null && !plugin.meslek().hapisteMi(p.getUniqueId())) event.setRespawnLocation(donus);
+            plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
             plugin.veri().kaydet();
         }
     }
@@ -632,9 +642,10 @@ public class SavasManager implements Listener {
         if (s == null && donusKonumlari.containsKey(p.getUniqueId())) {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (!p.isOnline()) return;
-                plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
                 Location donus = donusKonumlari.remove(p.getUniqueId());
-                if (donus != null && donus.getWorld() != null) isinla(p, donus);
+                // Hapse düştüyse Meslek zaten hücreye alır; eski konuma ışınlanmaz
+                if (donus != null && donus.getWorld() != null && !plugin.meslek().hapisteMi(p.getUniqueId())) isinla(p, donus);
+                plugin.meslek().saglikMuafiyeti(p.getUniqueId(), false);
                 plugin.veri().kaydet();
                 m().gonder(p, "savas-donus", "&7Siz yokken savaş bitti, eski konumunuza döndünüz.");
             });
