@@ -298,7 +298,19 @@ public class AileManager {
         }
     }
 
+    /** Aile menüsü, eşya kasası ya da diplomasi paneli açıksa kapatır (yetkisi kalmayan kullanamasın). */
+    public void menuleriKapat(UUID oyuncu) {
+        Player p = Bukkit.getPlayer(oyuncu);
+        if (p == null) return;
+        Object sahip = p.getOpenInventory().getTopInventory().getHolder();
+        if (sahip instanceof me.ailesistemi.gui.AileMenu.Sahip || sahip instanceof EsyaKasasi.Sahip
+                || sahip instanceof me.ailesistemi.gui.DiplomasiPanel.Sahip) {
+            p.closeInventory();
+        }
+    }
+
     private void uyeyiCikar(Aile a, UUID oyuncu) {
+        menuleriKapat(oyuncu);
         a.uyeler.remove(oyuncu);
         oyuncuAilesi.remove(oyuncu);
         sohbetModu.remove(oyuncu);
@@ -456,6 +468,9 @@ public class AileManager {
             aileyeGonder(a, "dagilma-payi", "&eAile kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.", "pay", Para.yaz(pay));
         }
         aileyeGonder(a, "dagildi", "&c{aile} ailesi dağıldı. &7({sebep})", "aile", a.isim, "sebep", sebep);
+        for (AileUyesi u : uyeler) menuleriKapat(u.uuid);
+        plugin.esya().dagit(a, uyeler);
+        plugin.iliski().aileSilindi(a.id);
 
         for (AileUyesi u : uyeler) {
             oyuncuAilesi.remove(u.uuid);

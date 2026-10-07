@@ -53,6 +53,7 @@ public class AileMenu implements Listener {
     }
 
     private static final int SLOT_BILGI = 4, SLOT_UYELER = 10, SLOT_KASA = 12, SLOT_AIDAT = 14, SLOT_SOHBET = 16, SLOT_YARDIM = 22;
+    private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_ESYA = 31;
     private static final int SLOT_GERI = 49;
 
     private final AileSistemi plugin;
@@ -134,6 +135,20 @@ public class AileMenu implements Listener {
                         ChatColor.GRAY + "Tek mesaj için: " + ChatColor.WHITE + "/ac <mesaj>",
                         "", ChatColor.YELLOW + "► Açmak/kapatmak için tıkla")));
 
+        int[] iliskiOzeti = plugin.iliski().ozet(a.id);
+        inv.setItem(SLOT_ILISKILER, esya(Material.WHITE_BANNER, ChatColor.WHITE + "" + ChatColor.BOLD + "İlişkiler",
+                List.of(ChatColor.GREEN + "Dost: " + iliskiOzeti[0],
+                        ChatColor.RED + "Husumet: " + iliskiOzeti[1],
+                        ChatColor.GRAY + "Diğerleri: Tarafsız",
+                        "", ChatColor.GRAY + "Ayrıntı: " + ChatColor.WHITE + "/aile iliski liste")));
+        if (ben.rol == Rol.PATRON) {
+            inv.setItem(SLOT_DIPLOMASI, esya(Material.RED_BANNER, ChatColor.DARK_RED + "" + ChatColor.BOLD + "Diplomasi Paneli",
+                    List.of(ChatColor.GRAY + "Sadece Patron görebilir.",
+                            ChatColor.GRAY + "Diğer aileler hakkında görüş yaz,",
+                            ChatColor.GRAY + "ittifak kur ya da husumet ilan et.",
+                            "", ChatColor.YELLOW + "► Açmak için tıkla")));
+        }
+
         inv.setItem(SLOT_YARDIM, esya(Material.KNOWLEDGE_BOOK, ChatColor.GREEN + "" + ChatColor.BOLD + "Komutlar",
                 List.of(ChatColor.GRAY + "Tüm aile komutlarını gör.", "", ChatColor.YELLOW + "► Tıkla")));
 
@@ -202,6 +217,11 @@ public class AileMenu implements Listener {
                         ChatColor.RED + "Borçlu: " + ist[2],
                         ChatColor.AQUA + "Muaf: " + ist[3])));
 
+        inv.setItem(SLOT_ESYA, esya(Material.CHEST, ChatColor.GOLD + "" + ChatColor.BOLD + "Eşya Kasası",
+                List.of(ChatColor.GRAY + "Ailenin ortak eşya deposu.",
+                        ben.rol == Rol.UYE ? ChatColor.DARK_GRAY + "Üyeler sadece eşya koyabilir." : ChatColor.GRAY + "Koyabilir ve alabilirsiniz.",
+                        "", ChatColor.YELLOW + "► Açmak için tıkla")));
+
         inv.setItem(33, esya(Material.EMERALD, ChatColor.GREEN + "" + ChatColor.BOLD + "Aidat Öde",
                 List.of(ChatColor.GRAY + "Bu dönemin aidatını bankanızdan öder.",
                         ChatColor.GRAY + "Durumunuz: " + plugin.aidat().durum(a, ben, System.currentTimeMillis()).etiket,
@@ -232,11 +252,13 @@ public class AileMenu implements Listener {
                 else if (slot == SLOT_AIDAT) { plugin.aidat().ode(p); anaMenu(p); }
                 else if (slot == SLOT_SOHBET) { plugin.aileManager().sohbetDegistir(p); anaMenu(p); }
                 else if (slot == SLOT_YARDIM) { p.closeInventory(); p.performCommand("aile yardim"); }
+                else if (slot == SLOT_DIPLOMASI) plugin.panel().ac(p, me.ailesistemi.gui.DiplomasiPanel.Sekme.AILELER, 0);
             }
             case UYELER -> { if (slot == SLOT_GERI) anaMenu(p); }
             case KASA -> {
                 if (slot == SLOT_GERI) anaMenu(p);
                 else if (slot == 33) { plugin.aidat().ode(p); kasaMenu(p); }
+                else if (slot == SLOT_ESYA) plugin.esya().ac(p, 0);
             }
         }
     }

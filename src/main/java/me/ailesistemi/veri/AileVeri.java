@@ -22,6 +22,9 @@ import me.ailesistemi.AileManager;
 import me.ailesistemi.AileSistemi;
 import me.ailesistemi.model.Aile;
 import me.ailesistemi.model.AileUyesi;
+import me.ailesistemi.model.Gorus;
+import me.ailesistemi.model.IliskiDurumu;
+import me.ailesistemi.EsyaKasasi;
 import me.ailesistemi.model.Rol;
 
 /**
@@ -98,6 +101,8 @@ public class AileVeri {
             y.set(yol + ".aidat-miktari", a.aidatMiktari);
             y.set(yol + ".aidat-baslangic", a.aidatBaslangic);
             y.set(yol + ".toplam-aidat", a.toplamAidat);
+            List<List<String>> esya = plugin.esya().kayitVerisi(a.id);
+            for (int s = 0; s < esya.size(); s++) y.set(yol + ".esya-kasasi." + s, esya.get(s));
             for (AileUyesi u : a.uyeler.values()) {
                 String uy = yol + ".uyeler." + u.uuid;
                 y.set(uy + ".isim", u.isim);
@@ -120,6 +125,23 @@ public class AileVeri {
         }
         for (Map.Entry<UUID, Long> e : am.ayrilmaBeklemeleri().entrySet()) {
             y.set("ayrilma-bekleme." + e.getKey(), e.getValue());
+        }
+        for (Map.Entry<UUID, List<org.bukkit.inventory.ItemStack>> e : plugin.esya().bekleyenler().entrySet()) {
+            List<String> liste = new ArrayList<>();
+            for (org.bukkit.inventory.ItemStack item : e.getValue()) liste.add(EsyaKasasi.yaz(item));
+            y.set("bekleyen-esyalar." + e.getKey(), liste);
+        }
+        for (Map<UUID, Gorus> hedefler : plugin.iliski().tumGorusler().values()) {
+            for (Gorus g : hedefler.values()) {
+                String gy = "gorusler." + g.yazanAile + "." + g.hedefAile;
+                y.set(gy + ".durum", g.durum.name());
+                y.set(gy + ".not", g.not);
+                y.set(gy + ".yazan", g.yazan);
+                y.set(gy + ".zaman", g.zaman);
+            }
+        }
+        for (Map.Entry<String, Long> e : plugin.iliski().dostlukBitisleri().entrySet()) {
+            y.set("dostluk-bitis." + e.getKey().replace(':', '_'), e.getValue());
         }
         return y;
     }
@@ -174,10 +196,47 @@ public class AileVeri {
                     }
                     a.kidemleriDuzenle();
                     am.yuklenenAileyiEkle(a);
+                    ConfigurationSection esya = c.getConfigurationSection("esya-kasasi");
+                    List<List<String>> sayfalar = new ArrayList<>();
+                    if (esya != null) {
+                        for (int s = 0; esya.contains(String.valueOf(s)); s++) sayfalar.add(esya.getStringList(String.valueOf(s)));
+                    }
+                    plugin.esya().yukle(a, sayfalar);
                 } catch (Exception e) {
                     plugin.getLogger().log(Level.WARNING, "Aile kaydı yüklenemedi: " + idStr, e);
                 }
             }
+        }
+        ConfigurationSection bekleyen = y.getConfigurationSection("bekleyen-esyalar");
+        if (bekleyen != null) {
+            for (String uStr : bekleyen.getKeys(false)) {
+                try {
+                    UUID u = UUID.fromString(uStr);
+                    for (String veri : bekleyen.getStringList(uStr)) {
+                        org.bukkit.inventory.ItemStack item = EsyaKasasi.oku(veri);
+                        if (item != null) plugin.esya().bekleyenEkle(u, item);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        ConfigurationSection gorusler = y.getConfigurationSection("gorusler");
+        if (gorusler != null) {
+            for (String yazanStr : gorusler.getKeys(false)) {
+                ConfigurationSection hedefler = gorusler.getConfigurationSection(yazanStr);
+                for (String hedefStr : hedefler.getKeys(false)) {
+                    try {
+                        UUID yazan = UUID.fromString(yazanStr), hedef = UUID.fromString(hedefStr);
+                        if (am.aileGetir(yazan) == null || am.aileGetir(hedef) == null) continue;
+                        ConfigurationSection g = hedefler.getConfigurationSection(hedefStr);
+                        plugin.iliski().yukle(new Gorus(yazan, hedef, IliskiDurumu.valueOf(g.getString("durum", "TARAFSIZ")),
+                                g.getString("not", ""), g.getString("yazan", "?"), g.getLong("zaman")));
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        ConfigurationSection dostluk = y.getConfigurationSection("dostluk-bitis");
+        if (dostluk != null) {
+            for (String k : dostluk.getKeys(false)) plugin.iliski().dostlukBitisleri().put(k.replace('_', ':'), dostluk.getLong(k));
         }
         ConfigurationSection bekleme = y.getConfigurationSection("ayrilma-bekleme");
         if (bekleme != null) {

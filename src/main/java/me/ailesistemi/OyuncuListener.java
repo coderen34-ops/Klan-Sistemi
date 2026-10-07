@@ -23,7 +23,12 @@ public class OyuncuListener implements Listener {
         plugin.aileManager().isimGuncelle(p);
         // Diğer giriş mesajlarının arasında kaybolmasın
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (p.isOnline()) plugin.aidat().girisKontrolu(p);
+            if (!p.isOnline()) return;
+            plugin.aidat().girisKontrolu(p);
+            int bekleyen = plugin.esya().bekleyenSayisi(p.getUniqueId());
+            if (bekleyen > 0) {
+                plugin.mesaj().gonder(p, "bekleyen-hatirlatma", "&6{sayi} yığın bekleyen eşyanız var. Almak için: &e/aile ganimet", "sayi", bekleyen);
+            }
         }, 60L);
     }
 
@@ -32,9 +37,19 @@ public class OyuncuListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         Player p = event.getPlayer();
+        String mesaj = PlainTextComponentSerializer.plainText().serialize(event.message());
+
+        // Diplomasi panelinden görüş notu bekleniyorsa mesaj not olarak alınır
+        if (plugin.iliski().notBekliyorMu(p.getUniqueId())) {
+            event.setCancelled(true);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (p.isOnline()) plugin.iliski().notGeldi(p, mesaj);
+            });
+            return;
+        }
+
         if (!plugin.aileManager().sohbetAcikMi(p.getUniqueId())) return;
         event.setCancelled(true);
-        String mesaj = PlainTextComponentSerializer.plainText().serialize(event.message());
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (p.isOnline()) plugin.aileManager().aileSohbeti(p, mesaj);
         });

@@ -18,13 +18,15 @@ import me.ailesistemi.Para;
 import me.ailesistemi.Zaman;
 import me.ailesistemi.model.Aile;
 import me.ailesistemi.model.AileUyesi;
+import me.ailesistemi.model.IliskiDurumu;
+import me.ailesistemi.gui.DiplomasiPanel;
 import me.ailesistemi.model.Rol;
 
 public class AileKomut implements TabExecutor {
 
     private static final List<String> ALT_KOMUTLAR = List.of(
             "kur", "davet", "katil", "ayril", "at", "bilgi", "liste", "yatir", "cek", "kasa",
-            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "yardim");
+            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "ganimet", "yardim");
     private static final int LISTE_SAYFA = 10;
 
     private final AileSistemi plugin;
@@ -106,6 +108,9 @@ public class AileKomut implements TabExecutor {
             case "dagit" -> am().dagit(p, args.length > 1 && args[1].equalsIgnoreCase("onayla"));
             case "sohbet" -> am().sohbetDegistir(p);
             case "aidat" -> aidat(p, args);
+            case "panel" -> plugin.panel().ac(p, DiplomasiPanel.Sekme.AILELER, 0);
+            case "iliski" -> iliski(p, args);
+            case "ganimet" -> plugin.esya().bekleyenleriVer(p);
             default -> yardim(p);
         }
         return true;
@@ -121,6 +126,33 @@ public class AileKomut implements TabExecutor {
             }
             default -> plugin.aidat().bilgi(p);
         }
+    }
+
+    // /aile iliski liste | /aile iliski <aile> <dost|tarafsiz|husumet> [görüş notu]
+    private void iliski(Player p, String[] args) {
+        Aile benim = am().oyuncununAilesi(p.getUniqueId());
+        if (benim == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
+        if (args.length < 2 || args[1].equalsIgnoreCase("liste")) {
+            p.sendMessage(m().metin("iliski-liste-baslik", "&6&l--- {aile} İLİŞKİLERİ ---", "aile", benim.isim));
+            boolean bos = true;
+            for (Aile diger : am().aileler()) {
+                if (diger.id.equals(benim.id)) continue;
+                IliskiDurumu d = plugin.iliski().iliski(benim.id, diger.id);
+                if (d == IliskiDurumu.TARAFSIZ) continue;
+                p.sendMessage(Mesaj.renk("&7- &f" + diger.isim + "&7: ") + d.renkliAd());
+                bos = false;
+            }
+            if (bos) p.sendMessage(m().metin("iliski-liste-bos", "&7Tüm ailelerle tarafsızsınız."));
+            return;
+        }
+        if (benim.uyeler.get(p.getUniqueId()).rol != Rol.PATRON) { m().gonder(p, "sadece-patron", "&cBunu sadece aile Patronu yapabilir."); return; }
+        if (args.length < 3) { kullanim(p, "/aile iliski <aile> <dost|tarafsiz|husumet> [not]"); return; }
+        Aile hedef = am().aileBul(args[1]);
+        if (hedef == null) { m().gonder(p, "aile-yok", "&cBöyle bir aile bulunamadı."); return; }
+        IliskiDurumu durum = IliskiDurumu.oku(args[2]);
+        if (durum == null) { kullanim(p, "/aile iliski <aile> <dost|tarafsiz|husumet> [not]"); return; }
+        String not = args.length > 3 ? String.join(" ", java.util.Arrays.copyOfRange(args, 3, args.length)) : null;
+        plugin.iliski().gorusYaz(p, hedef, durum, not);
     }
 
     private void bilgi(Player p, String aileIsmi) {
@@ -205,7 +237,9 @@ public class AileKomut implements TabExecutor {
                 {"yatir <miktar>", "Kasaya para yatır"}, {"cek <miktar>", "Kasadan para çek"}, {"kasa", "Kasa menüsü"},
                 {"terfi <oyuncu>", "Yardımcı yap"}, {"indir <oyuncu>", "Üye'ye indir"}, {"kidem <yardımcı> <sıra>", "Halef sırası"},
                 {"dagit onayla", "Aileyi dağıt"}, {"sohbet", "Aile sohbetini aç/kapat (/ac <mesaj>)"},
-                {"aidat <ode|bilgi|ayarla>", "Aidat işlemleri"}};
+                {"aidat <ode|bilgi|ayarla>", "Aidat işlemleri"}, {"panel", "Diplomasi Paneli (Patron)"},
+                {"iliski <aile> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Patron)"}, {"iliski liste", "İlişkilerimiz"},
+                {"ganimet", "Bekleyen eşyalarını al"}};
         for (String[] satir : satirlar) {
             s.sendMessage(Mesaj.renk("&e/aile " + satir[0] + " &7- " + satir[1].replace("{ucret}", Para.yaz(plugin.ayar().kurmaUcreti()))));
         }
@@ -233,6 +267,10 @@ public class AileKomut implements TabExecutor {
                 switch (alt) {
                     case "davet" -> Bukkit.getOnlinePlayers().forEach(o -> { if (am().oyuncununAilesi(o.getUniqueId()) == null) oneriler.add(o.getName()); });
                     case "katil", "bilgi" -> am().aileler().forEach(x -> oneriler.add(x.isim));
+                    case "iliski" -> {
+                        oneriler.add("liste");
+                        am().aileler().forEach(x -> { if (a == null || !x.id.equals(a.id)) oneriler.add(x.isim); });
+                    }
                     case "at", "terfi", "indir", "kidem" -> {
                         if (a != null) for (AileUyesi u : a.uyeler.values()) {
                             if (u.uuid.equals(p.getUniqueId())) continue;
@@ -247,7 +285,9 @@ public class AileKomut implements TabExecutor {
                     default -> { }
                 }
             } else if (args.length == 3) {
-                if (alt.equals("kidem") && a != null) {
+                if (alt.equals("iliski") && !args[1].equalsIgnoreCase("liste")) {
+                    oneriler.addAll(List.of("dost", "tarafsiz", "husumet"));
+                } else if (alt.equals("kidem") && a != null) {
                     for (int i = 1; i <= a.yardimcilar().size(); i++) oneriler.add(String.valueOf(i));
                 } else if (alt.equals("admin") && p.hasPermission("aile.admin")) {
                     if (args[1].equalsIgnoreCase("kasa")) oneriler.add("duzelt");

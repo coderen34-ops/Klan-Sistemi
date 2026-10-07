@@ -16,6 +16,14 @@ aile:
 kasa:
   ust-sinir: 10000000            # Yatırma ile aşılamaz (aidat ödemeleri hariç)
   yardimci-gunluk-cekim-limiti: 20000
+  esya-sayfa-sayisi: 3           # Eşya kasası sayfası (sayfa başına 45 slot; alt satır butonlar)
+  yardimci-gunluk-esya-limiti: 128   # Yardımcının kasadan günde alabileceği eşya adedi
+
+iliski:
+  dost-pvp-engeli: true          # Müttefik aileler birbirine PvP hasarı veremez
+  gorus-bekleme-saat: 1          # Aynı aile hakkındaki görüşü değiştirme beklemesi
+  dostluk-husumet-bekleme-saat: 12   # Dostluk bozulduktan sonra husumet ilanı için bekleme
+  not-max-karakter: 100
 
 aidat:
   aktif: true
@@ -88,6 +96,10 @@ mesajlar:
   ayrildin: '&e{aile} ailesinden ayrıldınız.'
   ayrilma-bekleme: '&cAileden ayrıldığınız için {sure} boyunca yeni bir aileye giremezsiniz.'
   banka-yetersiz: '&cBanka hesabınızda yeterli bakiye yok.'
+  bekleyen-alindi: '&aBekleyen tüm eşyalarınızı aldınız.'
+  bekleyen-hatirlatma: '&6{sayi} yığın bekleyen eşyanız var. Almak için: &e/aile ganimet'
+  bekleyen-kismen: '&eEnvanteriniz doldu. {kalan} yığın eşya hâlâ bekliyor, yer açıp tekrar &6/aile ganimet&e yazın.'
+  bekleyen-yok: '&7Bekleyen eşyanız yok.'
   bilgi-baslik: '&6&l--- {aile} ---'
   bilgi-kasa: '&7Kasa: &a{kasa}'
   bilgi-koruma: '&7Yeni aile koruması: &b{sure} &7(savaşa girilemez)'
@@ -101,9 +113,8 @@ mesajlar:
   dagildi: '&c{aile} ailesi dağıldı. &7({sebep})'
   dagildi-admin: 'Yönetim tarafından dağıtıldı'
   dagildi-patron: 'Patron aileyi dağıttı'
-  etiket-kapali: '&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.'
-  etiket-yenilendi: '&a{sayi} oyuncunun aile etiketi yeniden uygulandı.'
   dagildi-patron-ayrildi: 'Patron aileden ayrıldı'
+  dagilma-esya: '&eAile eşya kasasından payınıza düşen eşyalar ayrıldı. Almak için: &6/aile ganimet'
   dagilma-payi: '&eAile kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.'
   dagit-uyari: '&cAileyi dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/aile dagit onayla'
   davet-alindi: '&e{oyuncu} &7sizi &6{aile} &7ailesine davet etti. '
@@ -111,15 +122,39 @@ mesajlar:
   davet-buton-ipucu: '&7{aile} ailesine katıl'
   davet-gonderildi: '&a{oyuncu} adlı oyuncuya aile daveti gönderildi.'
   davet-yok: '&cBu aileden geçerli bir davetiniz yok.'
+  dost-pvp: '&a{aile} ailesi müttefikiniz, saldıramazsınız!'
+  dostluk-teklifi: '&a{aile} ailesi size DOST görüşü bildirdi. Siz de DOST seçerseniz ittifak kurulur: &e/aile panel'
+  esya-borclu: '&cAidat borcunuz olduğu için kasadan eşya alamazsınız.'
+  esya-limit: '&cGünlük eşya alma limitiniz: {kalan} adet kaldı.'
+  esya-uye: '&cÜyeler kasaya sadece eşya koyabilir.'
+  esya-yardimci-islem: '&cYardımcılar kasadan sadece tıklayarak ya da Shift ile eşya alabilir.'
+  etiket-kapali: '&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.'
+  etiket-yenilendi: '&a{sayi} oyuncunun aile etiketi yeniden uygulandı.'
   gecersiz-miktar: '&cGeçerli bir miktar yazın.'
   gecersiz-sayi: '&cGeçerli bir sayı yazın.'
+  gorus-bekleme: '&cBu aile hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.'
+  gorus-kaydedildi: '&a{aile} hakkındaki görüşünüz kaydedildi: {durum}'
+  gorus-kendine: '&cKendi aileniz hakkında görüş yazamazsınız.'
+  gorus-not-yaz: '&e{aile} hakkındaki görüş notunuzu sohbete yazın (en fazla {max} karakter). İptal için &ciptal&e yazın.'
+  gorus-reklam: '&cGörüş notunda bağlantı veya reklam olamaz.'
+  gorus-uzun: '&cGörüş notu en fazla {max} karakter olabilir.'
+  gorus-yasakli: '&cGörüş notunuz uygunsuz bir ifade içeriyor.'
   hedef-ailede: '&c{oyuncu} zaten bir ailede.'
+  husumet-bekleme: '&cDostluk bozulduktan sonra husumet ilanı için {sure} beklemelisiniz.'
+  husumet-ilan-edildi: '&c&l{aile} ailesine HUSUMET ilan ettiniz!'
+  husumet-ilan-geldi: '&4&l{aile} ailesi size HUSUMET ilan etti!'
+  husumet-once-boz: '&7Önce durumu TARAFSIZ yaparak dostluğu bozun.'
+  iliski-liste-baslik: '&6&l--- {aile} İLİŞKİLERİ ---'
+  iliski-liste-bos: '&7Tüm ailelerle tarafsızsınız.'
   indir-olmaz: '&cSadece Yardımcılar Üye''ye indirilebilir.'
   indirildi: '&e{oyuncu} artık Üye.'
   isim-alinmis: '&cBu isimde bir aile zaten var.'
   isim-karakter: '&cAile adında boşluk ve özel karakter olamaz (harf, rakam ve _ kullanın).'
   isim-uzunluk: '&cAile adı {min}-{max} karakter olmalı.'
   isim-yasakli: '&cBu aile adı uygunsuz bir ifade içeriyor.'
+  islem-iptal: '&eİşlem iptal edildi.'
+  ittifak-kuruldu: '&a&l{aile} ailesiyle İTTİFAK kuruldu!'
+  kasa-kilitli: '&cSavaş sürerken aile kasası kilitlidir.'
   kasa-ust-sinir: '&cKasa üst sınırı {sinir}. En fazla {bosluk} yatırabilirsiniz.'
   kasa-yetersiz: '&cKasada yeterli para yok. Kasa: {kasa}'
   katildi: '&a{oyuncu} aileye katıldı!'
@@ -136,9 +171,13 @@ mesajlar:
   liste-satir: '&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye'
   liste-sonraki: '&7Sonraki sayfa: &e/aile liste {sayfa}'
   menu-ana-baslik: '&6&l{aile} &8| &7Aile Menüsü'
+  menu-esya-baslik: '&6&l{aile} &8| &7Eşya Kasası {sayfa}'
   menu-kasa-baslik: '&6&l{aile} &8| &7Kasa'
+  menu-panel-baslik: '&4&lDiplomasi Paneli &8| &7{sekme}'
+  menu-panel-detay-baslik: '&4&lDiplomasi &8| &6{aile}'
   menu-uyeler-baslik: '&6&l{aile} &8| &7Üyeler'
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
+  panel-yetki-yok: '&cDiplomasi Paneline sadece aile Patronu (reis) girebilir.'
   patron-devri: '&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}'
   sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   sadece-patron: '&cBunu sadece aile Patronu yapabilir.'
@@ -154,3 +193,5 @@ mesajlar:
   yatirildi: '&a{miktar} aile kasasına yatırıldı. Kasa: &e{kasa}'
   yetki-yok: '&cBu işlem için yetkiniz yok.'
   zaten-ailede: '&cZaten bir ailedesiniz.'
+  dostluk-bozuldu: '&e{aile} ailesiyle ittifak sona erdi.'
+  husumet-bitti: '&e{aile} ailesiyle husumet sona erdi.'

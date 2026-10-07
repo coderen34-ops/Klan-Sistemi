@@ -10,6 +10,8 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import me.ailesistemi.gui.AileMenu;
+import me.ailesistemi.gui.DiplomasiPanel;
+import me.ailesistemi.model.Aile;
 import me.ailesistemi.komut.AcKomut;
 import me.ailesistemi.komut.AileKomut;
 import me.ailesistemi.veri.AileVeri;
@@ -29,6 +31,9 @@ public class AileSistemi extends JavaPlugin {
     private AileVeri veri;
     private AileMenu menu;
     private EtiketKoprusu etiket;
+    private IliskiManager iliski;
+    private EsyaKasasi esya;
+    private DiplomasiPanel panel;
 
     @Override
     public void onEnable() {
@@ -56,9 +61,12 @@ public class AileSistemi extends JavaPlugin {
         etiket = new EtiketKoprusu(this);
         aileManager = new AileManager(this);
         aidatManager = new AidatManager(this);
+        iliski = new IliskiManager(this);
+        esya = new EsyaKasasi(this);
         veri = new AileVeri(this);
         veri.yukle();
         menu = new AileMenu(this);
+        panel = new DiplomasiPanel(this);
 
         AileKomut aileKomut = new AileKomut(this);
         PluginCommand aile = getCommand("aile");
@@ -71,6 +79,9 @@ public class AileSistemi extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new OyuncuListener(this), this);
         getServer().getPluginManager().registerEvents(menu, this);
+        getServer().getPluginManager().registerEvents(panel, this);
+        getServer().getPluginManager().registerEvents(esya, this);
+        getServer().getPluginManager().registerEvents(iliski, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
@@ -115,4 +126,12 @@ public class AileSistemi extends JavaPlugin {
     public AileVeri veri() { return veri; }
     public AileMenu menu() { return menu; }
     public EtiketKoprusu etiket() { return etiket; }
+    public IliskiManager iliski() { return iliski; }
+    public EsyaKasasi esya() { return esya; }
+    public DiplomasiPanel panel() { return panel; }
+
+    /** Savaş sırasında kasa kilitlenir (aşama 3'te savaş sistemi bağlanacak). */
+    public boolean kasaKilitliMi(Aile aile) {
+        return false;
+    }
 }
