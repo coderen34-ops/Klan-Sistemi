@@ -261,7 +261,8 @@ public class KlanKomut implements TabExecutor {
                 if (args.length >= 5 && args[2].equalsIgnoreCase("uret")) plugin.uzmanlik().adminUret(s, args[3], args[4], args.length > 5 ? args[5] : null);
                 else if (args.length >= 4 && args[2].equalsIgnoreCase("defter")) plugin.uzmanlik().adminDefter(s, args[3]);
                 else if (args.length >= 4 && args[2].equalsIgnoreCase("npc")) plugin.buyuUstasi().npcKomut(s, args[3]);
-                else kullanim(s, "/klan admin buyu <uret <klan> <alan> [eşya] | defter <kod> | npc <kur|sil>>");
+                else if (args.length >= 5 && args[2].equalsIgnoreCase("alan")) plugin.uzmanlik().adminAlan(s, args[3], args[4]);
+                else kullanim(s, "/klan admin buyu <uret <klan> <alan> [eşya] | defter <kod> | npc <kur|sil> | alan <alan> <ac|kapat>>");
             }
             case "savas" -> {
                 if (args.length < 4 || !args[2].equalsIgnoreCase("bitir")) { kullanim(s, "/klan admin savas bitir <klan>"); return; }
@@ -345,7 +346,7 @@ public class KlanKomut implements TabExecutor {
                 } else if (alt.equals("uzmanlik") && (args[1].equalsIgnoreCase("al") || args[1].equalsIgnoreCase("birak"))) {
                     oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu")) {
-                    oneriler.addAll(List.of("uret", "defter", "npc"));
+                    oneriler.addAll(List.of("uret", "defter", "npc", "alan"));
                 } else if (alt.equals("buyu") && args[1].equalsIgnoreCase("fiyat")) {
                     oneriler.addAll(plugin.buyuUstasi().tumBuyuAdlari());
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("guvenli")) {
@@ -366,8 +367,11 @@ public class KlanKomut implements TabExecutor {
                 else if (args[1].equalsIgnoreCase("guvenli") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.guvenliBolgeler().isimler());
                 else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) am().klanlar().forEach(x -> oneriler.add(x.isim));
                 else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("npc")) oneriler.addAll(List.of("kur", "sil"));
+                else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("alan")) oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
             } else if (args.length == 5 && alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) {
                 oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
+            } else if (args.length == 5 && alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("alan")) {
+                oneriler.addAll(List.of("ac", "kapat"));
             }
         }
         String yazilan = args[args.length - 1].toLowerCase(Locale.ROOT);

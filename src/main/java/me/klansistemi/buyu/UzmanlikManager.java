@@ -130,6 +130,23 @@ public class UzmanlikManager {
     }
 
     /** /klan admin buyu defter <kod>: kayıt defterindeki bilgiler. */
+    /** /klan admin buyu alan <alan> <ac|kapat>: alanı config'te açar/kapatır ve kaydeder. */
+    public void adminAlan(CommandSender s, String alanAdi, String islem) {
+        String kod = null;
+        org.bukkit.configuration.ConfigurationSection bolum = plugin.getConfig().getConfigurationSection("buyu.alanlar");
+        if (bolum != null) for (String k : bolum.getKeys(false)) if (k.equalsIgnoreCase(alanAdi)) kod = k;
+        boolean ac = islem.equalsIgnoreCase("ac") || islem.equalsIgnoreCase("aç");
+        if (kod == null || (!ac && !islem.equalsIgnoreCase("kapat"))) {
+            m().gonder(s, "kullanim", "&cKullanım: &e{kullanim}", "kullanim", "/klan admin buyu alan <" + String.join("|", alanlar().keySet()) + "> <ac|kapat>");
+            return;
+        }
+        plugin.getConfig().set("buyu.alanlar." + kod + ".aktif", ac);
+        plugin.saveConfig();
+        plugin.log().yaz(null, s.getName(), "BUYU_ALAN", kod + " -> " + (ac ? "açık" : "kapalı"));
+        if (ac) m().gonder(s, "buyu-alan-acildi", "&a{alan} alanı açıldı.", "alan", kod);
+        else m().gonder(s, "buyu-alan-kapatildi", "&e{alan} alanı kapatıldı. &7(Var olan eşyalar kalır; atölye ve satış durur.)", "alan", kod);
+    }
+
     public void adminDefter(CommandSender s, String kod) {
         KayitDefteri.Kayit k = plugin.defter().get(kod.toUpperCase(Locale.ROOT));
         if (k == null) { m().gonder(s, "buyu-kayit-yok", "&cBu kimlikte bir kayıt yok."); return; }

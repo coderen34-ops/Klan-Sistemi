@@ -298,6 +298,8 @@ mesajlar:
   bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
   bilgi-uzmanlik: '&7Uzmanlık: {alanlar}'
+  buyu-alan-acildi: '&a{alan} alanı açıldı.'
+  buyu-alan-kapatildi: '&e{alan} alanı kapatıldı. &7(Var olan eşyalar kalır; atölye ve satış durur.)'
   buyu-arena-dusuruldu: '&7Arena dengesi: eşyalarınızdaki üst seviye büyüler savaş boyunca vanilla sınırına indirildi.'
   buyu-atilamaz: '&cKlan eşyaları yere atılamaz. Kasaya geri koyun.'
   buyu-creative: '&cKlan eşyaları yaratıcı modda kullanılamaz.'
