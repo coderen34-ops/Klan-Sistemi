@@ -1,16 +1,16 @@
 # ================================================================
-#  AİLE SİSTEMİ AYARLARI
+#  KLAN SİSTEMİ AYARLARI
 #  Tüm süreler: saat/gün/dakika cinsinden ondalıklı yazılabilir.
-#  Değişiklikten sonra: /aile admin yenile
+#  Değişiklikten sonra: /klan admin yenile
 # ================================================================
 
-aile:
+klan:
   kurma-ucreti: 50000            # Banka hesabından çekilir
   max-uye: 10
   isim-min: 3
   isim-max: 16
-  ayrilma-bekleme-saat: 24       # Aileden ayrılan/atılan bu süre başka aileye giremez
-  yeni-aile-savas-koruma-saat: 24
+  ayrilma-bekleme-saat: 24       # Klandan ayrılan/atılan bu süre başka klana giremez
+  yeni-klan-savas-koruma-saat: 24
   davet-gecerlilik-dakika: 5
 
 kasa:
@@ -20,31 +20,31 @@ kasa:
   yardimci-gunluk-esya-limiti: 128   # Yardımcının kasadan günde alabileceği eşya adedi
 
 iliski:
-  dost-pvp-engeli: true          # Müttefik aileler birbirine PvP hasarı veremez
-  gorus-bekleme-saat: 1          # Aynı aile hakkındaki görüşü değiştirme beklemesi
+  dost-pvp-engeli: true          # Müttefik klanlar birbirine PvP hasarı veremez
+  gorus-bekleme-saat: 1          # Aynı klan hakkındaki görüşü değiştirme beklemesi
   dostluk-husumet-bekleme-saat: 12   # Dostluk bozulduktan sonra husumet ilanı için bekleme
   not-max-karakter: 100
 
 aidat:
   aktif: true
-  miktar: 5000                   # Yeni ailelerin varsayılan aidatı
-  min-miktar: 1000               # Patronun ayarlayabileceği aralık
+  miktar: 5000                   # Yeni klanların varsayılan aidatı
+  min-miktar: 1000               # Liderin ayarlayabileceği aralık
   max-miktar: 50000
   periyot-gun: 7
   ek-sure-gun: 2
-  patron-muaf: true
+  lider-muaf: true
   yeni-uye-muaf-gun: 7           # Katıldığı dönem her zaman muaftır; bu süre daha uzunsa sonraki dönemler de
   otomatik-atma: true
   otomatik-atma-donem: 3         # Üst üste bu kadar dönem ödemeyen atılır
-  patron-bildirim-donem: 2       # Üst üste bu kadar dönem ödemeyen için patrona bildirim
+  lider-bildirim-donem: 2       # Üst üste bu kadar dönem ödemeyen için lidere bildirim
   cevrimdisi-koruma: true        # Ek süre bittiğinde oyunda olmayanın ek süresi girişte yeniden başlar
 
 savas:
   # Açık dünyada öldürme savaşı bu sürümde yok; tüm savaşlar arena düellosu olarak yapılır.
   acik-dunya-savasi: false
   teklif-gecerlilik-dakika: 10
-  min-cevrimici: 3               # Kabul için her ailede en az bu kadar çevrimiçi üye
-  min-katilimci: 3               # Geri sayım bitince her aileden en az bu kadar katılımcı (yoksa iptal)
+  min-cevrimici: 3               # Kabul için her klanda en az bu kadar çevrimiçi üye
+  min-katilimci: 3               # Geri sayım bitince her klandan en az bu kadar katılımcı (yoksa iptal)
   max-katilimci: 5
   geri-sayim-saniye: 60
   hedef-puan: 15
@@ -53,34 +53,34 @@ savas:
   ayni-oyuncu-puan-bekleme-saniye: 5
   cikis-tolerans-saniye: 60      # Oyundan çıkan katılımcı bu sürede dönmezse düşer, rakibe +1
   esya-kaybi: false              # false: ölünce eşya düşmez. true: eşyalar düşer, kazanan toplar
-  aile-ici-hasar: false          # Aynı aile üyeleri arenada birbirine hasar verebilir mi
+  klan-ici-hasar: false          # Aynı klan üyeleri arenada birbirine hasar verebilir mi
   ganimet-min: 25                # Kazanan, kaybedenin kasasından %min-%max alır (puan farkına göre)
   ganimet-max: 50
   kaybeden-bekleme-saat: 6
-  ayni-aileler-bekleme-saat: 12
+  ayni-klanlar-bekleme-saat: 12
   # Savaştaki oyuncunun kullanamayacağı komutlar ("eklenti:komut" yazımı da engellenir)
   yasak-komutlar: [tpa, tpahere, tpaccept, tpyes, home, homes, spawn, warp, warps, back, rtp, wild, tp, tphere, call, ehome, espawn, ewarp, eback]
 
 prestij:
-  # Husumetli bir ailenin üyesini açık dünyada ağır yaralamak (Meslek sağlık sistemi) ailene prestij kazandırır.
-  # Para/kasa transferi yoktur; sıralama: /aile prestij
+  # Husumetli bir klanın üyesini açık dünyada ağır yaralamak (Meslek sağlık sistemi) klanına prestij kazandırır.
+  # Para/kasa transferi yoktur; sıralama: /klan prestij
   aktif: true
   puan: 1
   ayni-kurban-bekleme-dakika: 30   # Aynı oyuncu bu süre içinde tekrar prestij kazandırmaz
-  yeni-uye-koruma-saat: 24         # Ailesine yeni katılan oyuncu bu süre prestij kazandırmaz
+  yeni-uye-koruma-saat: 24         # Klanına yeni katılan oyuncu bu süre prestij kazandırmaz
   # Güvenli bölgelerde prestij verilmez:
   claimler-guvenli: true           # GriefPrevention claim'lerinin içi (evler, arsalar, admin claim'leri)
-  merkez-cap: 400                  # Köy merkezi çevresi (blok çapı). Merkez: /aile admin guvenli merkez
-  # Ek bölgeler: /aile admin guvenli kur|pos1|pos2 <isim>. Arenalar da güvenli sayılır.
+  merkez-cap: 400                  # Köy merkezi çevresi (blok çapı). Merkez: /klan admin guvenli merkez
+  # Ek bölgeler: /klan admin guvenli kur|pos1|pos2 <isim>. Arenalar da güvenli sayılır.
 
-# Tag-Manager (TagPlugin) entegrasyonu: aile etiketi meslek etiketinin ÖNÜNE eklenir,
-# mevcut önek/sonek bozulmaz. Yer tutucular: {aile}, {rol}
+# Tag-Manager (TagPlugin) entegrasyonu: klan etiketi meslek etiketinin ÖNÜNE eklenir,
+# mevcut önek/sonek bozulmaz. Yer tutucular: {klan}, {rol}
 etiket:
   aktif: true
-  format: '&8[&6{aile}&8]'
+  format: '&8[&6{klan}&8]'
 
-# Aile adlarında geçemeyecek kelimeler (büyük/küçük harf ve Türkçe karakter farkı gözetilmez)
-# Not: Kelime aile adının herhangi bir yerinde geçerse engellenir; çok kısa kelimeler masum isimleri
+# Klan adlarında geçemeyecek kelimeler (büyük/küçük harf ve Türkçe karakter farkı gözetilmez)
+# Not: Kelime klan adının herhangi bir yerinde geçerse engellenir; çok kısa kelimeler masum isimleri
 # de engelleyebilir (örn. "sik" -> "Işık"). Listeyi sunucunuza göre düzenleyin.
 yasakli-kelimeler:
   - amk
@@ -96,10 +96,10 @@ yasakli-kelimeler:
 
 # Mesajlar (& renk kodları kullanılabilir, {...} yer tutucuları otomatik doldurulur)
 mesajlar:
-  onek: '&8[&6Aile&8] &r'
-  admin-dagitildi: '&a{aile} ailesi zorla dağıtıldı.'
-  admin-kasa-duzeltildi: '&a{aile} kasası {eski} -> {yeni} olarak düzeltildi.'
-  admin-yenilendi: '&aAile ayarları yeniden yüklendi.'
+  onek: '&8[&6Klan&8] &r'
+  admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
+  admin-kasa-duzeltildi: '&a{klan} kasası {eski} -> {yeni} olarak düzeltildi.'
+  admin-yenilendi: '&aKlan ayarları yeniden yüklendi.'
   aidat-aralik: '&cAidat {min} ile {max} arasında olmalı.'
   aidat-atan: 'Aidat Sistemi'
   aidat-bakiye: '&cAidat ({miktar}) için banka hesabınızda yeterli bakiye yok.'
@@ -109,189 +109,189 @@ mesajlar:
   aidat-bilgi-son: '&7Son ödeme: &e{tarih} &7({kalan} kaldı)'
   aidat-bilgi-son-odeme: '&7Son ödemeniz: &f{tarih}'
   aidat-bilgi-sonraki: '&7Sonraki dönem: &e{tarih}'
-  aidat-bilgi-toplam: '&7Ailenin toplam aidat geliri: &a{toplam}'
-  aidat-borclu: '&cAidatınızı ödemediğiniz için BORÇLU oldunuz! Kasa çekme yetkiniz kapandı. &e/aile aidat ode'
-  aidat-degisti: '&eAile aidatı {miktar} olarak belirlendi.'
-  aidat-ek-sure-basladi: '&6Siz yokken aidat süresi doldu. Ödemeniz için {sure} ek süreniz başladı: &e/aile aidat ode'
-  aidat-giris-bekliyor: '&eÖdenmemiş aile aidatınız var ({miktar}). Son ödeme: &6{tarih}'
-  aidat-giris-borclu: '&cAidat borcunuz var! Kasa çekme yetkiniz kapalı. &e/aile aidat ode'
-  aidat-hatirlatma-1: '&c&lSON 1 SAAT! &eAile aidatınızı ({miktar}) ödemeyi unutmayın: &6/aile aidat ode'
-  aidat-hatirlatma-24: '&eAile aidatınızı ({miktar}) ödemek için {kalan} kaldı: &6/aile aidat ode'
+  aidat-bilgi-toplam: '&7Klanın toplam aidat geliri: &a{toplam}'
+  aidat-borclu: '&cAidatınızı ödemediğiniz için BORÇLU oldunuz! Kasa çekme yetkiniz kapandı. &e/klan aidat ode'
+  aidat-degisti: '&eKlan aidatı {miktar} olarak belirlendi.'
+  aidat-ek-sure-basladi: '&6Siz yokken aidat süresi doldu. Ödemeniz için {sure} ek süreniz başladı: &e/klan aidat ode'
+  aidat-giris-bekliyor: '&eÖdenmemiş klan aidatınız var ({miktar}). Son ödeme: &6{tarih}'
+  aidat-giris-borclu: '&cAidat borcunuz var! Kasa çekme yetkiniz kapalı. &e/klan aidat ode'
+  aidat-hatirlatma-1: '&c&lSON 1 SAAT! &eKlan aidatınızı ({miktar}) ödemeyi unutmayın: &6/klan aidat ode'
+  aidat-hatirlatma-24: '&eKlan aidatınızı ({miktar}) ödemek için {kalan} kaldı: &6/klan aidat ode'
   aidat-kapali: '&cAidat sistemi şu an kapalı.'
   aidat-muaf: '&bBu dönem aidattan muafsınız.'
   aidat-odendi: '&a{miktar} aidat ödendi. Teşekkürler! Kasa: &e{kasa}'
-  aidat-patron-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
+  aidat-lider-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
   aidat-savas: '&eSavaş sürerken kasa kilitli; aidat süreniz de durduruldu. Savaştan sonra ödeyebilirsiniz.'
   aidat-zaten-odendi: '&aBu dönemin aidatını zaten ödediniz.'
-  aile-dolu: '&cAileniz dolu! (En fazla {max} üye)'
-  aile-yok: '&cBöyle bir aile bulunamadı.'
-  ailede-degil: '&cBir ailede değilsiniz.'
+  klan-dolu: '&cKlanınız dolu! (En fazla {max} üye)'
+  klan-yok: '&cBöyle bir klan bulunamadı.'
+  klanda-degil: '&cBir klanda değilsiniz.'
   arena-ayarlandi: '&a{arena} arenasının {nokta} noktası ayarlandı.'
   arena-eksik: '&7Eksik: &e{eksik}'
   arena-hazir: '&a{arena} arenası kullanıma hazır.'
   arena-kullanimda: '&cBu arenada şu an savaş var, silinemez.'
   arena-kullanimda-degistir: '&cBu arenada şu an savaş var, değiştirilemez.'
-  arena-kuruldu: '&a{arena} arenası oluşturuldu. Şimdi sınırları ve spawnları ayarlayın: &e/aile admin arena <pos1|pos2|spawn1|spawn2> {arena}'
+  arena-kuruldu: '&a{arena} arenası oluşturuldu. Şimdi sınırları ve spawnları ayarlayın: &e/klan admin arena <pos1|pos2|spawn1|spawn2> {arena}'
   arena-liste-baslik: '&6&l--- ARENALAR ---'
-  arena-liste-bos: '&7Hiç arena tanımlanmamış. &e/aile admin arena kur <isim>'
+  arena-liste-bos: '&7Hiç arena tanımlanmamış. &e/klan admin arena kur <isim>'
   arena-silindi: '&a{arena} arenası silindi.'
   arena-spawn-disarida: '&eUyarı: spawn noktalarından biri arena sınırlarının dışında!'
   arena-var: '&cBu isimde bir arena zaten var.'
   arena-yok: '&cBöyle bir arena yok.'
-  atildin: '&c{aile} ailesinden atıldınız. &7({atan})'
-  ayril-dagilma-uyari: '&cAilenizde yardımcı olmadığı için ayrılırsanız aile DAĞILIR ve kasa üyelere bölünür. Onaylamak için: &e/aile ayril onayla'
-  ayrildin: '&e{aile} ailesinden ayrıldınız.'
-  ayrilma-bekleme: '&cAileden ayrıldığınız için {sure} boyunca yeni bir aileye giremezsiniz.'
+  atildin: '&c{klan} klanından atıldınız. &7({atan})'
+  ayril-dagilma-uyari: '&cKlanınızda yardımcı olmadığı için ayrılırsanız klan DAĞILIR ve kasa üyelere bölünür. Onaylamak için: &e/klan ayril onayla'
+  ayrildin: '&e{klan} klanından ayrıldınız.'
+  ayrilma-bekleme: '&cKlandan ayrıldığınız için {sure} boyunca yeni bir klana giremezsiniz.'
   banka-yetersiz: '&cBanka hesabınızda yeterli bakiye yok.'
   bekleyen-alindi: '&aBekleyen tüm eşyalarınızı aldınız.'
-  bekleyen-hatirlatma: '&6{sayi} yığın bekleyen eşyanız var. Almak için: &e/aile ganimet'
-  bekleyen-kismen: '&eEnvanteriniz doldu. {kalan} yığın eşya hâlâ bekliyor, yer açıp tekrar &6/aile ganimet&e yazın.'
+  bekleyen-hatirlatma: '&6{sayi} yığın bekleyen eşyanız var. Almak için: &e/klan ganimet'
+  bekleyen-kismen: '&eEnvanteriniz doldu. {kalan} yığın eşya hâlâ bekliyor, yer açıp tekrar &6/klan ganimet&e yazın.'
   bekleyen-yok: '&7Bekleyen eşyanız yok.'
-  bilgi-baslik: '&6&l--- {aile} ---'
+  bilgi-baslik: '&6&l--- {klan} ---'
   bilgi-kasa: '&7Kasa: &a{kasa}'
-  bilgi-koruma: '&7Yeni aile koruması: &b{sure} &7(savaşa girilemez)'
+  bilgi-koruma: '&7Yeni klan koruması: &b{sure} &7(savaşa girilemez)'
   bilgi-kurulus: '&7Kuruluş: &f{tarih}'
-  bilgi-patron: '&7Patron: &6{patron}'
+  bilgi-lider: '&7Lider: &6{lider}'
   bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
-  cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/aile aidat ode&c.'
+  cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/klan aidat ode&c.'
   cek-limit: '&cGünlük çekim limitiniz doldu. Bugün en fazla {kalan} daha çekebilirsiniz.'
   cek-yetki-yok: '&cÜyeler kasadan para çekemez, sadece yatırabilir.'
   cekildi: '&a{miktar} kasadan banka hesabınıza aktarıldı. Kasa: &e{kasa}'
-  dagildi: '&c{aile} ailesi dağıldı. &7({sebep})'
+  dagildi: '&c{klan} klanı dağıldı. &7({sebep})'
   dagildi-admin: 'Yönetim tarafından dağıtıldı'
-  dagildi-patron: 'Patron aileyi dağıttı'
-  dagildi-patron-ayrildi: 'Patron aileden ayrıldı'
-  dagilma-esya: '&eAile eşya kasasından payınıza düşen eşyalar ayrıldı. Almak için: &6/aile ganimet'
-  dagilma-payi: '&eAile kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.'
-  dagit-uyari: '&cAileyi dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/aile dagit onayla'
-  davet-alindi: '&e{oyuncu} &7sizi &6{aile} &7ailesine davet etti. '
+  dagildi-lider: 'Lider klanı dağıttı'
+  dagildi-lider-ayrildi: 'Lider klandan ayrıldı'
+  dagilma-esya: '&eKlan eşya kasasından payınıza düşen eşyalar ayrıldı. Almak için: &6/klan ganimet'
+  dagilma-payi: '&eKlan kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.'
+  dagit-uyari: '&cKlanı dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/klan dagit onayla'
+  davet-alindi: '&e{oyuncu} &7sizi &6{klan} &7klanına davet etti. '
   davet-buton: '&a&l[KATIL]'
-  davet-buton-ipucu: '&7{aile} ailesine katıl'
-  davet-gonderildi: '&a{oyuncu} adlı oyuncuya aile daveti gönderildi.'
-  davet-yok: '&cBu aileden geçerli bir davetiniz yok.'
-  dost-pvp: '&a{aile} ailesi müttefikiniz, saldıramazsınız!'
-  dostluk-teklifi: '&a{aile} ailesi size DOST görüşü bildirdi. Siz de DOST seçerseniz ittifak kurulur: &e/aile panel'
+  davet-buton-ipucu: '&7{klan} klanına katıl'
+  davet-gonderildi: '&a{oyuncu} adlı oyuncuya klan daveti gönderildi.'
+  davet-yok: '&cBu klandan geçerli bir davetiniz yok.'
+  dost-pvp: '&a{klan} klanı müttefikiniz, saldıramazsınız!'
+  dostluk-teklifi: '&a{klan} klanı size DOST görüşü bildirdi. Siz de DOST seçerseniz ittifak kurulur: &e/klan panel'
   esya-borclu: '&cAidat borcunuz olduğu için kasadan eşya alamazsınız.'
   esya-limit: '&cGünlük eşya alma limitiniz: {kalan} adet kaldı.'
   esya-uye: '&cÜyeler kasaya sadece eşya koyabilir.'
   esya-yardimci-islem: '&cYardımcılar kasadan sadece tıklayarak ya da Shift ile eşya alabilir.'
   etiket-kapali: '&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.'
-  etiket-yenilendi: '&a{sayi} oyuncunun aile etiketi yeniden uygulandı.'
-  ganimet-bekleyen: '&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/aile ganimet'
+  etiket-yenilendi: '&a{sayi} oyuncunun klan etiketi yeniden uygulandı.'
+  ganimet-bekleyen: '&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/klan ganimet'
   gecersiz-miktar: '&cGeçerli bir miktar yazın.'
   gecersiz-sayi: '&cGeçerli bir sayı yazın.'
-  gorus-bekleme: '&cBu aile hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.'
-  gorus-kaydedildi: '&a{aile} hakkındaki görüşünüz kaydedildi: {durum}'
-  gorus-kendine: '&cKendi aileniz hakkında görüş yazamazsınız.'
-  gorus-not-yaz: '&e{aile} hakkındaki görüş notunuzu sohbete yazın (en fazla {max} karakter). İptal için &ciptal&e yazın.'
+  gorus-bekleme: '&cBu klan hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.'
+  gorus-kaydedildi: '&a{klan} hakkındaki görüşünüz kaydedildi: {durum}'
+  gorus-kendine: '&cKendi klanınız hakkında görüş yazamazsınız.'
+  gorus-not-yaz: '&e{klan} hakkındaki görüş notunuzu sohbete yazın (en fazla {max} karakter). İptal için &ciptal&e yazın.'
   gorus-reklam: '&cGörüş notunda bağlantı veya reklam olamaz.'
   gorus-uzun: '&cGörüş notu en fazla {max} karakter olabilir.'
   gorus-yasakli: '&cGörüş notunuz uygunsuz bir ifade içeriyor.'
   guvenli-ayarlandi: '&a{bolge} bölgesinin {nokta} noktası ayarlandı.'
-  guvenli-kuruldu: '&a{bolge} güvenli bölgesi oluşturuldu. Köşeleri ayarlayın: &e/aile admin guvenli <pos1|pos2> {bolge}'
+  guvenli-kuruldu: '&a{bolge} güvenli bölgesi oluşturuldu. Köşeleri ayarlayın: &e/klan admin guvenli <pos1|pos2> {bolge}'
   guvenli-liste-baslik: '&6&l--- GÜVENLİ BÖLGELER ---'
-  guvenli-liste-bos: '&7Hiç güvenli bölge tanımlanmamış. &e/aile admin guvenli kur <isim>'
+  guvenli-liste-bos: '&7Hiç güvenli bölge tanımlanmamış. &e/klan admin guvenli kur <isim>'
   guvenli-merkez: '&aKöy merkezi ayarlandı. Çevresindeki {cap} blok çaplı alan güvenli bölge.'
   guvenli-merkez-bilgi: '&7Köy merkezi: &f{merkez} &7| Çap: &f{cap} &7| Claim''ler güvenli: &f{claim}'
   guvenli-silindi: '&a{bolge} güvenli bölgesi silindi.'
   guvenli-var: '&cBu isimde bir güvenli bölge zaten var.'
   guvenli-yok: '&cBöyle bir güvenli bölge yok.'
-  hedef-ailede: '&c{oyuncu} zaten bir ailede.'
+  hedef-klanda: '&c{oyuncu} zaten bir klanda.'
   husumet-bekleme: '&cDostluk bozulduktan sonra husumet ilanı için {sure} beklemelisiniz.'
-  husumet-ilan-edildi: '&c&l{aile} ailesine HUSUMET ilan ettiniz!'
-  husumet-ilan-geldi: '&4&l{aile} ailesi size HUSUMET ilan etti!'
+  husumet-ilan-edildi: '&c&l{klan} klanına HUSUMET ilan ettiniz!'
+  husumet-ilan-geldi: '&4&l{klan} klanı size HUSUMET ilan etti!'
   husumet-once-boz: '&7Önce durumu TARAFSIZ yaparak dostluğu bozun.'
-  iliski-liste-baslik: '&6&l--- {aile} İLİŞKİLERİ ---'
-  iliski-liste-bos: '&7Tüm ailelerle tarafsızsınız.'
+  iliski-liste-baslik: '&6&l--- {klan} İLİŞKİLERİ ---'
+  iliski-liste-bos: '&7Tüm klanlarla tarafsızsınız.'
   indir-olmaz: '&cSadece Yardımcılar Üye''ye indirilebilir.'
   indirildi: '&e{oyuncu} artık Üye.'
-  isim-alinmis: '&cBu isimde bir aile zaten var.'
-  isim-karakter: '&cAile adında boşluk ve özel karakter olamaz (harf, rakam ve _ kullanın).'
-  isim-uzunluk: '&cAile adı {min}-{max} karakter olmalı.'
-  isim-yasakli: '&cBu aile adı uygunsuz bir ifade içeriyor.'
+  isim-alinmis: '&cBu isimde bir klan zaten var.'
+  isim-karakter: '&cKlan adında boşluk ve özel karakter olamaz (harf, rakam ve _ kullanın).'
+  isim-uzunluk: '&cKlan adı {min}-{max} karakter olmalı.'
+  isim-yasakli: '&cBu klan adı uygunsuz bir ifade içeriyor.'
   islem-iptal: '&eİşlem iptal edildi.'
-  ittifak-kuruldu: '&a&l{aile} ailesiyle İTTİFAK kuruldu!'
-  kasa-kilitli: '&cSavaş sürerken aile kasası kilitlidir.'
+  ittifak-kuruldu: '&a&l{klan} klanıyla İTTİFAK kuruldu!'
+  kasa-kilitli: '&cSavaş sürerken klan kasası kilitlidir.'
   kasa-ust-sinir: '&cKasa üst sınırı {sinir}. En fazla {bosluk} yatırabilirsiniz.'
   kasa-yetersiz: '&cKasada yeterli para yok. Kasa: {kasa}'
-  katildi: '&a{oyuncu} aileye katıldı!'
-  katilma-dolu: '&cBu aile dolu.'
-  katilma-savasta: '&cBu aile şu an savaşta, savaş bitince tekrar deneyin.'
-  kendini-atamaz: '&cKendinizi atamazsınız, /aile ayril kullanın.'
+  katildi: '&a{oyuncu} klana katıldı!'
+  katilma-dolu: '&cBu klan dolu.'
+  katilma-savasta: '&cBu klan şu an savaşta, savaş bitince tekrar deneyin.'
+  kendini-atamaz: '&cKendinizi atamazsınız, /klan ayril kullanın.'
   kidem-ayarlandi: '&aKıdem sırası güncellendi: &e{liste}'
   kidem-sadece-yardimci: '&cKıdem sadece Yardımcılara verilir.'
   kullanim: '&cKullanım: &e{kullanim}'
-  kurma-bakiye: '&cAile kurmak için banka hesabınızda {ucret} olmalı.'
-  kuruldu: '&a{aile} ailesi kuruldu! Artık ailenin &6Patronu&a sizsiniz. ({ucret} bankanızdan çekildi)'
-  kuruldu-duyuru: '&e{oyuncu} &7yeni bir aile kurdu: &6{aile}'
-  liste-baslik: '&6&l--- AİLELER ({sayfa}/{toplam}) ---'
-  liste-bos: '&7Henüz hiç aile kurulmadı.'
-  liste-satir: '&e{sira}. &6{aile} &7- Patron: &f{patron} &7- {uye} üye &7- &a{prestij} prestij'
-  liste-sonraki: '&7Sonraki sayfa: &e/aile liste {sayfa}'
-  menu-ana-baslik: '&6&l{aile} &8| &7Aile Menüsü'
-  menu-esya-baslik: '&6&l{aile} &8| &7Eşya Kasası {sayfa}'
-  menu-kasa-baslik: '&6&l{aile} &8| &7Kasa'
+  kurma-bakiye: '&cKlan kurmak için banka hesabınızda {ucret} olmalı.'
+  kuruldu: '&a{klan} klanı kuruldu! Artık klanın &6Lideri&a sizsiniz. ({ucret} bankanızdan çekildi)'
+  kuruldu-duyuru: '&e{oyuncu} &7yeni bir klan kurdu: &6{klan}'
+  liste-baslik: '&6&l--- KLANLAR ({sayfa}/{toplam}) ---'
+  liste-bos: '&7Henüz hiç klan kurulmadı.'
+  liste-satir: '&e{sira}. &6{klan} &7- Lider: &f{lider} &7- {uye} üye &7- &a{prestij} prestij'
+  liste-sonraki: '&7Sonraki sayfa: &e/klan liste {sayfa}'
+  menu-ana-baslik: '&6&l{klan} &8| &7Klan Menüsü'
+  menu-esya-baslik: '&6&l{klan} &8| &7Eşya Kasası {sayfa}'
+  menu-kasa-baslik: '&6&l{klan} &8| &7Kasa'
   menu-panel-baslik: '&4&lDiplomasi Paneli &8| &7{sekme}'
-  menu-panel-detay-baslik: '&4&lDiplomasi &8| &6{aile}'
-  menu-uyeler-baslik: '&6&l{aile} &8| &7Üyeler'
+  menu-panel-detay-baslik: '&4&lDiplomasi &8| &6{klan}'
+  menu-uyeler-baslik: '&6&l{klan} &8| &7Üyeler'
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
-  panel-yetki-yok: '&cDiplomasi Paneline sadece aile Patronu (reis) girebilir.'
-  patron-devri: '&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}'
-  prestij-baslik: '&6&l--- AİLE PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'
+  panel-yetki-yok: '&cDiplomasi Paneline sadece klan Lideri (reis) girebilir.'
+  lider-devri: '&6{eski} klandan ayrıldı. Yeni Lider: &e{yeni}'
+  prestij-baslik: '&6&l--- KLAN PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'
   prestij-bekleme: '&7{oyuncu} kısa süre önce yaralandı, {sure} sonra tekrar prestij kazandırır.'
   prestij-guvenli: '&7Güvenli bölgede yaralama prestij kazandırmaz.'
-  prestij-kaybedildi: '&c{kurban} &7düşman &6{oyuncu} &7({aile}) tarafından ağır yaralandı! &8({biz} - {onlar})'
-  prestij-kazanildi: '&6{oyuncu} &7düşman &c{kurban} &7({aile}) oyuncusunu ağır yaraladı! &a+{puan} prestij &8({biz} - {onlar})'
-  prestij-kendi: '&7Aileniz: &e{aile} &7- &f{sira}. sırada &7({prestij} prestij)'
-  prestij-satir: '{renk}{sira}. &e{aile} &7- &a{prestij} prestij &8(Patron: {patron})'
-  prestij-sonraki: '&7Sonraki sayfa: &e/aile prestij {sayfa}'
-  prestij-yeni-uye: '&7{oyuncu} ailesine yeni katıldı, prestij kazandırmaz.'
+  prestij-kaybedildi: '&c{kurban} &7düşman &6{oyuncu} &7({klan}) tarafından ağır yaralandı! &8({biz} - {onlar})'
+  prestij-kazanildi: '&6{oyuncu} &7düşman &c{kurban} &7({klan}) oyuncusunu ağır yaraladı! &a+{puan} prestij &8({biz} - {onlar})'
+  prestij-kendi: '&7Klanınız: &e{klan} &7- &f{sira}. sırada &7({prestij} prestij)'
+  prestij-satir: '{renk}{sira}. &e{klan} &7- &a{prestij} prestij &8(Lider: {lider})'
+  prestij-sonraki: '&7Sonraki sayfa: &e/klan prestij {sayfa}'
+  prestij-yeni-uye: '&7{oyuncu} klanına yeni katıldı, prestij kazandırmaz.'
   sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
-  sadece-patron: '&cBunu sadece aile Patronu yapabilir.'
+  sadece-lider: '&cBunu sadece klan Lideri yapabilir.'
   savas-admin-bitirildi: '&aSavaş bitirildi.'
   savas-arena-disi: '&cSavaş bitmeden arenadan çıkamazsınız!'
   savas-arena-dolu: '&cArena dolu ya da kurulu değil! Teklif geçerli olduğu sürece daha sonra tekrar deneyin.'
   savas-arena-giris: '&cBu arenada savaş sürüyor, giremezsiniz!'
   savas-arena-giris-isinlanma: '&cSavaş süren bir arenaya ışınlanamazsınız!'
   savas-ayrildi: '&e{oyuncu} savaştan ayrıldı, rakibe +1 puan.'
-  savas-az-cevrimici: '&c{aile} ailesinin en az {min} üyesi çevrimiçi olmalı.'
+  savas-az-cevrimici: '&c{klan} klanının en az {min} üyesi çevrimiçi olmalı.'
   savas-bar: '&6{a} &f{pa} &7- &f{pb} &6{b} &8| &7{dk}:{sn}'
   savas-basladi: '&cSavaş başladı, artık katılamazsınız.'
   savas-basladi-alt: '&e{hedef} puana ulaşan kazanır'
   savas-basladi-baslik: '&4&lSAVAŞ!'
   savas-birakti-hazirlik: '&eSavaş katılımından vazgeçtiniz.'
   savas-bitti: '&4⚔ {a} - {b}: '
-  savas-cift-bekleme: '&cBu iki aile tekrar savaşmak için {sure} beklemeli.'
+  savas-cift-bekleme: '&cBu iki klan tekrar savaşmak için {sure} beklemeli.'
   savas-cikis-dusuldu: '&e{oyuncu} geri dönmediği için savaştan düşürüldü, rakibe +1 puan.'
   savas-dogma-bekleme: '&7{sure} saniye sonra savaşa dönüyorsunuz...'
-  savas-dolu: '&cAilenizden en fazla {max} kişi katılabilir.'
+  savas-dolu: '&cKlanınızdan en fazla {max} kişi katılabilir.'
   savas-donus: '&7Siz yokken savaş bitti, eski konumunuza döndünüz.'
   savas-durum-aktif: '&c{rakip} ile savaştasınız! Skor: &e{biz} - {onlar} &7| Kalan: {sure}'
   savas-durum-hazirlik: '&eHazırlık: {rakip} ile düello {sure} sonra. Hazır: {biz} - {onlar}'
-  savas-durum-teklif: '&e{sayi} bekleyen düello teklifi var. &6/aile panel'
-  savas-durum-yok: '&7Aileniz şu an savaşta değil.'
+  savas-durum-teklif: '&e{sayi} bekleyen düello teklifi var. &6/klan panel'
+  savas-durum-yok: '&7Klanınız şu an savaşta değil.'
   savas-duyuru: '&4&l⚔ {a} ile {b} arasında DÜELLO kabul edildi! &7(Arena: {arena})'
   savas-geri-dondun: '&aSavaşa geri döndünüz!'
   savas-geri-sayim: '&eSavaş {sure} saniye sonra başlıyor! Hazır: &a{sayi}'
   savas-hapis: '&cHapisteyken ya da duruşmadayken savaşa katılamazsınız.'
   savas-hazir-oldu: '&a{oyuncu} savaşa hazır! &7({sayi}/{max})'
   savas-hazirlik: '&eSavaş {sure} saniye sonra başlıyor! Kasalar kilitlendi. Katılmak için: '
-  savas-husumet-yok: '&cDüello için iki aile arasında HUSUMET olmalı.'
+  savas-husumet-yok: '&cDüello için iki klan arasında HUSUMET olmalı.'
   savas-iptal-arena: 'Arena kullanılamıyor'
-  savas-iptal-katilim: 'Yeterli katılım olmadı (her aileden en az {min} kişi)'
+  savas-iptal-katilim: 'Yeterli katılım olmadı (her klandan en az {min} kişi)'
   savas-isinlanma: '&cSavaş sürerken arenadan ışınlanamazsınız!'
   savas-kabul-buton: '&a&l[KABUL] '
   savas-katil-buton: '&a&l[KATIL]'
   savas-katilimci-degil: '&cBir savaşa katılmıyorsunuz.'
-  savas-kaybeden-bekleme: '&c{aile} son savaşını kaybettiği için {sure} daha savaşamaz.'
-  savas-kilit: '&cAileniz savaşta! Savaş bitene kadar kasa, ayrılma ve üye atma kilitlidir.'
+  savas-kaybeden-bekleme: '&c{klan} son savaşını kaybettiği için {sure} daha savaşamaz.'
+  savas-kilit: '&cKlanınız savaşta! Savaş bitene kadar kasa, ayrılma ve üye atma kilitlidir.'
   savas-komut-yasak: '&cSavaş sırasında bu komut kullanılamaz!'
   savas-oyun-modu: '&cSavaşa sadece Survival/Adventure modunda katılabilirsiniz.'
   savas-oyuncu-cikti: '&7{oyuncu} oyundan çıktı. {sure} saniye içinde dönmezse savaştan düşecek.'
   savas-puan: '&c{katil} &7→ &f{kurban} &a(+1)'
   savas-red-buton: '&c&l[RED]'
-  savas-reddedildi: '&e{aile} ailesinin düello teklifini reddettiniz.'
+  savas-reddedildi: '&e{klan} klanının düello teklifini reddettiniz.'
   savas-sebep: ' &8({sebep})'
   savas-sebep-admin: 'Yönetim tarafından bitirildi ({oyuncu})'
   savas-sebep-kapanis: 'Sunucu kapandı'
@@ -301,31 +301,31 @@ mesajlar:
   savas-sonuc-berabere: '&eBERABERE! &7({pa} - {pb}) Kasalar değişmedi.'
   savas-sonuc-iptal: '&7Savaş iptal edildi.'
   savas-sonuc-kazandi: '&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya'
-  savas-teklif-aile: '&6Ailemiz {aile} ailesine DÜELLO teklif etti!'
+  savas-teklif-klan: '&6Klanımız {klan} klanına DÜELLO teklif etti!'
   savas-teklif-butonlar: '&7Yanıtınız: '
-  savas-teklif-geldi-aile: '&c&l{aile} ailesi bize DÜELLO teklif etti! &7(Karar Patronda)'
-  savas-teklif-gonderildi: '&a{aile} ailesine düello teklifi gönderildi. ({sure} geçerli)'
-  savas-teklif-reddedildi: '&e{aile} ailesi düello teklifimizi reddetti.'
-  savas-teklif-sec: '&eBirden fazla teklif var, aile adını yazın: &6/aile savas kabul <aile>'
+  savas-teklif-geldi-klan: '&c&l{klan} klanı bize DÜELLO teklif etti! &7(Karar Liderde)'
+  savas-teklif-gonderildi: '&a{klan} klanına düello teklifi gönderildi. ({sure} geçerli)'
+  savas-teklif-reddedildi: '&e{klan} klanı düello teklifimizi reddetti.'
+  savas-teklif-sec: '&eBirden fazla teklif var, klan adını yazın: &6/klan savas kabul <klan>'
   savas-teklif-yok: '&cBekleyen bir düello teklifi yok.'
-  savas-teklif-zaten: '&eBu aileye zaten bekleyen bir düello teklifiniz var.'
+  savas-teklif-zaten: '&eBu klana zaten bekleyen bir düello teklifiniz var.'
   savas-tekrar-oldurme: '&7Aynı oyuncuyu bu kadar kısa sürede tekrar öldürmek puan vermez.'
-  savas-yeni-aile: '&c{aile} yeni kuruldu, {sure} daha savaşa giremez.'
-  savas-yok: '&cAilenizin şu an bir savaşı yok.'
-  savas-yok-admin: '&c{aile} ailesinin süren bir savaşı yok.'
+  savas-yeni-klan: '&c{klan} yeni kuruldu, {sure} daha savaşa giremez.'
+  savas-yok: '&cKlanınızın şu an bir savaşı yok.'
+  savas-yok-admin: '&c{klan} klanının süren bir savaşı yok.'
   savas-zaten-katildin: '&eZaten hazırsınız.'
-  savas-zaten-savasta: '&c{aile} şu an başka bir savaşta.'
-  sohbet-acildi: '&aAile sohbeti açıldı. Mesajlarınız sadece ailenize gidiyor. Kapatmak için tekrar &e/aile sohbet'
-  sohbet-format: '&8[&6{aile}&8] {rol}&r {oyuncu}&7: &f{mesaj}'
-  sohbet-kapandi: '&eAile sohbeti kapatıldı. Mesajlarınız genel sohbete gidiyor.'
+  savas-zaten-savasta: '&c{klan} şu an başka bir savaşta.'
+  sohbet-acildi: '&aKlan sohbeti açıldı. Mesajlarınız sadece klanınıza gidiyor. Kapatmak için tekrar &e/klan sohbet'
+  sohbet-format: '&8[&6{klan}&8] {rol}&r {oyuncu}&7: &f{mesaj}'
+  sohbet-kapandi: '&eKlan sohbeti kapatıldı. Mesajlarınız genel sohbete gidiyor.'
   terfi-edildi: '&a{oyuncu} &eYardımcı&a oldu! (Kıdem sırası: {kidem})'
   terfi-olmaz: '&cSadece Üye rolündekiler Yardımcı yapılabilir.'
-  uye-atildi: '&c{oyuncu} aileden atıldı. &7({atan})'
-  uye-ayrildi: '&e{oyuncu} aileden ayrıldı.'
-  uye-bulunamadi: '&cAilenizde bu isimde bir üye yok.'
-  yardim-baslik: '&6&l--- AİLE KOMUTLARI ---'
-  yatirildi: '&a{miktar} aile kasasına yatırıldı. Kasa: &e{kasa}'
+  uye-atildi: '&c{oyuncu} klandan atıldı. &7({atan})'
+  uye-ayrildi: '&e{oyuncu} klandan ayrıldı.'
+  uye-bulunamadi: '&cKlanınızda bu isimde bir üye yok.'
+  yardim-baslik: '&6&l--- KLAN KOMUTLARI ---'
+  yatirildi: '&a{miktar} klan kasasına yatırıldı. Kasa: &e{kasa}'
   yetki-yok: '&cBu işlem için yetkiniz yok.'
-  zaten-ailede: '&cZaten bir ailedesiniz.'
-  dostluk-bozuldu: '&e{aile} ailesiyle ittifak sona erdi.'
-  husumet-bitti: '&e{aile} ailesiyle husumet sona erdi.'
+  zaten-klanda: '&cZaten bir klandasınız.'
+  dostluk-bozuldu: '&e{klan} klanıyla ittifak sona erdi.'
+  husumet-bitti: '&e{klan} klanıyla husumet sona erdi.'

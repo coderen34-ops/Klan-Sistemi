@@ -1,25 +1,25 @@
-name: AileSistemi
+name: KlanSistemi
 version: '1.0'
-main: me.ailesistemi.AileSistemi
+main: me.klansistemi.KlanSistemi
 api-version: '26.2'
-description: Aile kurma, roller, kasa, aidat ve aile sohbeti
+description: Klan kurma, roller, kasa, aidat ve klan sohbeti
 depend: [MeslekSistemi]
 softdepend: [TagPlugin, GriefPrevention]
 
 commands:
-  aile:
-    description: Aile sistemi komutları
-    usage: /aile [yardim]
-    permission: aile.kullan
-  ac:
-    description: Aile sohbetine mesaj gönderir
-    usage: /ac <mesaj>
-    permission: aile.kullan
+  klan:
+    description: Klan sistemi komutları
+    usage: /klan [yardim]
+    permission: klan.kullan
+  kc:
+    description: Klan sohbetine mesaj gönderir
+    usage: /kc <mesaj>
+    permission: klan.kullan
 
 permissions:
-  aile.kullan:
-    description: Aile sistemini kullanma
+  klan.kullan:
+    description: Klan sistemini kullanma
     default: true
-  aile.admin:
-    description: Aile yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme)
+  klan.admin:
+    description: Klan yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme)
     default: op
