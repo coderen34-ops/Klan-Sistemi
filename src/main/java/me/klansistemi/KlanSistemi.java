@@ -103,6 +103,12 @@ public class KlanSistemi extends JavaPlugin {
         // Savaş geri sayımı, süre, skor çubuğu ve çıkış toleransı saniyede bir işlenir
         Bukkit.getScheduler().runTaskTimer(this, savasManager::tick, 20L, 20L);
 
+        // PlaceholderAPI kuruluysa %klan_isim%, %klan_rol% vb. değerleri kaydet (kurulu değilse atlanır)
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new KlanPlaceholder(this).register();
+            getLogger().info("PlaceholderAPI bağlantısı kuruldu (%klan_isim%, %klan_rol%, %klan_uye%, %klan_prestij%, %klan_sira%).");
+        }
+
         getLogger().info(klanManager.klanlar().size() + " klan yüklendi.");
     }
 

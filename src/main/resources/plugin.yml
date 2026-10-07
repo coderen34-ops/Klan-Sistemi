@@ -4,7 +4,7 @@ main: me.klansistemi.KlanSistemi
 api-version: '26.2'
 description: Klan kurma, roller, kasa, aidat ve klan sohbeti
 depend: [MeslekSistemi]
-softdepend: [TagPlugin, GriefPrevention]
+softdepend: [TagPlugin, GriefPrevention, PlaceholderAPI]
 
 commands:
   klan:

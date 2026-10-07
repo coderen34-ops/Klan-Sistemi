@@ -33,7 +33,7 @@ public class Ayarlar {
 
     // --- Aidat ---
     public boolean aidatAktif() { return c().getBoolean("aidat.aktif", true); }
-    public double aidatVarsayilan() { return c().getDouble("aidat.miktar", 5000); }
+    public double aidatVarsayilan() { return c().getDouble("aidat.miktar", 1000); }
     public double aidatMin() { return c().getDouble("aidat.min-miktar", 1000); }
     public double aidatMax() { return c().getDouble("aidat.max-miktar", 50000); }
     public long aidatPeriyotMs() { return (long) (Math.max(0.01, c().getDouble("aidat.periyot-gun", 7)) * Zaman.GUN); }

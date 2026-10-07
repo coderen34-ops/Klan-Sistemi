@@ -17,6 +17,11 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
+        <!-- PlaceholderAPI (isteğe bağlı: sunucuda kuruluysa %klan_...% değerleri sunulur) -->
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/releases/</url>
+        </repository>
         <!-- GriefPrevention3D (claim içleri prestij için güvenli bölge sayılır) -->
         <repository>
             <id>jitpack.io</id>
@@ -36,6 +41,12 @@
             <groupId>me.mesleksistemi</groupId>
             <artifactId>MeslekSistemi</artifactId>
             <version>1.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.12.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

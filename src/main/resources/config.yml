@@ -27,7 +27,7 @@ iliski:
 
 aidat:
   aktif: true
-  miktar: 5000                   # Yeni klanların varsayılan aidatı
+  miktar: 1000                   # Yeni klanların varsayılan aidatı
   min-miktar: 1000               # Liderin ayarlayabileceği aralık
   max-miktar: 50000
   periyot-gun: 7
@@ -72,6 +72,10 @@ prestij:
   claimler-guvenli: true           # GriefPrevention claim'lerinin içi (evler, arsalar, admin claim'leri)
   merkez-cap: 400                  # Köy merkezi çevresi (blok çapı). Merkez: /klan admin guvenli merkez
   # Ek bölgeler: /klan admin guvenli kur|pos1|pos2 <isim>. Arenalar da güvenli sayılır.
+
+# PlaceholderAPI (kuruluysa): %klan_isim% %klan_rol% %klan_uye% %klan_prestij% %klan_sira%
+placeholder:
+  klansiz: ''                    # Klanı olmayan oyuncu için gösterilecek metin (örn. 'Klansız')
 
 # Tag-Manager (TagPlugin) entegrasyonu: klan etiketi meslek etiketinin ÖNÜNE eklenir,
 # mevcut önek/sonek bozulmaz. Yer tutucular: {klan}, {rol}
