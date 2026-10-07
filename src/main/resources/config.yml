@@ -122,7 +122,7 @@ buyu:
           DIAMOND_PICKAXE: {DIAMOND: 3, STICK: 2, LAPIS_LAZULI: 32}
           NETHERITE_PICKAXE: {DIAMOND: 3, STICK: 2, NETHERITE_INGOT: 1, LAPIS_LAZULI: 48}
     KILIC:
-      aktif: false
+      aktif: true
       ad: '&cKılıç Ustalığı'
       esyalar: [IRON_SWORD, DIAMOND_SWORD, NETHERITE_SWORD]
       klan:
@@ -140,7 +140,7 @@ buyu:
           DIAMOND_SWORD: {DIAMOND: 2, STICK: 1, LAPIS_LAZULI: 32}
           NETHERITE_SWORD: {DIAMOND: 2, STICK: 1, NETHERITE_INGOT: 1, LAPIS_LAZULI: 48}
     ZIRH:
-      aktif: false
+      aktif: true
       ad: '&9Zırh Ustalığı'
       esyalar: [IRON_HELMET, IRON_CHESTPLATE, IRON_LEGGINGS, IRON_BOOTS, DIAMOND_HELMET, DIAMOND_CHESTPLATE, DIAMOND_LEGGINGS, DIAMOND_BOOTS, NETHERITE_HELMET, NETHERITE_CHESTPLATE, NETHERITE_LEGGINGS, NETHERITE_BOOTS]
       klan:
@@ -165,7 +165,7 @@ buyu:
           NETHERITE_LEGGINGS: {DIAMOND: 7, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
           NETHERITE_BOOTS: {DIAMOND: 4, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
     BALTA_KUREK:
-      aktif: false
+      aktif: true
       ad: '&aBalta ve Kürek Ustalığı'
       esyalar: [IRON_AXE, DIAMOND_AXE, NETHERITE_AXE, IRON_SHOVEL, DIAMOND_SHOVEL, NETHERITE_SHOVEL]
       klan:
@@ -184,7 +184,7 @@ buyu:
           DIAMOND_SHOVEL: {DIAMOND: 1, STICK: 2, LAPIS_LAZULI: 16}
           NETHERITE_SHOVEL: {DIAMOND: 1, STICK: 2, NETHERITE_INGOT: 1, LAPIS_LAZULI: 32}
     YAY:
-      aktif: false
+      aktif: true
       ad: '&eYay Ustalığı'
       esyalar: [BOW, CROSSBOW]
       klan:

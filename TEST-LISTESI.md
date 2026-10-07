@@ -51,6 +51,7 @@ Denemeden önce `plugins/` klasörünün yedeğini al.
 - [ ] Açık dünya prestiji: husumetli klan üyesini ağır yaralayınca +1; güvenli bölgede (claim, köy merkezi) puan yok; `/klan prestij`
 
 ## Büyü uzmanlığı (dal: buyu-uzmanligi)
+- [ ] Diğer alanlar (KILIC, ZIRH, BALTA_KUREK, YAY) da `/klan uzmanlik liste`te aktif; birini alıp atölyede üret (zırhta Protection 6, yayda Power 7 / arbalette Quick Charge 4)
 - [ ] `/klan uzmanlik liste`, `al KAZMA` (100.000 klan kasasından), başka klan aynı alanı alamıyor, `birak`
 - [ ] `/klan atolye`: malzemeler eşya kasasında yokken kırmızı; varken üretim → eşya kasasına giriyor, lore'da "Büyü Kaynağı | ID"
 - [ ] Atölye kotaları: klan günde 5, üye günde 2
