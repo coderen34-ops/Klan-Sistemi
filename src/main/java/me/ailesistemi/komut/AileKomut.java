@@ -165,7 +165,7 @@ public class AileKomut implements TabExecutor {
 
     private void admin(CommandSender s, String[] args) {
         if (!s.hasPermission("aile.admin")) { m().gonder(s, "yetki-yok", "&cBu işlem için yetkiniz yok."); return; }
-        if (args.length < 2) { kullanim(s, "/aile admin <kasa duzelt|dagit|yenile>"); return; }
+        if (args.length < 2) { kullanim(s, "/aile admin <kasa duzelt|dagit|etiketyenile|yenile>"); return; }
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "kasa" -> {
                 if (args.length < 5 || !args[2].equalsIgnoreCase("duzelt")) { kullanim(s, "/aile admin kasa duzelt <aile> <miktar>"); return; }
@@ -184,11 +184,16 @@ public class AileKomut implements TabExecutor {
                 if (a == null) { m().gonder(s, "aile-yok", "&cBöyle bir aile bulunamadı."); return; }
                 am().adminDagit(s, a);
             }
+            case "etiketyenile" -> {
+                int sayi = plugin.etiket().tumunuYenile();
+                if (sayi < 0) m().gonder(s, "etiket-kapali", "&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.");
+                else m().gonder(s, "etiket-yenilendi", "&a{sayi} oyuncunun aile etiketi yeniden uygulandı.", "sayi", sayi);
+            }
             case "yenile" -> {
                 plugin.reloadConfig();
                 m().gonder(s, "admin-yenilendi", "&aAile ayarları yeniden yüklendi.");
             }
-            default -> kullanim(s, "/aile admin <kasa duzelt|dagit|yenile>");
+            default -> kullanim(s, "/aile admin <kasa duzelt|dagit|etiketyenile|yenile>");
         }
     }
 
@@ -238,7 +243,7 @@ public class AileKomut implements TabExecutor {
                     }
                     case "ayril", "dagit" -> oneriler.add("onayla");
                     case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
-                    case "admin" -> { if (p.hasPermission("aile.admin")) oneriler.addAll(List.of("kasa", "dagit", "yenile")); }
+                    case "admin" -> { if (p.hasPermission("aile.admin")) oneriler.addAll(List.of("kasa", "dagit", "etiketyenile", "yenile")); }
                     default -> { }
                 }
             } else if (args.length == 3) {

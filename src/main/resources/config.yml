@@ -31,6 +31,12 @@ aidat:
   patron-bildirim-donem: 2       # Üst üste bu kadar dönem ödemeyen için patrona bildirim
   cevrimdisi-koruma: true        # Ek süre bittiğinde oyunda olmayanın ek süresi girişte yeniden başlar
 
+# Tag-Manager (TagPlugin) entegrasyonu: aile etiketi meslek etiketinin ÖNÜNE eklenir,
+# mevcut önek/sonek bozulmaz. Yer tutucular: {aile}, {rol}
+etiket:
+  aktif: true
+  format: '&8[&6{aile}&8]'
+
 # Aile adlarında geçemeyecek kelimeler (büyük/küçük harf ve Türkçe karakter farkı gözetilmez)
 # Not: Kelime aile adının herhangi bir yerinde geçerse engellenir; çok kısa kelimeler masum isimleri
 # de engelleyebilir (örn. "sik" -> "Işık"). Listeyi sunucunuza göre düzenleyin.
@@ -95,6 +101,8 @@ mesajlar:
   dagildi: '&c{aile} ailesi dağıldı. &7({sebep})'
   dagildi-admin: 'Yönetim tarafından dağıtıldı'
   dagildi-patron: 'Patron aileyi dağıttı'
+  etiket-kapali: '&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.'
+  etiket-yenilendi: '&a{sayi} oyuncunun aile etiketi yeniden uygulandı.'
   dagildi-patron-ayrildi: 'Patron aileden ayrıldı'
   dagilma-payi: '&eAile kasasından payınıza düşen {pay} banka hesabınıza yatırıldı.'
   dagit-uyari: '&cAileyi dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/aile dagit onayla'

@@ -155,6 +155,7 @@ public class AileManager {
         kaydet();
 
         plugin.log().yaz(a, p.getName(), "AILE_KURULDU", "ücret " + Para.yaz(ucret));
+        plugin.etiket().guncelle(a, patron);
         m().gonder(p, "kuruldu", "&a{aile} ailesi kuruldu! Artık ailenin &6Patronu&a sizsiniz. ({ucret} bankanızdan çekildi)",
                 "aile", isim, "ucret", Para.yaz(ucret));
         Bukkit.broadcastMessage(m().onek() + m().metin("kuruldu-duyuru", "&e{oyuncu} &7yeni bir aile kurdu: &6{aile}", "oyuncu", p.getName(), "aile", isim));
@@ -218,6 +219,7 @@ public class AileManager {
         kaydet();
 
         plugin.log().yaz(a, p.getName(), "KATILDI", null);
+        plugin.etiket().guncelle(a, u);
         aileyeGonder(a, "katildi", "&a{oyuncu} aileye katıldı!", "oyuncu", p.getName());
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
     }
@@ -250,6 +252,8 @@ public class AileManager {
             plugin.aidat().rolDegisti(a, yeniPatron);
             kaydet();
             plugin.log().yaz(a, p.getName(), "PATRON_AYRILDI", "yeni patron " + yeniPatron.isim);
+            plugin.etiket().kaldir(p.getName());
+            plugin.etiket().ailedekileriGuncelle(a); // Kıdemler/roller değişti
             m().gonder(p, "ayrildin", "&e{aile} ailesinden ayrıldınız.", "aile", a.isim);
             aileyeGonder(a, "patron-devri", "&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}", "eski", p.getName(), "yeni", yeniPatron.isim);
             return;
@@ -259,6 +263,7 @@ public class AileManager {
         a.kidemleriDuzenle();
         kaydet();
         plugin.log().yaz(a, p.getName(), "AYRILDI", null);
+        plugin.etiket().kaldir(p.getName());
         m().gonder(p, "ayrildin", "&e{aile} ailesinden ayrıldınız.", "aile", a.isim);
         aileyeGonder(a, "uye-ayrildi", "&e{oyuncu} aileden ayrıldı.", "oyuncu", p.getName());
     }
@@ -284,6 +289,7 @@ public class AileManager {
         a.kidemleriDuzenle();
         kaydet();
         plugin.log().yaz(a, atan, "ATTI", hedef.isim);
+        plugin.etiket().kaldir(hedef.isim);
         aileyeGonder(a, "uye-atildi", "&c{oyuncu} aileden atıldı. &7({atan})", "oyuncu", hedef.isim, "atan", atan);
         Player hp = Bukkit.getPlayer(hedef.uuid);
         if (hp != null) {
@@ -322,6 +328,7 @@ public class AileManager {
         plugin.aidat().rolDegisti(a, hedef);
         kaydet();
         plugin.log().yaz(a, p.getName(), "TERFI", hedef.isim + " -> Yardımcı (kıdem " + hedef.kidem + ")");
+        plugin.etiket().guncelle(a, hedef);
         aileyeGonder(a, "terfi-edildi", "&a{oyuncu} &eYardımcı&a oldu! (Kıdem sırası: {kidem})", "oyuncu", hedef.isim, "kidem", hedef.kidem);
     }
 
@@ -335,6 +342,7 @@ public class AileManager {
         a.kidemleriDuzenle();
         kaydet();
         plugin.log().yaz(a, p.getName(), "RUTBE_INDIRDI", hedef.isim + " -> Üye");
+        plugin.etiket().guncelle(a, hedef);
         aileyeGonder(a, "indirildi", "&e{oyuncu} artık Üye.", "oyuncu", hedef.isim);
     }
 
@@ -452,6 +460,7 @@ public class AileManager {
         for (AileUyesi u : uyeler) {
             oyuncuAilesi.remove(u.uuid);
             sohbetModu.remove(u.uuid);
+            plugin.etiket().kaldir(u.isim);
         }
         a.uyeler.clear();
         a.kasa = 0;
@@ -511,6 +520,7 @@ public class AileManager {
         if (u != null && !u.isim.equals(p.getName())) {
             u.isim = p.getName();
             kaydet();
+            plugin.etiket().guncelle(oyuncununAilesi(p.getUniqueId()), u);
         }
     }
 

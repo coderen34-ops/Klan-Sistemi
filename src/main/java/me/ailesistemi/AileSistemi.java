@@ -28,6 +28,7 @@ public class AileSistemi extends JavaPlugin {
     private AidatManager aidatManager;
     private AileVeri veri;
     private AileMenu menu;
+    private EtiketKoprusu etiket;
 
     @Override
     public void onEnable() {
@@ -52,6 +53,7 @@ public class AileSistemi extends JavaPlugin {
         ayarlar = new Ayarlar(this);
         mesaj = new Mesaj(this);
         log = new KasaLog(this);
+        etiket = new EtiketKoprusu(this);
         aileManager = new AileManager(this);
         aidatManager = new AidatManager(this);
         veri = new AileVeri(this);
@@ -112,4 +114,5 @@ public class AileSistemi extends JavaPlugin {
     public AidatManager aidat() { return aidatManager; }
     public AileVeri veri() { return veri; }
     public AileMenu menu() { return menu; }
+    public EtiketKoprusu etiket() { return etiket; }
 }

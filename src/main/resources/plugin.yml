@@ -4,6 +4,7 @@ main: me.ailesistemi.AileSistemi
 api-version: '26.2'
 description: Aile kurma, roller, kasa, aidat ve aile sohbeti
 depend: [MeslekSistemi]
+softdepend: [TagPlugin]
 
 commands:
   aile:
