@@ -171,6 +171,11 @@ public class EsyaKasasi implements Listener {
                 if (item != null && item.getType() != Material.AIR) esyalar.add(item.clone());
             }
         }
+        // Klan katmanı büyülü eşyalar kasa-bağlıdır: üyelere dağıtılmaz, klanla birlikte geçersiz olur
+        int kasaBagli = esyalar.size();
+        esyalar.removeIf(item -> plugin.buyuEsyasi().kasaBagliMi(item));
+        kasaBagli -= esyalar.size();
+        if (kasaBagli > 0) plugin.log().yaz(a, "-", "BUYU_ESYA_SILINDI", kasaBagli + " kasa-bağlı eşya klan dağıldığı için silindi");
         if (esyalar.isEmpty() || uyeler.isEmpty()) return;
         Collections.shuffle(esyalar);
         for (int i = 0; i < esyalar.size(); i++) {
@@ -228,6 +233,17 @@ public class EsyaKasasi implements Listener {
             if (pp != null) m().gonder(pp, "ganimet-bekleyen", "&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/klan ganimet", "sayi", bekleyeneGiden);
         }
         return adet;
+    }
+
+    /** Eşyayı klanın eşya kasasına koyar (sayfalara sırayla); sığmayan kısmı döndürür (sığdıysa null). */
+    public ItemStack kasayaKoy(Klan klan, ItemStack item) {
+        ItemStack kalan = item;
+        for (Inventory inv : sayfalar(klan)) {
+            kalan = depoyaKoy(inv, kalan);
+            if (kalan == null) break;
+        }
+        plugin.veri().kaydet();
+        return kalan;
     }
 
     /** Eşyayı sayfanın sadece depo slotlarına (alt buton satırına değil) koyar; sığmayanı döndürür. */

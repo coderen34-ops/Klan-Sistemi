@@ -483,6 +483,7 @@ public class KlanManager {
         }
         klanaGonder(a, "dagildi", "&c{klan} klanı dağıldı. &7({sebep})", "klan", a.isim, "sebep", sebep);
         for (KlanUyesi u : uyeler) menuleriKapat(u.uuid);
+        plugin.uzmanlik().klanDagildi(a);
         plugin.esya().dagit(a, uyeler);
         plugin.iliski().klanSilindi(a.id);
 

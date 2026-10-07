@@ -22,6 +22,9 @@ public class Klan {
     public int prestij;
     public final Map<UUID, Integer> prestijRakip = new java.util.HashMap<>(); // rakip klan -> bu klana karşı kazanılan puan
 
+    // Klanın yönettiği büyü alanları (KAZMA, KILIC ...). Bir alanı aynı anda sadece bir klan yönetir.
+    public final java.util.Set<String> uzmanliklar = new java.util.LinkedHashSet<>();
+
     public Klan(UUID id, String isim, long kurulus) {
         this.id = id;
         this.isim = isim;

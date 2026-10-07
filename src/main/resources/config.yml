@@ -73,6 +73,74 @@ prestij:
   merkez-cap: 400                  # Köy merkezi çevresi (blok çapı). Merkez: /klan admin guvenli merkez
   # Ek bölgeler: /klan admin guvenli kur|pos1|pos2 <isim>. Arenalar da güvenli sayılır.
 
+# ================================================================
+#  BÜYÜ UZMANLIĞI
+#  Bir alanı aynı anda tek klan yönetir. Büyü adları Minecraft adlarıdır (efficiency, fortune, sharpness...).
+#  klan: kasa-bağlı klan katmanı seviyeleri | ticari: dışarıya satılan katman seviyeleri
+#  Pilot: sadece KAZMA açık. Diğer alanlar hazır, "aktif: true" yapılınca açılır.
+# ================================================================
+buyu:
+  uzmanlik:
+    alma-ucreti: 100000          # Klan kasasından alınır
+    klan-basina-max-alan: 1
+  alanlar:
+    KAZMA:
+      aktif: true
+      ad: '&bKazma Ustalığı'
+      esyalar: [IRON_PICKAXE, DIAMOND_PICKAXE, NETHERITE_PICKAXE]
+      klan:
+        efficiency: 7
+        fortune: 4               # Ekonomi için 4 önerilir (elmas/zümrüt Belediye borsasına satılabiliyor)
+        unbreaking: 5
+      ticari:
+        efficiency: 5
+        fortune: 3
+        unbreaking: 3
+    KILIC:
+      aktif: false
+      ad: '&cKılıç Ustalığı'
+      esyalar: [IRON_SWORD, DIAMOND_SWORD, NETHERITE_SWORD]
+      klan:
+        sharpness: 7
+        looting: 4
+        unbreaking: 5
+      ticari:
+        sharpness: 5
+        looting: 3
+        unbreaking: 3
+    ZIRH:
+      aktif: false
+      ad: '&9Zırh Ustalığı'
+      esyalar: [IRON_HELMET, IRON_CHESTPLATE, IRON_LEGGINGS, IRON_BOOTS, DIAMOND_HELMET, DIAMOND_CHESTPLATE, DIAMOND_LEGGINGS, DIAMOND_BOOTS, NETHERITE_HELMET, NETHERITE_CHESTPLATE, NETHERITE_LEGGINGS, NETHERITE_BOOTS]
+      klan:
+        protection: 6
+        unbreaking: 5
+      ticari:
+        protection: 4
+        unbreaking: 3
+    BALTA_KUREK:
+      aktif: false
+      ad: '&aBalta ve Kürek Ustalığı'
+      esyalar: [IRON_AXE, DIAMOND_AXE, NETHERITE_AXE, IRON_SHOVEL, DIAMOND_SHOVEL, NETHERITE_SHOVEL]
+      klan:
+        efficiency: 7
+        unbreaking: 5
+      ticari:
+        efficiency: 5
+        unbreaking: 3
+    YAY:
+      aktif: false
+      ad: '&eYay Ustalığı'
+      esyalar: [BOW, CROSSBOW]
+      klan:
+        power: 7
+        unbreaking: 5
+        quick_charge: 4
+      ticari:
+        power: 5
+        unbreaking: 3
+        quick_charge: 3
+
 # PlaceholderAPI (kuruluysa): %klan_isim% %klan_rol% %klan_uye% %klan_prestij% %klan_sira%
 placeholder:
   klansiz: ''                    # Klanı olmayan oyuncu için gösterilecek metin (örn. 'Klansız')
@@ -122,14 +190,11 @@ mesajlar:
   aidat-hatirlatma-1: '&c&lSON 1 SAAT! &eKlan aidatınızı ({miktar}) ödemeyi unutmayın: &6/klan aidat ode'
   aidat-hatirlatma-24: '&eKlan aidatınızı ({miktar}) ödemek için {kalan} kaldı: &6/klan aidat ode'
   aidat-kapali: '&cAidat sistemi şu an kapalı.'
+  aidat-lider-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
   aidat-muaf: '&bBu dönem aidattan muafsınız.'
   aidat-odendi: '&a{miktar} aidat ödendi. Teşekkürler! Kasa: &e{kasa}'
-  aidat-lider-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
   aidat-savas: '&eSavaş sürerken kasa kilitli; aidat süreniz de durduruldu. Savaştan sonra ödeyebilirsiniz.'
   aidat-zaten-odendi: '&aBu dönemin aidatını zaten ödediniz.'
-  klan-dolu: '&cKlanınız dolu! (En fazla {max} üye)'
-  klan-yok: '&cBöyle bir klan bulunamadı.'
-  klanda-degil: '&cBir klanda değilsiniz.'
   arena-ayarlandi: '&a{arena} arenasının {nokta} noktası ayarlandı.'
   arena-eksik: '&7Eksik: &e{eksik}'
   arena-hazir: '&a{arena} arenası kullanıma hazır.'
@@ -158,6 +223,11 @@ mesajlar:
   bilgi-lider: '&7Lider: &6{lider}'
   bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
+  bilgi-uzmanlik: '&7Uzmanlık: {alanlar}'
+  buyu-esya-uygun-degil: '&cBu eşya {alan} alanına uygun değil.'
+  buyu-kasa-dolu: '&c{klan} klanının eşya kasası dolu.'
+  buyu-kayit-yok: '&cBu kimlikte bir kayıt yok.'
+  buyu-uretildi-admin: '&a{klan} kasasına test eşyası üretildi: &e{kod} &7({esya})'
   cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/klan aidat ode&c.'
   cek-limit: '&cGünlük çekim limitiniz doldu. Bugün en fazla {kalan} daha çekebilirsiniz.'
   cek-yetki-yok: '&cÜyeler kasadan para çekemez, sadece yatırabilir.'
@@ -225,10 +295,14 @@ mesajlar:
   kendini-atamaz: '&cKendinizi atamazsınız, /klan ayril kullanın.'
   kidem-ayarlandi: '&aKıdem sırası güncellendi: &e{liste}'
   kidem-sadece-yardimci: '&cKıdem sadece Yardımcılara verilir.'
+  klan-dolu: '&cKlanınız dolu! (En fazla {max} üye)'
+  klan-yok: '&cBöyle bir klan bulunamadı.'
+  klanda-degil: '&cBir klanda değilsiniz.'
   kullanim: '&cKullanım: &e{kullanim}'
   kurma-bakiye: '&cKlan kurmak için banka hesabınızda {ucret} olmalı.'
   kuruldu: '&a{klan} klanı kuruldu! Artık klanın &6Lideri&a sizsiniz. ({ucret} bankanızdan çekildi)'
   kuruldu-duyuru: '&e{oyuncu} &7yeni bir klan kurdu: &6{klan}'
+  lider-devri: '&6{eski} klandan ayrıldı. Yeni Lider: &e{yeni}'
   liste-baslik: '&6&l--- KLANLAR ({sayfa}/{toplam}) ---'
   liste-bos: '&7Henüz hiç klan kurulmadı.'
   liste-satir: '&e{sira}. &6{klan} &7- Lider: &f{lider} &7- {uye} üye &7- &a{prestij} prestij'
@@ -241,7 +315,6 @@ mesajlar:
   menu-uyeler-baslik: '&6&l{klan} &8| &7Üyeler'
   oyuncu-cevrimdisi: '&cBu oyuncu çevrimiçi değil.'
   panel-yetki-yok: '&cDiplomasi Paneline sadece klan Lideri (reis) girebilir.'
-  lider-devri: '&6{eski} klandan ayrıldı. Yeni Lider: &e{yeni}'
   prestij-baslik: '&6&l--- KLAN PRESTİJ SIRALAMASI &7({sayfa}/{toplam}) &6&l---'
   prestij-bekleme: '&7{oyuncu} kısa süre önce yaralandı, {sure} sonra tekrar prestij kazandırır.'
   prestij-guvenli: '&7Güvenli bölgede yaralama prestij kazandırmaz.'
@@ -251,8 +324,8 @@ mesajlar:
   prestij-satir: '{renk}{sira}. &e{klan} &7- &a{prestij} prestij &8(Lider: {lider})'
   prestij-sonraki: '&7Sonraki sayfa: &e/klan prestij {sayfa}'
   prestij-yeni-uye: '&7{oyuncu} klanına yeni katıldı, prestij kazandırmaz.'
-  sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   sadece-lider: '&cBunu sadece klan Lideri yapabilir.'
+  sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   savas-admin-bitirildi: '&aSavaş bitirildi.'
   savas-arena-disi: '&cSavaş bitmeden arenadan çıkamazsınız!'
   savas-arena-dolu: '&cArena dolu ya da kurulu değil! Teklif geçerli olduğu sürece daha sonra tekrar deneyin.'
@@ -305,10 +378,10 @@ mesajlar:
   savas-sonuc-berabere: '&eBERABERE! &7({pa} - {pb}) Kasalar değişmedi.'
   savas-sonuc-iptal: '&7Savaş iptal edildi.'
   savas-sonuc-kazandi: '&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya'
-  savas-teklif-klan: '&6Klanımız {klan} klanına DÜELLO teklif etti!'
   savas-teklif-butonlar: '&7Yanıtınız: '
   savas-teklif-geldi-klan: '&c&l{klan} klanı bize DÜELLO teklif etti! &7(Karar Liderde)'
   savas-teklif-gonderildi: '&a{klan} klanına düello teklifi gönderildi. ({sure} geçerli)'
+  savas-teklif-klan: '&6Klanımız {klan} klanına DÜELLO teklif etti!'
   savas-teklif-reddedildi: '&e{klan} klanı düello teklifimizi reddetti.'
   savas-teklif-sec: '&eBirden fazla teklif var, klan adını yazın: &6/klan savas kabul <klan>'
   savas-teklif-yok: '&cBekleyen bir düello teklifi yok.'
@@ -327,6 +400,20 @@ mesajlar:
   uye-atildi: '&c{oyuncu} klandan atıldı. &7({atan})'
   uye-ayrildi: '&e{oyuncu} klandan ayrıldı.'
   uye-bulunamadi: '&cKlanınızda bu isimde bir üye yok.'
+  uzmanlik-alindi-duyuru: '&e{klan} &7klanı artık {alan} &7alanını yönetiyor!'
+  uzmanlik-birakildi-duyuru: '&e{klan} &7klanı {alan} &7alanını bıraktı, alan artık boş.'
+  uzmanlik-dolu: '&cBu alanı şu an {klan} klanı yönetiyor.'
+  uzmanlik-durum-bos: '&aBOŞ &7(/klan uzmanlik al {alan})'
+  uzmanlik-durum-kapali: '&8Kapalı'
+  uzmanlik-durum-sahip: '&cYöneten: &e{klan}'
+  uzmanlik-kapali: '&cBu alan şu an kullanıma kapalı.'
+  uzmanlik-kasa: '&cAlan almak için klan kasasında {ucret} olmalı.'
+  uzmanlik-liste-baslik: '&6&l--- BÜYÜ ALANLARI ---'
+  uzmanlik-liste-ucret: '&7Alan alma ücreti: &e{ucret} &7(klan kasasından)'
+  uzmanlik-max: '&cBir klan en fazla {max} alan yönetebilir. Önce mevcut alanı bırakın.'
+  uzmanlik-sizde-yok: '&cKlanınız bu alanı yönetmiyor.'
+  uzmanlik-yok: '&cBöyle bir büyü alanı yok. &7/klan uzmanlik liste'
+  uzmanlik-zaten: '&eBu alan zaten klanınızda.'
   yardim-baslik: '&6&l--- KLAN KOMUTLARI ---'
   yatirildi: '&a{miktar} klan kasasına yatırıldı. Kasa: &e{kasa}'
   yetki-yok: '&cBu işlem için yetkiniz yok.'

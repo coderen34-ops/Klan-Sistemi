@@ -102,6 +102,7 @@ public class KlanMenu implements Listener {
         bilgi.add(ChatColor.GRAY + "Kuruluş: " + ChatColor.WHITE + Zaman.tarih(a.kurulus));
         bilgi.add(ChatColor.GRAY + "Üyeler: " + ChatColor.WHITE + a.uyeler.size() + "/" + plugin.ayar().maxUye());
         bilgi.add(ChatColor.GRAY + "Kasa: " + ChatColor.GREEN + Para.yaz(a.kasa));
+        bilgi.add(ChatColor.GRAY + "Uzmanlık: " + plugin.uzmanlik().alanlarMetni(a));
         bilgi.add(ChatColor.GRAY + "Prestij: " + ChatColor.GREEN + a.prestij + ChatColor.GRAY + " (" + plugin.prestij().sira(a) + ". sırada)");
         bilgi.add(ChatColor.GRAY + "Rolünüz: " + ben.rol.renkliAd());
         inv.setItem(SLOT_BILGI, esya(Material.WHITE_BANNER, ChatColor.GOLD + "" + ChatColor.BOLD + a.isim, bilgi));

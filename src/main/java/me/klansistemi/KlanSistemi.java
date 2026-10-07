@@ -37,6 +37,9 @@ public class KlanSistemi extends JavaPlugin {
     private EtiketKoprusu etiket;
     private IliskiManager iliski;
     private EsyaKasasi esya;
+    private me.klansistemi.buyu.BuyuEsyasi buyuEsyasi;
+    private me.klansistemi.buyu.KayitDefteri defter;
+    private me.klansistemi.buyu.UzmanlikManager uzmanlik;
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
     private SavasManager savasManager;
@@ -72,6 +75,9 @@ public class KlanSistemi extends JavaPlugin {
         aidatManager = new AidatManager(this);
         iliski = new IliskiManager(this);
         esya = new EsyaKasasi(this);
+        buyuEsyasi = new me.klansistemi.buyu.BuyuEsyasi(this);
+        defter = new me.klansistemi.buyu.KayitDefteri(this);
+        uzmanlik = new me.klansistemi.buyu.UzmanlikManager(this);
         arenaManager = new ArenaManager(this);
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
@@ -126,6 +132,7 @@ public class KlanSistemi extends JavaPlugin {
             }
         }
         if (veri != null && klanManager != null) veri.hemenKaydet();
+        if (defter != null) defter.hemenKaydet();
     }
 
     /**
@@ -190,6 +197,9 @@ public class KlanSistemi extends JavaPlugin {
     public EtiketKoprusu etiket() { return etiket; }
     public IliskiManager iliski() { return iliski; }
     public EsyaKasasi esya() { return esya; }
+    public me.klansistemi.buyu.BuyuEsyasi buyuEsyasi() { return buyuEsyasi; }
+    public me.klansistemi.buyu.KayitDefteri defter() { return defter; }
+    public me.klansistemi.buyu.UzmanlikManager uzmanlik() { return uzmanlik; }
     public DiplomasiPanel panel() { return panel; }
 
     public ArenaManager arenalar() { return arenaManager; }

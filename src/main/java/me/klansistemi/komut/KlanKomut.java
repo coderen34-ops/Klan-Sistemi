@@ -26,7 +26,7 @@ public class KlanKomut implements TabExecutor {
 
     private static final List<String> ALT_KOMUTLAR = List.of(
             "kur", "davet", "katil", "ayril", "at", "bilgi", "liste", "yatir", "cek", "kasa",
-            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "ganimet", "yardim");
+            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "uzmanlik", "ganimet", "yardim");
     private static final int LISTE_SAYFA = 10;
 
     private final KlanSistemi plugin;
@@ -112,6 +112,17 @@ public class KlanKomut implements TabExecutor {
             case "iliski" -> iliski(p, args);
             case "ganimet" -> plugin.esya().bekleyenleriVer(p);
             case "savas" -> savas(p, args);
+            case "uzmanlik" -> {
+                String islem = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "liste";
+                switch (islem) {
+                    case "al" -> {
+                        if (args.length < 3) { kullanim(p, "/klan uzmanlik al <alan>"); return true; }
+                        plugin.uzmanlik().al(p, args[2]);
+                    }
+                    case "birak" -> plugin.uzmanlik().birak(p, args.length > 2 ? args[2] : null);
+                    default -> plugin.uzmanlik().liste(p);
+                }
+            }
             case "prestij", "top" -> plugin.prestij().siralama(p, args.length > 1 ? sayi(args[1], 1) : 1);
             default -> yardim(p);
         }
@@ -187,6 +198,7 @@ public class KlanKomut implements TabExecutor {
         p.sendMessage(m().metin("bilgi-lider", "&7Lider: &6{lider}", "lider", lider != null ? lider.isim : "-"));
         p.sendMessage(m().metin("bilgi-kurulus", "&7Kuruluş: &f{tarih}", "tarih", Zaman.tarih(a.kurulus)));
         p.sendMessage(m().metin("bilgi-uye-sayisi", "&7Üyeler: &f{sayi}/{max}", "sayi", a.uyeler.size(), "max", plugin.ayar().maxUye()));
+        p.sendMessage(m().metin("bilgi-uzmanlik", "&7Uzmanlık: {alanlar}", "alanlar", plugin.uzmanlik().alanlarMetni(a)));
         p.sendMessage(m().metin("bilgi-prestij", "&7Prestij: &a{prestij} &7({sira}. sırada)", "prestij", a.prestij, "sira", plugin.prestij().sira(a)));
         StringBuilder sb = new StringBuilder();
         for (KlanUyesi u : a.siraliUyeler()) {
@@ -243,6 +255,11 @@ public class KlanKomut implements TabExecutor {
             }
             case "arena" -> plugin.arenalar().komut(s, args);
             case "guvenli" -> plugin.guvenliBolgeler().komut(s, args);
+            case "buyu" -> {
+                if (args.length >= 5 && args[2].equalsIgnoreCase("uret")) plugin.uzmanlik().adminUret(s, args[3], args[4], args.length > 5 ? args[5] : null);
+                else if (args.length >= 4 && args[2].equalsIgnoreCase("defter")) plugin.uzmanlik().adminDefter(s, args[3]);
+                else kullanim(s, "/klan admin buyu <uret <klan> <alan> [eşya] | defter <kod>>");
+            }
             case "savas" -> {
                 if (args.length < 4 || !args[2].equalsIgnoreCase("bitir")) { kullanim(s, "/klan admin savas bitir <klan>"); return; }
                 Klan a = am().klanBul(args[3]);
@@ -269,7 +286,7 @@ public class KlanKomut implements TabExecutor {
                 {"iliski <klan> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Lider)"}, {"iliski liste", "İlişkilerimiz"},
                 {"savas teklif <klan>", "Düello teklif et (Lider, husumet şart)"}, {"savas <kabul|red> [klan]", "Teklifi yanıtla (Lider)"},
                 {"savas katil", "Hazırlıktaki savaşa katıl"}, {"savas birak", "Savaştan ayrıl"}, {"savas", "Savaş durumu"},
-                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"ganimet", "Bekleyen eşyalarını al"}};
+                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"uzmanlik <liste|al|birak>", "Büyü alanları (Lider)"}, {"ganimet", "Bekleyen eşyalarını al"}};
         for (String[] satir : satirlar) {
             s.sendMessage(Mesaj.renk("&e/klan " + satir[0] + " &7- " + satir[1].replace("{ucret}", Para.yaz(plugin.ayar().kurmaUcreti()))));
         }
@@ -311,7 +328,8 @@ public class KlanKomut implements TabExecutor {
                     }
                     case "ayril", "dagit" -> oneriler.add("onayla");
                     case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
-                    case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "guvenli", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
+                    case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "guvenli", "buyu", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
+                    case "uzmanlik" -> oneriler.addAll(List.of("liste", "al", "birak"));
                     case "savas" -> oneriler.addAll(List.of("teklif", "kabul", "red", "katil", "birak", "durum"));
                     default -> { }
                 }
@@ -320,6 +338,10 @@ public class KlanKomut implements TabExecutor {
                     am().klanlar().forEach(x -> { if (a == null || !x.id.equals(a.id)) oneriler.add(x.isim); });
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("arena")) {
                     oneriler.addAll(List.of("kur", "sil", "pos1", "pos2", "spawn1", "spawn2", "liste"));
+                } else if (alt.equals("uzmanlik") && (args[1].equalsIgnoreCase("al") || args[1].equalsIgnoreCase("birak"))) {
+                    oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
+                } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu")) {
+                    oneriler.addAll(List.of("uret", "defter"));
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("guvenli")) {
                     oneriler.addAll(List.of("merkez", "kur", "sil", "pos1", "pos2", "liste"));
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("savas")) {
@@ -336,6 +358,9 @@ public class KlanKomut implements TabExecutor {
                 if (args[1].equalsIgnoreCase("kasa") || args[1].equalsIgnoreCase("savas")) am().klanlar().forEach(x -> oneriler.add(x.isim));
                 else if (args[1].equalsIgnoreCase("arena") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.arenalar().isimler());
                 else if (args[1].equalsIgnoreCase("guvenli") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.guvenliBolgeler().isimler());
+                else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) am().klanlar().forEach(x -> oneriler.add(x.isim));
+            } else if (args.length == 5 && alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) {
+                oneriler.addAll(plugin.uzmanlik().alanlar().keySet());
             }
         }
         String yazilan = args[args.length - 1].toLowerCase(Locale.ROOT);

@@ -185,6 +185,7 @@ public class DiplomasiPanel implements Listener {
             aciklama.add(ChatColor.GRAY + "Üye: " + ChatColor.WHITE + a.uyeler.size());
             aciklama.add(ChatColor.GRAY + "İlişki: " + durum.renkliAd());
             aciklama.add(ChatColor.GRAY + "Prestij: " + ChatColor.WHITE + a.prestij);
+            aciklama.add(ChatColor.GRAY + "Uzmanlık: " + plugin.uzmanlik().alanlarMetni(a));
             int biz = benim.prestijRakip.getOrDefault(a.id, 0), onlar = a.prestijRakip.getOrDefault(benim.id, 0);
             if (biz > 0 || onlar > 0) aciklama.add(ChatColor.GRAY + "Husumet skoru: " + ChatColor.GREEN + biz + ChatColor.GRAY + " - " + ChatColor.RED + onlar);
             aciklama.add("");
