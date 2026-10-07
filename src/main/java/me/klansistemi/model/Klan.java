@@ -24,6 +24,9 @@ public class Klan {
 
     // Klanın yönettiği büyü alanları (KAZMA, KILIC ...). Bir alanı aynı anda sadece bir klan yönetir.
     public final java.util.Set<String> uzmanliklar = new java.util.LinkedHashSet<>();
+    // Atölye klan geneli günlük üretim sayacı
+    public long atolyeGun;
+    public int atolyeSayi;
 
     public Klan(UUID id, String isim, long kurulus) {
         this.id = id;

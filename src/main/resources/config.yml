@@ -83,6 +83,14 @@ buyu:
   uzmanlik:
     alma-ucreti: 100000          # Klan kasasından alınır
     klan-basina-max-alan: 1
+  # Klan katmanı (kasa-bağlı) eşyalar: sadece klan kasasında durur, üyeler ödünç alıp kullanır
+  kasa-bagli:
+    odunc-limit: 3               # Bir oyuncunun aynı anda taşıyabileceği klan eşyası
+    olunce-kasaya-don: true      # false: ölünce düşmez, yeniden doğunca oyuncuya geri verilir
+    kontrol-saniye: 60           # Çevrimiçi oyuncuların kopya/geçersiz eşya denetimi aralığı
+  atolye:
+    gunluk-klan-kota: 5          # Klanın günde üretebileceği toplam eşya
+    gunluk-uye-kota: 2           # Bir üyenin günde üretebileceği eşya
   alanlar:
     KAZMA:
       aktif: true
@@ -96,6 +104,12 @@ buyu:
         efficiency: 5
         fortune: 3
         unbreaking: 3
+      atolye:
+        ucret: 25000
+        malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
+          IRON_PICKAXE: {IRON_INGOT: 3, STICK: 2, LAPIS_LAZULI: 16}
+          DIAMOND_PICKAXE: {DIAMOND: 3, STICK: 2, LAPIS_LAZULI: 32}
+          NETHERITE_PICKAXE: {DIAMOND: 3, STICK: 2, NETHERITE_INGOT: 1, LAPIS_LAZULI: 48}
     KILIC:
       aktif: false
       ad: '&cKılıç Ustalığı'
@@ -108,6 +122,12 @@ buyu:
         sharpness: 5
         looting: 3
         unbreaking: 3
+      atolye:
+        ucret: 25000
+        malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
+          IRON_SWORD: {IRON_INGOT: 2, STICK: 1, LAPIS_LAZULI: 16}
+          DIAMOND_SWORD: {DIAMOND: 2, STICK: 1, LAPIS_LAZULI: 32}
+          NETHERITE_SWORD: {DIAMOND: 2, STICK: 1, NETHERITE_INGOT: 1, LAPIS_LAZULI: 48}
     ZIRH:
       aktif: false
       ad: '&9Zırh Ustalığı'
@@ -118,6 +138,21 @@ buyu:
       ticari:
         protection: 4
         unbreaking: 3
+      atolye:
+        ucret: 30000
+        malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
+          IRON_HELMET: {IRON_INGOT: 5, LAPIS_LAZULI: 16}
+          IRON_CHESTPLATE: {IRON_INGOT: 8, LAPIS_LAZULI: 16}
+          IRON_LEGGINGS: {IRON_INGOT: 7, LAPIS_LAZULI: 16}
+          IRON_BOOTS: {IRON_INGOT: 4, LAPIS_LAZULI: 16}
+          DIAMOND_HELMET: {DIAMOND: 5, LAPIS_LAZULI: 32}
+          DIAMOND_CHESTPLATE: {DIAMOND: 8, LAPIS_LAZULI: 32}
+          DIAMOND_LEGGINGS: {DIAMOND: 7, LAPIS_LAZULI: 32}
+          DIAMOND_BOOTS: {DIAMOND: 4, LAPIS_LAZULI: 32}
+          NETHERITE_HELMET: {DIAMOND: 5, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
+          NETHERITE_CHESTPLATE: {DIAMOND: 8, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
+          NETHERITE_LEGGINGS: {DIAMOND: 7, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
+          NETHERITE_BOOTS: {DIAMOND: 4, LAPIS_LAZULI: 48, NETHERITE_INGOT: 1}
     BALTA_KUREK:
       aktif: false
       ad: '&aBalta ve Kürek Ustalığı'
@@ -128,6 +163,15 @@ buyu:
       ticari:
         efficiency: 5
         unbreaking: 3
+      atolye:
+        ucret: 20000
+        malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
+          IRON_AXE: {IRON_INGOT: 3, STICK: 2, LAPIS_LAZULI: 16}
+          DIAMOND_AXE: {DIAMOND: 3, STICK: 2, LAPIS_LAZULI: 32}
+          NETHERITE_AXE: {DIAMOND: 3, STICK: 2, NETHERITE_INGOT: 1, LAPIS_LAZULI: 48}
+          IRON_SHOVEL: {IRON_INGOT: 1, STICK: 2, LAPIS_LAZULI: 8}
+          DIAMOND_SHOVEL: {DIAMOND: 1, STICK: 2, LAPIS_LAZULI: 16}
+          NETHERITE_SHOVEL: {DIAMOND: 1, STICK: 2, NETHERITE_INGOT: 1, LAPIS_LAZULI: 32}
     YAY:
       aktif: false
       ad: '&eYay Ustalığı'
@@ -140,6 +184,11 @@ buyu:
         power: 5
         unbreaking: 3
         quick_charge: 3
+      atolye:
+        ucret: 20000
+        malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
+          BOW: {STICK: 3, STRING: 3, LAPIS_LAZULI: 24}
+          CROSSBOW: {STICK: 3, STRING: 2, IRON_INGOT: 1, TRIPWIRE_HOOK: 1, LAPIS_LAZULI: 24}
 
 # PlaceholderAPI (kuruluysa): %klan_isim% %klan_rol% %klan_uye% %klan_prestij% %klan_sira%
 placeholder:
@@ -208,6 +257,12 @@ mesajlar:
   arena-var: '&cBu isimde bir arena zaten var.'
   arena-yok: '&cBöyle bir arena yok.'
   atildin: '&c{klan} klanından atıldınız. &7({atan})'
+  atolye-alan-yok: '&cKlanınız bir büyü alanı yönetmiyor. Lider: &e/klan uzmanlik al <alan>'
+  atolye-klan-kota: '&cKlanınızın bugünkü üretim hakkı doldu ({max}).'
+  atolye-malzeme: '&cEşya kasasında yeterli malzeme yok: {adet}x {malzeme}'
+  atolye-para: '&cKlan kasasında yeterli para yok. Gereken: {ucret}'
+  atolye-uretildi: '&a{esya} üretildi ve klan kasasına kondu. &7(ID: {kod})'
+  atolye-uye-kota: '&cBugünkü üretim hakkınız doldu ({max}).'
   ayril-dagilma-uyari: '&cKlanınızda yardımcı olmadığı için ayrılırsanız klan DAĞILIR ve kasa üyelere bölünür. Onaylamak için: &e/klan ayril onayla'
   ayrildin: '&e{klan} klanından ayrıldınız.'
   ayrilma-bekleme: '&cKlandan ayrıldığınız için {sure} boyunca yeni bir klana giremezsiniz.'
@@ -224,9 +279,20 @@ mesajlar:
   bilgi-prestij: '&7Prestij: &a{prestij} &7({sira}. sırada)'
   bilgi-uye-sayisi: '&7Üyeler: &f{sayi}/{max}'
   bilgi-uzmanlik: '&7Uzmanlık: {alanlar}'
+  buyu-atilamaz: '&cKlan eşyaları yere atılamaz. Kasaya geri koyun.'
+  buyu-creative: '&cKlan eşyaları yaratıcı modda kullanılamaz.'
+  buyu-envanter-dolu: '&cEnvanterinizde yer yok.'
   buyu-esya-uygun-degil: '&cBu eşya {alan} alanına uygun değil.'
+  buyu-gecersiz: '&cBu eşyanın kaydı geçersiz, kullanılamaz. Yetkililere bildirin.'
+  buyu-iade: '&e{kod} kimlikli klan eşyası sahibi klanın kasasına iade edildi.'
   buyu-kasa-dolu: '&c{klan} klanının eşya kasası dolu.'
+  buyu-kasa-islem: '&cKlan eşyalarını kasadan sadece tıklayarak ya da Shift ile alıp koyabilirsiniz.'
+  buyu-kasa-yabanci: '&cBu eşya klanınıza ait değil, kasaya konamaz.'
   buyu-kayit-yok: '&cBu kimlikte bir kayıt yok.'
+  buyu-odunc-limit: '&cAynı anda en fazla {max} klan eşyası taşıyabilirsiniz.'
+  buyu-olum-iade: '&e{sayi} klan eşyanız öldüğünüz için klan kasasına geri döndü.'
+  buyu-silindi: '&c{kod} kimlikli eşya geçersiz olduğu için kaldırıldı. &7({sebep})'
+  buyu-tasima-yasak: '&cKlan eşyaları sadece klan kasasında saklanabilir, başka bir yere konamaz.'
   buyu-uretildi-admin: '&a{klan} kasasına test eşyası üretildi: &e{kod} &7({esya})'
   cek-borclu: '&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/klan aidat ode&c.'
   cek-limit: '&cGünlük çekim limitiniz doldu. Bugün en fazla {kalan} daha çekebilirsiniz.'
@@ -308,6 +374,7 @@ mesajlar:
   liste-satir: '&e{sira}. &6{klan} &7- Lider: &f{lider} &7- {uye} üye &7- &a{prestij} prestij'
   liste-sonraki: '&7Sonraki sayfa: &e/klan liste {sayfa}'
   menu-ana-baslik: '&6&l{klan} &8| &7Klan Menüsü'
+  menu-atolye-baslik: '&6&l{klan} &8| &7Atölye'
   menu-esya-baslik: '&6&l{klan} &8| &7Eşya Kasası {sayfa}'
   menu-kasa-baslik: '&6&l{klan} &8| &7Kasa'
   menu-panel-baslik: '&4&lDiplomasi Paneli &8| &7{sekme}'

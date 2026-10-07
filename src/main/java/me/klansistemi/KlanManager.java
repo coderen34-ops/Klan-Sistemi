@@ -326,6 +326,8 @@ public class KlanManager {
         oyuncuKlani.remove(oyuncu);
         sohbetModu.remove(oyuncu);
         beklemeBaslat(oyuncu);
+        // Üzerindeki klan eşyaları kasaya döner (çevrimdışıysa girişte)
+        plugin.buyuKurallari().uyeAyrildi(oyuncu);
     }
 
     private void beklemeBaslat(UUID oyuncu) {

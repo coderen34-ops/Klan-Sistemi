@@ -27,6 +27,10 @@ public class KlanUyesi {
     public long cekimGunu;                                   // epochDay
     public double gunlukCekilen;
 
+    // --- Atölye üye başı günlük üretim ---
+    public long atolyeGun;
+    public int atolyeSayi;
+
     public KlanUyesi(UUID uuid, String isim, Rol rol, long katilma) {
         this.uuid = uuid;
         this.isim = isim;

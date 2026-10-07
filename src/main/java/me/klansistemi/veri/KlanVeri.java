@@ -106,6 +106,8 @@ public class KlanVeri {
             y.set(yol + ".toplam-aidat", a.toplamAidat);
             y.set(yol + ".prestij", a.prestij);
             y.set(yol + ".uzmanliklar", new ArrayList<>(a.uzmanliklar));
+            y.set(yol + ".atolye-gun", a.atolyeGun);
+            y.set(yol + ".atolye-sayi", a.atolyeSayi);
             for (Map.Entry<UUID, Integer> e : a.prestijRakip.entrySet()) y.set(yol + ".prestij-rakip." + e.getKey(), e.getValue());
             List<List<String>> esya = plugin.esya().kayitVerisi(a.id);
             for (int s = 0; s < esya.size(); s++) y.set(yol + ".esya-kasasi." + s, esya.get(s));
@@ -127,6 +129,8 @@ public class KlanVeri {
                 y.set(uy + ".hatirlatma-1", u.hatirlatma1Donem);
                 y.set(uy + ".cekim-gunu", u.cekimGunu);
                 y.set(uy + ".gunluk-cekilen", u.gunlukCekilen);
+                y.set(uy + ".atolye-gun", u.atolyeGun);
+                y.set(uy + ".atolye-sayi", u.atolyeSayi);
             }
         }
         for (Map.Entry<UUID, Long> e : am.ayrilmaBeklemeleri().entrySet()) {
@@ -205,6 +209,8 @@ public class KlanVeri {
                     a.toplamAidat = c.getDouble("toplam-aidat");
                     a.prestij = c.getInt("prestij");
                     a.uzmanliklar.addAll(c.getStringList("uzmanliklar"));
+                    a.atolyeGun = c.getLong("atolye-gun");
+                    a.atolyeSayi = c.getInt("atolye-sayi");
                     ConfigurationSection pr = c.getConfigurationSection("prestij-rakip");
                     if (pr != null) for (String k : pr.getKeys(false)) {
                         try { a.prestijRakip.put(UUID.fromString(k), pr.getInt(k)); } catch (Exception ignored) {}
@@ -228,6 +234,8 @@ public class KlanVeri {
                             u.hatirlatma1Donem = uc.getInt("hatirlatma-1", -1);
                             u.cekimGunu = uc.getLong("cekim-gunu");
                             u.gunlukCekilen = uc.getDouble("gunluk-cekilen");
+                            u.atolyeGun = uc.getLong("atolye-gun");
+                            u.atolyeSayi = uc.getInt("atolye-sayi");
                             a.uyeler.put(u.uuid, u);
                         }
                     }

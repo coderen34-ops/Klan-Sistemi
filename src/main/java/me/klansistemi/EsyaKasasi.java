@@ -130,6 +130,7 @@ public class EsyaKasasi implements Listener {
         Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (a == null) return;
         List<Inventory> liste = sayfalar(a);
+        plugin.buyuKurallari().kasayiDogrula(a);
         sayfa = Math.max(0, Math.min(sayfa, liste.size() - 1));
         p.openInventory(liste.get(sayfa));
         p.playSound(p.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.6f, 1f);
@@ -201,7 +202,8 @@ public class EsyaKasasi implements Listener {
         for (int s = 0; s < kaynak.size(); s++) {
             for (int i = 0; i < DEPO_SLOT; i++) {
                 ItemStack item = kaynak.get(s).getItem(i);
-                if (item != null && item.getType() != Material.AIR) doluSlotlar.add(new int[]{s, i});
+                // Büyülü eşyalar kayıt defteri üzerinden ayrıca işlenir, normal ganimete girmez
+                if (item != null && item.getType() != Material.AIR && !plugin.buyuEsyasi().buyuluMu(item)) doluSlotlar.add(new int[]{s, i});
             }
         }
         int adet = (int) Math.round(doluSlotlar.size() * oranYuzde / 100.0);
@@ -233,6 +235,57 @@ public class EsyaKasasi implements Listener {
             if (pp != null) m().gonder(pp, "ganimet-bekleyen", "&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/klan ganimet", "sayi", bekleyeneGiden);
         }
         return adet;
+    }
+
+    /** Klanın eşya kasası sayfaları (büyü sistemi denetimleri için). */
+    public List<Inventory> kasaSayfalari(Klan klan) {
+        return sayfalar(klan);
+    }
+
+    /** Kısa kodu verilen büyülü eşya kasada mı? */
+    public boolean kasadaVarMi(Klan klan, String kod) {
+        for (Inventory inv : sayfalar(klan)) {
+            for (int i = 0; i < DEPO_SLOT; i++) {
+                if (kod.equals(plugin.buyuEsyasi().kisaKod(inv.getItem(i)))) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Kasadaki (büyülü olmayan) malzeme adedi. */
+    public int malzemeSay(Klan klan, Material mat) {
+        int n = 0;
+        for (Inventory inv : sayfalar(klan)) {
+            for (int i = 0; i < DEPO_SLOT; i++) {
+                ItemStack item = inv.getItem(i);
+                if (item != null && item.getType() == mat && !plugin.buyuEsyasi().buyuluMu(item)) n += item.getAmount();
+            }
+        }
+        return n;
+    }
+
+    /** Kasadan (büyülü olmayan) malzeme düşer. Önce malzemeSay ile yeterli olduğu kontrol edilmeli. */
+    public void malzemeDus(Klan klan, Material mat, int adet) {
+        for (Inventory inv : sayfalar(klan)) {
+            for (int i = 0; i < DEPO_SLOT && adet > 0; i++) {
+                ItemStack item = inv.getItem(i);
+                if (item == null || item.getType() != mat || plugin.buyuEsyasi().buyuluMu(item)) continue;
+                int al = Math.min(adet, item.getAmount());
+                adet -= al;
+                if (item.getAmount() == al) inv.setItem(i, null);
+                else item.setAmount(item.getAmount() - al);
+            }
+        }
+        plugin.veri().kaydet();
+    }
+
+    public boolean bosSlotVar(Klan klan) {
+        for (Inventory inv : sayfalar(klan)) {
+            for (int i = 0; i < DEPO_SLOT; i++) {
+                if (inv.getItem(i) == null || inv.getItem(i).getType() == Material.AIR) return true;
+            }
+        }
+        return false;
     }
 
     /** Eşyayı klanın eşya kasasına koyar (sayfalara sırayla); sığmayan kısmı döndürür (sığdıysa null). */
@@ -342,8 +395,10 @@ public class EsyaKasasi implements Listener {
             return;
         }
 
-        Erisim erisim = erisim(a, u);
         boolean ustte = slot >= 0 && slot < ust;
+        // Kasa-bağlı büyülü eşyalar (klan katmanı) ayrı kurallarla işlenir: tüm üyeler ödünç alabilir
+        if (plugin.buyuKurallari().kasaTiklamasi(event, p, a, u, ustte)) return;
+        Erisim erisim = erisim(a, u);
 
         if (!ustte) {
             // Oyuncunun kendi envanteri. Shift ile kasaya koymak serbest.
@@ -400,7 +455,12 @@ public class EsyaKasasi implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onDrag(InventoryDragEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof Sahip)) return;
+        if (!(event.getView().getTopInventory().getHolder() instanceof Sahip sahip)) return;
+        // Sürükleyerek kasaya konan klan eşyasının kaydı güncellenir
+        if (plugin.buyuEsyasi().kasaBagliMi(event.getOldCursor()) && event.getWhoClicked() instanceof Player p) {
+            Klan k = plugin.klanManager().klanGetir(sahip.klanId);
+            if (k != null) Bukkit.getScheduler().runTask(plugin, () -> plugin.buyuKurallari().senkronize(p, k));
+        }
         // Sürükleyerek koymak serbest, ama buton satırına bırakılamaz
         for (int slot : event.getRawSlots()) {
             if (slot >= DEPO_SLOT && slot < event.getView().getTopInventory().getSize()) {

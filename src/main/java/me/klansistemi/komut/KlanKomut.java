@@ -26,7 +26,7 @@ public class KlanKomut implements TabExecutor {
 
     private static final List<String> ALT_KOMUTLAR = List.of(
             "kur", "davet", "katil", "ayril", "at", "bilgi", "liste", "yatir", "cek", "kasa",
-            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "uzmanlik", "ganimet", "yardim");
+            "terfi", "indir", "kidem", "dagit", "sohbet", "aidat", "panel", "iliski", "savas", "prestij", "uzmanlik", "atolye", "ganimet", "yardim");
     private static final int LISTE_SAYFA = 10;
 
     private final KlanSistemi plugin;
@@ -112,6 +112,7 @@ public class KlanKomut implements TabExecutor {
             case "iliski" -> iliski(p, args);
             case "ganimet" -> plugin.esya().bekleyenleriVer(p);
             case "savas" -> savas(p, args);
+            case "atolye" -> plugin.atolye().ac(p);
             case "uzmanlik" -> {
                 String islem = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "liste";
                 switch (islem) {
@@ -286,7 +287,7 @@ public class KlanKomut implements TabExecutor {
                 {"iliski <klan> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Lider)"}, {"iliski liste", "İlişkilerimiz"},
                 {"savas teklif <klan>", "Düello teklif et (Lider, husumet şart)"}, {"savas <kabul|red> [klan]", "Teklifi yanıtla (Lider)"},
                 {"savas katil", "Hazırlıktaki savaşa katıl"}, {"savas birak", "Savaştan ayrıl"}, {"savas", "Savaş durumu"},
-                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"uzmanlik <liste|al|birak>", "Büyü alanları (Lider)"}, {"ganimet", "Bekleyen eşyalarını al"}};
+                {"prestij [sayfa]", "Klan prestij sıralaması"}, {"uzmanlik <liste|al|birak>", "Büyü alanları (Lider)"}, {"atolye", "Büyülü eşya üretimi (klan kasasından)"}, {"ganimet", "Bekleyen eşyalarını al"}};
         for (String[] satir : satirlar) {
             s.sendMessage(Mesaj.renk("&e/klan " + satir[0] + " &7- " + satir[1].replace("{ucret}", Para.yaz(plugin.ayar().kurmaUcreti()))));
         }

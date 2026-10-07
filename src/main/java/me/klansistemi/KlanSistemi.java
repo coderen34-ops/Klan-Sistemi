@@ -40,6 +40,8 @@ public class KlanSistemi extends JavaPlugin {
     private me.klansistemi.buyu.BuyuEsyasi buyuEsyasi;
     private me.klansistemi.buyu.KayitDefteri defter;
     private me.klansistemi.buyu.UzmanlikManager uzmanlik;
+    private me.klansistemi.buyu.KasaBagliKurallar buyuKurallari;
+    private me.klansistemi.buyu.Atolye atolye;
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
     private SavasManager savasManager;
@@ -78,6 +80,8 @@ public class KlanSistemi extends JavaPlugin {
         buyuEsyasi = new me.klansistemi.buyu.BuyuEsyasi(this);
         defter = new me.klansistemi.buyu.KayitDefteri(this);
         uzmanlik = new me.klansistemi.buyu.UzmanlikManager(this);
+        buyuKurallari = new me.klansistemi.buyu.KasaBagliKurallar(this);
+        atolye = new me.klansistemi.buyu.Atolye(this);
         arenaManager = new ArenaManager(this);
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
@@ -103,11 +107,16 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(iliski, this);
         getServer().getPluginManager().registerEvents(savasManager, this);
         getServer().getPluginManager().registerEvents(prestijManager, this);
+        getServer().getPluginManager().registerEvents(buyuKurallari, this);
+        getServer().getPluginManager().registerEvents(atolye, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
         // Savaş geri sayımı, süre, skor çubuğu ve çıkış toleransı saniyede bir işlenir
         Bukkit.getScheduler().runTaskTimer(this, savasManager::tick, 20L, 20L);
+        // Kasa-bağlı büyülü eşyalar düzenli denetlenir (kopya / geçersiz / klandan ayrılmış oyuncu)
+        long buyuKontrol = Math.max(20L, getConfig().getLong("buyu.kasa-bagli.kontrol-saniye", 60) * 20L);
+        Bukkit.getScheduler().runTaskTimer(this, buyuKurallari::periyodikKontrol, buyuKontrol, buyuKontrol);
 
         // PlaceholderAPI kuruluysa %klan_isim%, %klan_rol% vb. değerleri kaydet (kurulu değilse atlanır)
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
@@ -200,6 +209,8 @@ public class KlanSistemi extends JavaPlugin {
     public me.klansistemi.buyu.BuyuEsyasi buyuEsyasi() { return buyuEsyasi; }
     public me.klansistemi.buyu.KayitDefteri defter() { return defter; }
     public me.klansistemi.buyu.UzmanlikManager uzmanlik() { return uzmanlik; }
+    public me.klansistemi.buyu.KasaBagliKurallar buyuKurallari() { return buyuKurallari; }
+    public me.klansistemi.buyu.Atolye atolye() { return atolye; }
     public DiplomasiPanel panel() { return panel; }
 
     public ArenaManager arenalar() { return arenaManager; }
