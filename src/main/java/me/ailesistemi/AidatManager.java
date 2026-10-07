@@ -116,6 +116,10 @@ public class AidatManager {
         if (!ayar().aidatAktif()) { m().gonder(p, "aidat-kapali", "&cAidat sistemi şu an kapalı."); return; }
         Aile a = plugin.aileManager().oyuncununAilesi(p.getUniqueId());
         if (a == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
+        if (plugin.kasaKilitliMi(a)) {
+            m().gonder(p, "aidat-savas", "&eSavaş sürerken kasa kilitli; aidat süreniz de durduruldu. Savaştan sonra ödeyebilirsiniz.");
+            return;
+        }
         AileUyesi u = a.uyeler.get(p.getUniqueId());
         long simdi = System.currentTimeMillis();
         Integer hedef = odenecekDonem(a, u, simdi);
@@ -188,6 +192,8 @@ public class AidatManager {
         long simdi = System.currentTimeMillis();
         boolean degisti = false;
         for (Aile a : new ArrayList<>(plugin.aileManager().aileler())) {
+            // Savaşta kasa kilitliyken aidat sayacı donar (bitince dönemler kilit süresi kadar kaydırılır)
+            if (plugin.kasaKilitliMi(a)) continue;
             int k = donem(a, simdi);
             List<AileUyesi> atilacaklar = new ArrayList<>();
             for (AileUyesi u : new ArrayList<>(a.uyeler.values())) {

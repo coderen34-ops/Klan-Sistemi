@@ -30,6 +30,9 @@ import me.ailesistemi.model.AileUyesi;
 import me.ailesistemi.model.Gorus;
 import me.ailesistemi.model.IliskiDurumu;
 import me.ailesistemi.model.Rol;
+import me.ailesistemi.savas.SavasKaydi;
+import me.ailesistemi.Para;
+import org.bukkit.event.inventory.ClickType;
 
 /**
  * Diplomasi Paneli: sadece aile Patronu girebilir. Yetki her açılışta ve her tıklamada yeniden kontrol edilir;
@@ -58,14 +61,16 @@ public class DiplomasiPanel implements Listener {
     private static final int[] SEKME_SLOT = {0, 2, 4, 6, 8};
     private static final int ICERIK_BAS = 9, ICERIK_SON = 44; // 36 öğe
     private static final int SLOT_ONCEKI = 45, SLOT_KAPAT = 49, SLOT_SONRAKI = 53;
-    private static final int SLOT_DOST = 11, SLOT_TARAFSIZ = 13, SLOT_HUSUMET = 15, SLOT_NOT = 22, SLOT_GERI = 18, SLOT_BILGI = 4;
+    private static final int SLOT_DOST = 11, SLOT_TARAFSIZ = 13, SLOT_HUSUMET = 15, SLOT_NOT = 22, SLOT_GERI = 18, SLOT_BILGI = 4, SLOT_DUELLO = 26;
 
     private final AileSistemi plugin;
     private final NamespacedKey aileKey;
+    private final NamespacedKey teklifKey; // "gelen" = tıklanınca kabul/red edilebilir düello teklifi
 
     public DiplomasiPanel(AileSistemi plugin) {
         this.plugin = plugin;
         this.aileKey = new NamespacedKey(plugin, "panel_aile");
+        this.teklifKey = new NamespacedKey(plugin, "panel_teklif");
     }
 
     private IliskiManager iliski() { return plugin.iliski(); }
@@ -137,8 +142,8 @@ public class DiplomasiPanel implements Listener {
             case AILELER -> ailelerIcerigi(benim);
             case GIDEN -> gorusIcerigi(iliski().gidenGorusler(benim.id), true);
             case GELEN -> gorusIcerigi(iliski().gelenGorusler(benim.id), false);
-            case DUELLO, SAVASLAR -> List.of(esya(Material.BARRIER, ChatColor.GRAY + "Henüz yok",
-                    List.of(ChatColor.DARK_GRAY + "Savaş sistemi bir sonraki aşamada eklenecek.")));
+            case DUELLO -> duelloIcerigi(benim);
+            case SAVASLAR -> savaslarIcerigi(benim);
         };
         int sayfaBoyu = ICERIK_SON - ICERIK_BAS + 1;
         int sayfaSayisi = Math.max(1, (icerik.size() + sayfaBoyu - 1) / sayfaBoyu);
@@ -191,6 +196,68 @@ public class DiplomasiPanel implements Listener {
             icerik.add(item);
         }
         if (icerik.isEmpty()) icerik.add(esya(Material.BARRIER, ChatColor.GRAY + "Başka aile yok", List.of()));
+        return icerik;
+    }
+
+    private List<ItemStack> duelloIcerigi(Aile benim) {
+        List<ItemStack> icerik = new ArrayList<>();
+        List<String> durum = plugin.savas().durumSatirlari(benim);
+        icerik.add(esya(Material.IRON_SWORD, ChatColor.GOLD + "" + ChatColor.BOLD + "Savaş Durumu", durum));
+
+        long simdi = System.currentTimeMillis();
+        for (java.util.Map.Entry<UUID, Long> e : plugin.savas().gelenTeklifler(benim.id).entrySet()) {
+            Aile gonderen = plugin.aileManager().aileGetir(e.getKey());
+            if (gonderen == null) continue;
+            ItemStack item = esya(Material.RED_BANNER, ChatColor.RED + "" + ChatColor.BOLD + "Gelen Teklif: " + gonderen.isim,
+                    List.of(ChatColor.GRAY + "Gönderildi: " + ChatColor.WHITE + Zaman.sure(simdi - e.getValue()) + " önce",
+                            "", ChatColor.GREEN + "Sol Tık: KABUL ET", ChatColor.RED + "Sağ Tık: REDDET"));
+            ItemMeta meta = item.getItemMeta();
+            meta.getPersistentDataContainer().set(aileKey, PersistentDataType.STRING, gonderen.id.toString());
+            meta.getPersistentDataContainer().set(teklifKey, PersistentDataType.STRING, "gelen");
+            item.setItemMeta(meta);
+            icerik.add(item);
+        }
+        for (java.util.Map.Entry<UUID, Long> e : plugin.savas().gidenTeklifler(benim.id).entrySet()) {
+            Aile hedef = plugin.aileManager().aileGetir(e.getKey());
+            if (hedef == null) continue;
+            icerik.add(esya(Material.ORANGE_BANNER, ChatColor.GOLD + "Giden Teklif: " + hedef.isim,
+                    List.of(ChatColor.GRAY + "Gönderildi: " + ChatColor.WHITE + Zaman.sure(simdi - e.getValue()) + " önce",
+                            ChatColor.GRAY + "Karşı reisin yanıtı bekleniyor.")));
+        }
+        return icerik;
+    }
+
+    private List<ItemStack> savaslarIcerigi(Aile benim) {
+        List<ItemStack> icerik = new ArrayList<>();
+        for (SavasKaydi k : plugin.savas().gecmis()) {
+            if (!k.aileA.equals(benim.id) && !k.aileB.equals(benim.id)) continue;
+            boolean bizA = k.aileA.equals(benim.id);
+            String rakip = bizA ? k.isimB : k.isimA;
+            int biz = bizA ? k.puanA : k.puanB, onlar = bizA ? k.puanB : k.puanA;
+            boolean kazandik = benim.id.equals(k.kazanan);
+            Material mat;
+            String baslik;
+            if (k.kazanan == null) {
+                mat = Material.LIGHT_GRAY_BANNER;
+                baslik = ChatColor.GRAY + ("IPTAL".equals(k.sonuc) ? "İptal: " : "Berabere: ") + rakip;
+            } else if (kazandik) {
+                mat = Material.LIME_BANNER;
+                baslik = ChatColor.GREEN + "Zafer: " + rakip;
+            } else {
+                mat = Material.RED_BANNER;
+                baslik = ChatColor.RED + "Yenilgi: " + rakip;
+            }
+            List<String> aciklama = new ArrayList<>();
+            aciklama.add(ChatColor.GRAY + "Skor: " + ChatColor.WHITE + biz + " - " + onlar);
+            aciklama.add(ChatColor.GRAY + "Tarih: " + ChatColor.WHITE + Zaman.tarih(k.zaman));
+            if (k.sure > 0) aciklama.add(ChatColor.GRAY + "Süre: " + ChatColor.WHITE + Zaman.sure(k.sure));
+            if (k.kazanan != null) {
+                aciklama.add(ChatColor.GRAY + (kazandik ? "Kazanılan ganimet: " : "Kaybedilen: ") + ChatColor.GOLD + Para.yaz(k.ganimetPara)
+                        + ChatColor.GRAY + " + " + k.ganimetEsya + " yığın eşya");
+            }
+            icerik.add(esya(mat, baslik, aciklama));
+        }
+        if (icerik.isEmpty()) icerik.add(esya(Material.BARRIER, ChatColor.GRAY + "Henüz savaş yok", List.of()));
         return icerik;
     }
 
@@ -253,6 +320,12 @@ public class DiplomasiPanel implements Listener {
         notAciklama.add(ChatColor.YELLOW + "► Yazmak için tıkla");
         inv.setItem(SLOT_NOT, esya(Material.WRITABLE_BOOK, ChatColor.AQUA + "" + ChatColor.BOLD + "Görüş Notu", notAciklama));
         inv.setItem(SLOT_GERI, esya(Material.ARROW, ChatColor.YELLOW + "Geri", List.of()));
+        if (durum == IliskiDurumu.HUSUMET) {
+            inv.setItem(SLOT_DUELLO, esya(Material.NETHERITE_SWORD, ChatColor.DARK_RED + "" + ChatColor.BOLD + "Düello Teklif Et",
+                    List.of(ChatColor.GRAY + "Arenada aileler arası düello.",
+                            ChatColor.GRAY + "Kazanan, kaybedenin kasasından ganimet alır.",
+                            "", ChatColor.YELLOW + "► Teklif göndermek için tıkla")));
+        }
 
         ItemStack cam = esya(Material.BLACK_STAINED_GLASS_PANE, " ", List.of());
         for (int i = 0; i < 27; i++) if (inv.getItem(i) == null) inv.setItem(i, cam);
@@ -280,6 +353,12 @@ public class DiplomasiPanel implements Listener {
                 case SLOT_HUSUMET -> { if (iliski().gorusYaz(p, hedef, IliskiDurumu.HUSUMET, null)) aileDetay(p, hedef); else hata(p); }
                 case SLOT_NOT -> { p.closeInventory(); iliski().notBekle(p, hedef); }
                 case SLOT_GERI -> ac(p, Sekme.AILELER, 0);
+                case SLOT_DUELLO -> {
+                    if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHERITE_SWORD) {
+                        p.closeInventory();
+                        plugin.savas().teklif(p, hedef.isim);
+                    }
+                }
                 default -> { }
             }
             return;
@@ -291,6 +370,19 @@ public class DiplomasiPanel implements Listener {
         if (slot == SLOT_ONCEKI) { ac(p, sahip.sekme, sahip.sayfa - 1); return; }
         if (slot == SLOT_SONRAKI) { ac(p, sahip.sekme, sahip.sayfa + 1); return; }
         if (slot == SLOT_KAPAT) { plugin.menu().anaMenu(p); return; }
+
+        if (sahip.sekme == Sekme.DUELLO && slot >= ICERIK_BAS && slot <= ICERIK_SON) {
+            ItemStack item = event.getCurrentItem();
+            if (item == null || !item.hasItemMeta()) return;
+            ItemMeta meta = item.getItemMeta();
+            if (!"gelen".equals(meta.getPersistentDataContainer().get(teklifKey, PersistentDataType.STRING))) return;
+            Aile gonderen = plugin.aileManager().aileGetir(UUID.fromString(meta.getPersistentDataContainer().get(aileKey, PersistentDataType.STRING)));
+            if (gonderen == null) return;
+            p.closeInventory();
+            if (event.getClick() == ClickType.RIGHT || event.getClick() == ClickType.SHIFT_RIGHT) plugin.savas().red(p, gonderen.isim);
+            else plugin.savas().kabul(p, gonderen.isim);
+            return;
+        }
 
         if ((sahip.sekme == Sekme.AILELER || sahip.sekme == Sekme.GIDEN) && slot >= ICERIK_BAS && slot <= ICERIK_SON) {
             ItemStack item = event.getCurrentItem();

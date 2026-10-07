@@ -100,6 +100,14 @@ public class AileManager {
         return kalan;
     }
 
+    /** Savaş sırasında kasa ve üyelik işlemleri kilitlidir. Kilitliyse oyuncuya bildirir. */
+    private boolean kilitli(Player p, Aile a) {
+        if (!plugin.kasaKilitliMi(a)) return false;
+        m().gonder(p, "savas-kilit", "&cAileniz savaşta! Savaş bitene kadar kasa, ayrılma ve üye atma kilitlidir.");
+        ses(p, false);
+        return true;
+    }
+
     private static void ses(Player p, boolean basarili) {
         p.playSound(p.getLocation(), basarili ? Sound.ENTITY_VILLAGER_YES : Sound.ENTITY_VILLAGER_NO, 1f, 1f);
     }
@@ -209,6 +217,7 @@ public class AileManager {
         if (a.uyeler.size() >= ayar().maxUye()) {
             m().gonder(p, "katilma-dolu", "&cBu aile dolu."); return;
         }
+        if (plugin.kasaKilitliMi(a)) { m().gonder(p, "katilma-savasta", "&cBu aile şu an savaşta, savaş bitince tekrar deneyin."); return; }
 
         long simdi = System.currentTimeMillis();
         AileUyesi u = new AileUyesi(pId, p.getName(), Rol.UYE, simdi);
@@ -229,6 +238,7 @@ public class AileManager {
         UUID pId = p.getUniqueId();
         Aile a = oyuncununAilesi(pId);
         if (a == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
+        if (kilitli(p, a)) return;
         AileUyesi ben = a.uyeler.get(pId);
 
         if (ben.rol == Rol.PATRON) {
@@ -271,6 +281,7 @@ public class AileManager {
     public void at(Player p, String hedefIsim) {
         Aile a = oyuncununAilesi(p.getUniqueId());
         if (a == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
+        if (kilitli(p, a)) return;
         AileUyesi ben = a.uyeler.get(p.getUniqueId());
         AileUyesi hedef = uyeBulIsimle(a, hedefIsim);
         if (hedef == null) { m().gonder(p, "uye-bulunamadi", "&cAilenizde bu isimde bir üye yok."); return; }
@@ -392,6 +403,7 @@ public class AileManager {
         Aile a = oyuncununAilesi(p.getUniqueId());
         if (a == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
         if (miktar <= 0) { m().gonder(p, "gecersiz-miktar", "&cGeçerli bir miktar yazın."); return; }
+        if (kilitli(p, a)) return;
         double bosluk = ayar().kasaUstSinir() - a.kasa;
         if (miktar > bosluk) {
             m().gonder(p, "kasa-ust-sinir", "&cKasa üst sınırı {sinir}. En fazla {bosluk} yatırabilirsiniz.",
@@ -413,6 +425,7 @@ public class AileManager {
         if (a == null) { m().gonder(p, "ailede-degil", "&cBir ailede değilsiniz."); return; }
         AileUyesi ben = a.uyeler.get(p.getUniqueId());
         if (miktar <= 0) { m().gonder(p, "gecersiz-miktar", "&cGeçerli bir miktar yazın."); return; }
+        if (kilitli(p, a)) return;
         if (ben.rol == Rol.UYE) { m().gonder(p, "cek-yetki-yok", "&cÜyeler kasadan para çekemez, sadece yatırabilir."); ses(p, false); return; }
         if (ben.borclu) {
             m().gonder(p, "cek-borclu", "&cAidat borcunuz olduğu için kasadan para çekemezsiniz. Önce &e/aile aidat ode&c."); ses(p, false); return;
@@ -441,6 +454,7 @@ public class AileManager {
     public void dagit(Player p, boolean onay) {
         Aile a = patronunAilesi(p);
         if (a == null) return;
+        if (kilitli(p, a)) return;
         if (!onay) {
             m().gonder(p, "dagit-uyari", "&cAileyi dağıtmak üzeresiniz! Kasa ({kasa}) üyelere eşit bölünecek. Onaylamak için: &e/aile dagit onayla",
                     "kasa", Para.yaz(a.kasa));
@@ -522,6 +536,7 @@ public class AileManager {
     }
 
     public void adminDagit(CommandSender s, Aile a) {
+        if (plugin.kasaKilitliMi(a)) plugin.savas().adminBitir(s, a);
         plugin.log().yaz(a, s.getName(), "ADMIN_DAGITTI", null);
         String isim = a.isim;
         aileyiDagit(a, m().metin("dagildi-admin", "Yönetim tarafından dağıtıldı"));

@@ -53,7 +53,7 @@ public class AileMenu implements Listener {
     }
 
     private static final int SLOT_BILGI = 4, SLOT_UYELER = 10, SLOT_KASA = 12, SLOT_AIDAT = 14, SLOT_SOHBET = 16, SLOT_YARDIM = 22;
-    private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_ESYA = 31;
+    private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_ESYA = 31, SLOT_SAVAS = 18;
     private static final int SLOT_GERI = 49;
 
     private final AileSistemi plugin;
@@ -141,6 +141,10 @@ public class AileMenu implements Listener {
                         ChatColor.RED + "Husumet: " + iliskiOzeti[1],
                         ChatColor.GRAY + "Diğerleri: Tarafsız",
                         "", ChatColor.GRAY + "Ayrıntı: " + ChatColor.WHITE + "/aile iliski liste")));
+        List<String> savasAciklama = new ArrayList<>(plugin.savas().durumSatirlari(a));
+        if (plugin.savas().hazirliktaMi(a.id)) { savasAciklama.add(""); savasAciklama.add(ChatColor.YELLOW + "► Savaşa katılmak için tıkla"); }
+        inv.setItem(SLOT_SAVAS, esya(Material.IRON_SWORD, ChatColor.RED + "" + ChatColor.BOLD + "Savaş Durumu", savasAciklama));
+
         if (ben.rol == Rol.PATRON) {
             inv.setItem(SLOT_DIPLOMASI, esya(Material.RED_BANNER, ChatColor.DARK_RED + "" + ChatColor.BOLD + "Diplomasi Paneli",
                     List.of(ChatColor.GRAY + "Sadece Patron görebilir.",
@@ -252,6 +256,7 @@ public class AileMenu implements Listener {
                 else if (slot == SLOT_AIDAT) { plugin.aidat().ode(p); anaMenu(p); }
                 else if (slot == SLOT_SOHBET) { plugin.aileManager().sohbetDegistir(p); anaMenu(p); }
                 else if (slot == SLOT_YARDIM) { p.closeInventory(); p.performCommand("aile yardim"); }
+                else if (slot == SLOT_SAVAS && plugin.savas().hazirliktaMi(a.id)) { plugin.savas().katil(p); anaMenu(p); }
                 else if (slot == SLOT_DIPLOMASI) plugin.panel().ac(p, me.ailesistemi.gui.DiplomasiPanel.Sekme.AILELER, 0);
             }
             case UYELER -> { if (slot == SLOT_GERI) anaMenu(p); }

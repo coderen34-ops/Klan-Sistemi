@@ -39,6 +39,28 @@ aidat:
   patron-bildirim-donem: 2       # Üst üste bu kadar dönem ödemeyen için patrona bildirim
   cevrimdisi-koruma: true        # Ek süre bittiğinde oyunda olmayanın ek süresi girişte yeniden başlar
 
+savas:
+  # Açık dünyada öldürme savaşı bu sürümde yok; tüm savaşlar arena düellosu olarak yapılır.
+  acik-dunya-savasi: false
+  teklif-gecerlilik-dakika: 10
+  min-cevrimici: 3               # Kabul için her ailede en az bu kadar çevrimiçi üye
+  min-katilimci: 3               # Geri sayım bitince her aileden en az bu kadar katılımcı (yoksa iptal)
+  max-katilimci: 5
+  geri-sayim-saniye: 60
+  hedef-puan: 15
+  sure-dakika: 15
+  yeniden-dogma-saniye: 5        # Ölen oyuncu kendi spawn'ında bu süre korumalı bekler
+  ayni-oyuncu-puan-bekleme-saniye: 5
+  cikis-tolerans-saniye: 60      # Oyundan çıkan katılımcı bu sürede dönmezse düşer, rakibe +1
+  esya-kaybi: false              # false: ölünce eşya düşmez. true: eşyalar düşer, kazanan toplar
+  aile-ici-hasar: false          # Aynı aile üyeleri arenada birbirine hasar verebilir mi
+  ganimet-min: 25                # Kazanan, kaybedenin kasasından %min-%max alır (puan farkına göre)
+  ganimet-max: 50
+  kaybeden-bekleme-saat: 6
+  ayni-aileler-bekleme-saat: 12
+  # Savaştaki oyuncunun kullanamayacağı komutlar ("eklenti:komut" yazımı da engellenir)
+  yasak-komutlar: [tpa, tpahere, tpaccept, tpyes, home, homes, spawn, warp, warps, back, rtp, wild, tp, tphere, call, ehome, espawn, ewarp, eback]
+
 # Tag-Manager (TagPlugin) entegrasyonu: aile etiketi meslek etiketinin ÖNÜNE eklenir,
 # mevcut önek/sonek bozulmaz. Yer tutucular: {aile}, {rol}
 etiket:
@@ -87,10 +109,23 @@ mesajlar:
   aidat-muaf: '&bBu dönem aidattan muafsınız.'
   aidat-odendi: '&a{miktar} aidat ödendi. Teşekkürler! Kasa: &e{kasa}'
   aidat-patron-bildirim: '&c{oyuncu} üst üste {donem} dönemdir aidat ödemiyor!'
+  aidat-savas: '&eSavaş sürerken kasa kilitli; aidat süreniz de durduruldu. Savaştan sonra ödeyebilirsiniz.'
   aidat-zaten-odendi: '&aBu dönemin aidatını zaten ödediniz.'
   aile-dolu: '&cAileniz dolu! (En fazla {max} üye)'
   aile-yok: '&cBöyle bir aile bulunamadı.'
   ailede-degil: '&cBir ailede değilsiniz.'
+  arena-ayarlandi: '&a{arena} arenasının {nokta} noktası ayarlandı.'
+  arena-eksik: '&7Eksik: &e{eksik}'
+  arena-hazir: '&a{arena} arenası kullanıma hazır.'
+  arena-kullanimda: '&cBu arenada şu an savaş var, silinemez.'
+  arena-kuruldu: '&a{arena} arenası oluşturuldu. Şimdi sınırları ve spawnları ayarlayın: &e/aile admin arena <pos1|pos2|spawn1|spawn2> {arena}'
+  arena-kullanimda-degistir: '&cBu arenada şu an savaş var, değiştirilemez.'
+  arena-liste-baslik: '&6&l--- ARENALAR ---'
+  arena-liste-bos: '&7Hiç arena tanımlanmamış. &e/aile admin arena kur <isim>'
+  arena-silindi: '&a{arena} arenası silindi.'
+  arena-spawn-disarida: '&eUyarı: spawn noktalarından biri arena sınırlarının dışında!'
+  arena-var: '&cBu isimde bir arena zaten var.'
+  arena-yok: '&cBöyle bir arena yok.'
   atildin: '&c{aile} ailesinden atıldınız. &7({atan})'
   ayril-dagilma-uyari: '&cAilenizde yardımcı olmadığı için ayrılırsanız aile DAĞILIR ve kasa üyelere bölünür. Onaylamak için: &e/aile ayril onayla'
   ayrildin: '&e{aile} ailesinden ayrıldınız.'
@@ -130,6 +165,7 @@ mesajlar:
   esya-yardimci-islem: '&cYardımcılar kasadan sadece tıklayarak ya da Shift ile eşya alabilir.'
   etiket-kapali: '&cEtiket entegrasyonu kapalı ya da TagPlugin kurulu değil.'
   etiket-yenilendi: '&a{sayi} oyuncunun aile etiketi yeniden uygulandı.'
+  ganimet-bekleyen: '&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/aile ganimet'
   gecersiz-miktar: '&cGeçerli bir miktar yazın.'
   gecersiz-sayi: '&cGeçerli bir sayı yazın.'
   gorus-bekleme: '&cBu aile hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.'
@@ -159,6 +195,7 @@ mesajlar:
   kasa-yetersiz: '&cKasada yeterli para yok. Kasa: {kasa}'
   katildi: '&a{oyuncu} aileye katıldı!'
   katilma-dolu: '&cBu aile dolu.'
+  katilma-savasta: '&cBu aile şu an savaşta, savaş bitince tekrar deneyin.'
   kendini-atamaz: '&cKendinizi atamazsınız, /aile ayril kullanın.'
   kidem-ayarlandi: '&aKıdem sırası güncellendi: &e{liste}'
   kidem-sadece-yardimci: '&cKıdem sadece Yardımcılara verilir.'
@@ -181,6 +218,72 @@ mesajlar:
   patron-devri: '&6{eski} aileden ayrıldı. Yeni Patron: &e{yeni}'
   sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   sadece-patron: '&cBunu sadece aile Patronu yapabilir.'
+  savas-admin-bitirildi: '&aSavaş bitirildi.'
+  savas-arena-disi: '&cSavaş bitmeden arenadan çıkamazsınız!'
+  savas-arena-dolu: '&cArena dolu ya da kurulu değil! Teklif geçerli olduğu sürece daha sonra tekrar deneyin.'
+  savas-arena-giris: '&cBu arenada savaş sürüyor, giremezsiniz!'
+  savas-arena-giris-isinlanma: '&cSavaş süren bir arenaya ışınlanamazsınız!'
+  savas-ayrildi: '&e{oyuncu} savaştan ayrıldı, rakibe +1 puan.'
+  savas-az-cevrimici: '&c{aile} ailesinin en az {min} üyesi çevrimiçi olmalı.'
+  savas-bar: '&6{a} &f{pa} &7- &f{pb} &6{b} &8| &7{dk}:{sn}'
+  savas-basladi: '&cSavaş başladı, artık katılamazsınız.'
+  savas-basladi-alt: '&e{hedef} puana ulaşan kazanır'
+  savas-basladi-baslik: '&4&lSAVAŞ!'
+  savas-birakti-hazirlik: '&eSavaş katılımından vazgeçtiniz.'
+  savas-bitti: '&4⚔ {a} - {b}: '
+  savas-cift-bekleme: '&cBu iki aile tekrar savaşmak için {sure} beklemeli.'
+  savas-cikis-dusuldu: '&e{oyuncu} geri dönmediği için savaştan düşürüldü, rakibe +1 puan.'
+  savas-dogma-bekleme: '&7{sure} saniye sonra savaşa dönüyorsunuz...'
+  savas-dolu: '&cAilenizden en fazla {max} kişi katılabilir.'
+  savas-donus: '&7Siz yokken savaş bitti, eski konumunuza döndünüz.'
+  savas-durum-aktif: '&c{rakip} ile savaştasınız! Skor: &e{biz} - {onlar} &7| Kalan: {sure}'
+  savas-durum-hazirlik: '&eHazırlık: {rakip} ile düello {sure} sonra. Hazır: {biz} - {onlar}'
+  savas-durum-teklif: '&e{sayi} bekleyen düello teklifi var. &6/aile panel'
+  savas-durum-yok: '&7Aileniz şu an savaşta değil.'
+  savas-duyuru: '&4&l⚔ {a} ile {b} arasında DÜELLO kabul edildi! &7(Arena: {arena})'
+  savas-geri-dondun: '&aSavaşa geri döndünüz!'
+  savas-geri-sayim: '&eSavaş {sure} saniye sonra başlıyor! Hazır: &a{sayi}'
+  savas-hapis: '&cHapisteyken ya da duruşmadayken savaşa katılamazsınız.'
+  savas-hazir-oldu: '&a{oyuncu} savaşa hazır! &7({sayi}/{max})'
+  savas-hazirlik: '&eSavaş {sure} saniye sonra başlıyor! Kasalar kilitlendi. Katılmak için: '
+  savas-husumet-yok: '&cDüello için iki aile arasında HUSUMET olmalı.'
+  savas-iptal-arena: 'Arena kullanılamıyor'
+  savas-iptal-katilim: 'Yeterli katılım olmadı (her aileden en az {min} kişi)'
+  savas-isinlanma: '&cSavaş sürerken arenadan ışınlanamazsınız!'
+  savas-kabul-buton: '&a&l[KABUL] '
+  savas-katil-buton: '&a&l[KATIL]'
+  savas-katilimci-degil: '&cBir savaşa katılmıyorsunuz.'
+  savas-kaybeden-bekleme: '&c{aile} son savaşını kaybettiği için {sure} daha savaşamaz.'
+  savas-kilit: '&cAileniz savaşta! Savaş bitene kadar kasa, ayrılma ve üye atma kilitlidir.'
+  savas-komut-yasak: '&cSavaş sırasında bu komut kullanılamaz!'
+  savas-oyun-modu: '&cSavaşa sadece Survival/Adventure modunda katılabilirsiniz.'
+  savas-oyuncu-cikti: '&7{oyuncu} oyundan çıktı. {sure} saniye içinde dönmezse savaştan düşecek.'
+  savas-puan: '&c{katil} &7→ &f{kurban} &a(+1)'
+  savas-red-buton: '&c&l[RED]'
+  savas-reddedildi: '&e{aile} ailesinin düello teklifini reddettiniz.'
+  savas-sebep: ' &8({sebep})'
+  savas-sebep-admin: 'Yönetim tarafından bitirildi ({oyuncu})'
+  savas-sebep-kapanis: 'Sunucu kapandı'
+  savas-sebep-kimse-kalmadi: 'Rakip tarafta kimse kalmadı'
+  savas-sebep-puan: 'Hedef puana ulaşıldı'
+  savas-sebep-sure: 'Süre doldu'
+  savas-sonuc-berabere: '&eBERABERE! &7({pa} - {pb}) Kasalar değişmedi.'
+  savas-sonuc-iptal: '&7Savaş iptal edildi.'
+  savas-sonuc-kazandi: '&6&l{kazanan} KAZANDI! &7({pa} - {pb}) &aGanimet: {para} + {esya} yığın eşya'
+  savas-teklif-aile: '&6Ailemiz {aile} ailesine DÜELLO teklif etti!'
+  savas-teklif-butonlar: '&7Yanıtınız: '
+  savas-teklif-geldi-aile: '&c&l{aile} ailesi bize DÜELLO teklif etti! &7(Karar Patronda)'
+  savas-teklif-gonderildi: '&a{aile} ailesine düello teklifi gönderildi. ({sure} geçerli)'
+  savas-teklif-reddedildi: '&e{aile} ailesi düello teklifimizi reddetti.'
+  savas-teklif-sec: '&eBirden fazla teklif var, aile adını yazın: &6/aile savas kabul <aile>'
+  savas-teklif-yok: '&cBekleyen bir düello teklifi yok.'
+  savas-teklif-zaten: '&eBu aileye zaten bekleyen bir düello teklifiniz var.'
+  savas-tekrar-oldurme: '&7Aynı oyuncuyu bu kadar kısa sürede tekrar öldürmek puan vermez.'
+  savas-yeni-aile: '&c{aile} yeni kuruldu, {sure} daha savaşa giremez.'
+  savas-yok: '&cAilenizin şu an bir savaşı yok.'
+  savas-yok-admin: '&c{aile} ailesinin süren bir savaşı yok.'
+  savas-zaten-katildin: '&eZaten hazırsınız.'
+  savas-zaten-savasta: '&c{aile} şu an başka bir savaşta.'
   sohbet-acildi: '&aAile sohbeti açıldı. Mesajlarınız sadece ailenize gidiyor. Kapatmak için tekrar &e/aile sohbet'
   sohbet-format: '&8[&6{aile}&8] {rol}&r {oyuncu}&7: &f{mesaj}'
   sohbet-kapandi: '&eAile sohbeti kapatıldı. Mesajlarınız genel sohbete gidiyor.'

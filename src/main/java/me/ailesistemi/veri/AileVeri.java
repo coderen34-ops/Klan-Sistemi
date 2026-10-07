@@ -25,6 +25,9 @@ import me.ailesistemi.model.AileUyesi;
 import me.ailesistemi.model.Gorus;
 import me.ailesistemi.model.IliskiDurumu;
 import me.ailesistemi.EsyaKasasi;
+import me.ailesistemi.savas.ArenaManager;
+import me.ailesistemi.savas.SavasKaydi;
+import me.ailesistemi.savas.SavasManager;
 import me.ailesistemi.model.Rol;
 
 /**
@@ -143,6 +146,35 @@ public class AileVeri {
         for (Map.Entry<String, Long> e : plugin.iliski().dostlukBitisleri().entrySet()) {
             y.set("dostluk-bitis." + e.getKey().replace(':', '_'), e.getValue());
         }
+
+        SavasManager sm = plugin.savas();
+        if (sm != null) {
+            for (Map.Entry<UUID, Long> e : sm.kaybedenBeklemeleri().entrySet()) y.set("savas.kaybeden-bekleme." + e.getKey(), e.getValue());
+            for (Map.Entry<String, Long> e : sm.ciftBeklemeleri().entrySet()) y.set("savas.cift-bekleme." + e.getKey(), e.getValue());
+            // Savaş sırasında sunucu çökerse oyuncular girişte eski konumlarına döner
+            for (Map.Entry<UUID, org.bukkit.Location> e : sm.donusKonumlari().entrySet()) {
+                String konum = ArenaManager.konumYaz(e.getValue());
+                if (konum != null) y.set("savas.donus." + e.getKey(), konum);
+            }
+            List<Map<String, Object>> gecmis = new ArrayList<>();
+            for (SavasKaydi k : sm.gecmis()) {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("aileA", k.aileA.toString());
+                m.put("aileB", k.aileB.toString());
+                m.put("isimA", k.isimA);
+                m.put("isimB", k.isimB);
+                m.put("puanA", k.puanA);
+                m.put("puanB", k.puanB);
+                m.put("kazanan", k.kazanan == null ? "" : k.kazanan.toString());
+                m.put("sonuc", k.sonuc);
+                m.put("ganimetPara", k.ganimetPara);
+                m.put("ganimetEsya", k.ganimetEsya);
+                m.put("zaman", k.zaman);
+                m.put("sure", k.sure);
+                gecmis.add(m);
+            }
+            y.set("savas.gecmis", gecmis);
+        }
         return y;
     }
 
@@ -238,6 +270,32 @@ public class AileVeri {
         if (dostluk != null) {
             for (String k : dostluk.getKeys(false)) plugin.iliski().dostlukBitisleri().put(k.replace('_', ':'), dostluk.getLong(k));
         }
+        SavasManager sm = plugin.savas();
+        ConfigurationSection kb = y.getConfigurationSection("savas.kaybeden-bekleme");
+        if (kb != null) for (String k : kb.getKeys(false)) {
+            try { sm.kaybedenBeklemeleri().put(UUID.fromString(k), kb.getLong(k)); } catch (Exception ignored) {}
+        }
+        ConfigurationSection cb = y.getConfigurationSection("savas.cift-bekleme");
+        if (cb != null) for (String k : cb.getKeys(false)) sm.ciftBeklemeleri().put(k, cb.getLong(k));
+        ConfigurationSection donus = y.getConfigurationSection("savas.donus");
+        if (donus != null) for (String k : donus.getKeys(false)) {
+            try {
+                org.bukkit.Location loc = ArenaManager.konumOku(donus.getString(k));
+                if (loc != null) sm.donusKonumlari().put(UUID.fromString(k), loc);
+            } catch (Exception ignored) {}
+        }
+        for (Map<?, ?> m : y.getMapList("savas.gecmis")) {
+            try {
+                String kazanan = String.valueOf(m.get("kazanan"));
+                sm.gecmis().add(new SavasKaydi(UUID.fromString(String.valueOf(m.get("aileA"))), UUID.fromString(String.valueOf(m.get("aileB"))),
+                        String.valueOf(m.get("isimA")), String.valueOf(m.get("isimB")),
+                        ((Number) m.get("puanA")).intValue(), ((Number) m.get("puanB")).intValue(),
+                        kazanan.isEmpty() ? null : UUID.fromString(kazanan), String.valueOf(m.get("sonuc")),
+                        ((Number) m.get("ganimetPara")).doubleValue(), ((Number) m.get("ganimetEsya")).intValue(),
+                        ((Number) m.get("zaman")).longValue(), ((Number) m.get("sure")).longValue()));
+            } catch (Exception ignored) {}
+        }
+
         ConfigurationSection bekleme = y.getConfigurationSection("ayrilma-bekleme");
         if (bekleme != null) {
             for (String uStr : bekleme.getKeys(false)) {

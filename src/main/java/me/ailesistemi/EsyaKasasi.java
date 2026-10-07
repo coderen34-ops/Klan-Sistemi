@@ -184,6 +184,72 @@ public class EsyaKasasi implements Listener {
         plugin.log().yaz(a, "-", "ESYA_DAGITILDI", esyalar.size() + " yığın " + uyeler.size() + " üyeye");
     }
 
+    // ------------------------------------------------------------------ GANİMET
+    /**
+     * Kaybeden ailenin kasasındaki dolu slotlardan rastgele %oran kadarını kazanan aileye taşır (tamamı asla değil).
+     * Kazananın kasası dolarsa kalanlar kazanan patronun bekleyen eşyalarına yazılır (/aile ganimet).
+     * @return taşınan yığın sayısı
+     */
+    public int ganimetAktar(Aile kaybeden, Aile kazanan, double oranYuzde) {
+        List<Inventory> kaynak = sayfalar(kaybeden);
+        List<int[]> doluSlotlar = new ArrayList<>(); // {sayfa, slot}
+        for (int s = 0; s < kaynak.size(); s++) {
+            for (int i = 0; i < DEPO_SLOT; i++) {
+                ItemStack item = kaynak.get(s).getItem(i);
+                if (item != null && item.getType() != Material.AIR) doluSlotlar.add(new int[]{s, i});
+            }
+        }
+        int adet = (int) Math.round(doluSlotlar.size() * oranYuzde / 100.0);
+        if (adet >= doluSlotlar.size() && doluSlotlar.size() > 0) adet = doluSlotlar.size() - 1; // Tamamı alınmaz
+        if (adet <= 0) return 0;
+        Collections.shuffle(doluSlotlar);
+
+        List<Inventory> hedef = sayfalar(kazanan);
+        AileUyesi patron = kazanan.patron();
+        int bekleyeneGiden = 0;
+        for (int k = 0; k < adet; k++) {
+            int[] yer = doluSlotlar.get(k);
+            Inventory inv = kaynak.get(yer[0]);
+            ItemStack item = inv.getItem(yer[1]);
+            inv.setItem(yer[1], null);
+            if (item == null) continue;
+            ItemStack kalan = item;
+            for (Inventory h : hedef) {
+                kalan = depoyaKoy(h, kalan);
+                if (kalan == null) break;
+            }
+            if (kalan != null && patron != null) {
+                bekleyenEkle(patron.uuid, kalan);
+                bekleyeneGiden++;
+            }
+        }
+        if (bekleyeneGiden > 0 && patron != null) {
+            Player pp = Bukkit.getPlayer(patron.uuid);
+            if (pp != null) m().gonder(pp, "ganimet-bekleyen", "&6Kasanız dolu olduğu için {sayi} yığın ganimet size ayrıldı: &e/aile ganimet", "sayi", bekleyeneGiden);
+        }
+        return adet;
+    }
+
+    /** Eşyayı sayfanın sadece depo slotlarına (alt buton satırına değil) koyar; sığmayanı döndürür. */
+    private static ItemStack depoyaKoy(Inventory inv, ItemStack item) {
+        ItemStack kalan = item.clone();
+        for (int i = 0; i < DEPO_SLOT && kalan.getAmount() > 0; i++) {
+            ItemStack mevcut = inv.getItem(i);
+            if (mevcut != null && mevcut.isSimilar(kalan) && mevcut.getAmount() < mevcut.getMaxStackSize()) {
+                int eklenecek = Math.min(kalan.getAmount(), mevcut.getMaxStackSize() - mevcut.getAmount());
+                mevcut.setAmount(mevcut.getAmount() + eklenecek);
+                kalan.setAmount(kalan.getAmount() - eklenecek);
+            }
+        }
+        for (int i = 0; i < DEPO_SLOT && kalan.getAmount() > 0; i++) {
+            if (inv.getItem(i) == null || inv.getItem(i).getType() == Material.AIR) {
+                inv.setItem(i, kalan.clone());
+                kalan.setAmount(0);
+            }
+        }
+        return kalan.getAmount() > 0 ? kalan : null;
+    }
+
     // ------------------------------------------------------------------ BEKLEYEN EŞYALAR
     public void bekleyenEkle(UUID oyuncu, ItemStack item) {
         bekleyenler.computeIfAbsent(oyuncu, k -> new ArrayList<>()).add(item);
