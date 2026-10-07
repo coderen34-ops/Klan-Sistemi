@@ -336,10 +336,12 @@ public class BuyuUstasi implements Listener {
         if (katman == BuyuEsyasi.Katman.KLAN) return "Klan eşyalarına satış yapılmaz";
         if (katman == BuyuEsyasi.Katman.TICARI && !k.id.equals(esya().kaynakKlan(el))) return "Başka klanın büyüsünü taşıyor";
         if (katman == null && esya().buyuluMu(el)) return "Geçersiz eşya";
-        int seviye = alanBul(k, el.getType(), e).ticariSeviye.get(e);
+        BuyuEsyasi.AlanTanimi alan = alanBul(k, el.getType(), e);
+        int seviye = alan.ticariSeviye.get(e);
         if (el.getEnchantmentLevel(e) >= seviye) return "Bu büyü zaten bu seviyede";
         for (Enchantment var : el.getEnchantments().keySet()) {
-            if (!var.equals(e) && var.conflictsWith(e)) return ad(var) + " ile birlikte olamaz";
+            // Alanın kendi listesindeki büyüler birlikte basılabilir (örn. zırhta Protection + Fire Protection)
+            if (!var.equals(e) && var.conflictsWith(e) && !alan.ticariSeviye.containsKey(var)) return ad(var) + " ile birlikte olamaz";
         }
         if (bugunSatis(k) >= klanKota()) return "Klanın bugünkü satış kotası doldu";
         if (bugunAlici(k, p.getUniqueId()) >= aliciSinir()) return "Bu klandan bugünkü alım sınırınız doldu";

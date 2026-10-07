@@ -129,10 +129,14 @@ buyu:
         sharpness: 7
         looting: 4
         unbreaking: 5
+        fire_aspect: 3
+        knockback: 3
       ticari:
         sharpness: 5
         looting: 3
         unbreaking: 3
+        fire_aspect: 2
+        knockback: 2
       atolye:
         ucret: 25000
         malzemeler:             # Eşya türü -> klan eşya kasasından düşecek malzemeler
@@ -143,11 +147,14 @@ buyu:
       aktif: true
       ad: '&9Zırh Ustalığı'
       esyalar: [IRON_HELMET, IRON_CHESTPLATE, IRON_LEGGINGS, IRON_BOOTS, DIAMOND_HELMET, DIAMOND_CHESTPLATE, DIAMOND_LEGGINGS, DIAMOND_BOOTS, NETHERITE_HELMET, NETHERITE_CHESTPLATE, NETHERITE_LEGGINGS, NETHERITE_BOOTS]
+      # Protection ve Fire Protection vanillada birlikte olamaz; burada ikisi aynı anda basılır
       klan:
         protection: 6
+        fire_protection: 5
         unbreaking: 5
       ticari:
         protection: 4
+        fire_protection: 4
         unbreaking: 3
       atolye:
         ucret: 30000
@@ -170,9 +177,11 @@ buyu:
       esyalar: [IRON_AXE, DIAMOND_AXE, NETHERITE_AXE, IRON_SHOVEL, DIAMOND_SHOVEL, NETHERITE_SHOVEL]
       klan:
         efficiency: 7
+        fortune: 4
         unbreaking: 5
       ticari:
         efficiency: 5
+        fortune: 3
         unbreaking: 3
       atolye:
         ucret: 20000
