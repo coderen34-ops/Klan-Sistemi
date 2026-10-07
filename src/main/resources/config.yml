@@ -79,7 +79,7 @@ prestij:
 #  BÜYÜ UZMANLIĞI
 #  Bir alanı aynı anda tek klan yönetir. Büyü adları Minecraft adlarıdır (efficiency, fortune, sharpness...).
 #  klan: kasa-bağlı klan katmanı seviyeleri | ticari: dışarıya satılan katman seviyeleri
-#  Pilot: sadece KAZMA açık. Diğer alanlar hazır, "aktif: true" yapılınca açılır.
+#  Tüm alanlar açık; bir alanı kapatmak için "aktif: false" yapın.
 # ================================================================
 buyu:
   uzmanlik:
