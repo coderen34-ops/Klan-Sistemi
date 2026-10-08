@@ -256,6 +256,7 @@ public class KlanKomut implements TabExecutor {
                 else m().gonder(s, "etiket-yenilendi", "&a{sayi} oyuncunun klan etiketi yeniden uygulandı.", "sayi", sayi);
             }
             case "arena" -> plugin.arenalar().komut(s, args);
+            case "savasalani" -> plugin.rastgeleArena().komut(s, args);
             case "guvenli" -> plugin.guvenliBolgeler().komut(s, args);
             case "buyu" -> {
                 if (args.length >= 5 && args[2].equalsIgnoreCase("uret")) plugin.uzmanlik().adminUret(s, args[3], args[4], args.length > 5 ? args[5] : null);
@@ -332,7 +333,7 @@ public class KlanKomut implements TabExecutor {
                     }
                     case "ayril", "dagit" -> oneriler.add("onayla");
                     case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
-                    case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "guvenli", "buyu", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
+                    case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "savasalani", "guvenli", "buyu", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
                     case "uzmanlik" -> oneriler.addAll(List.of("liste", "al", "birak"));
                     case "buyu" -> oneriler.addAll(List.of("fiyat", "fiyatlar", "gecmis"));
                     case "savas" -> oneriler.addAll(List.of("teklif", "kabul", "red", "katil", "birak", "durum"));
@@ -341,6 +342,8 @@ public class KlanKomut implements TabExecutor {
             } else if (args.length == 3) {
                 if (alt.equals("savas") && (args[1].equalsIgnoreCase("teklif") || args[1].equalsIgnoreCase("kabul") || args[1].equalsIgnoreCase("red"))) {
                     am().klanlar().forEach(x -> { if (a == null || !x.id.equals(a.id)) oneriler.add(x.isim); });
+                } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("savasalani")) {
+                    oneriler.addAll(List.of("liste", "bul", "temizle"));
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin") && args[1].equalsIgnoreCase("arena")) {
                     oneriler.addAll(List.of("kur", "sil", "pos1", "pos2", "spawn1", "spawn2", "liste"));
                 } else if (alt.equals("uzmanlik") && (args[1].equalsIgnoreCase("al") || args[1].equalsIgnoreCase("birak"))) {

@@ -216,7 +216,9 @@ public class SavasManager implements Listener {
                 return;
             }
         }
-        Arena arena = plugin.arenalar().bosArena();
+        // Rastgele modda alan, hazırlık süresinde haritada aranır; sabit modda kurulu boş arena kullanılır
+        boolean rastgele = plugin.rastgeleArena().aktif();
+        Arena arena = rastgele ? new Arena(m().metin("savas-rastgele-ad", "Rastgele alan")) : plugin.arenalar().bosArena();
         if (arena == null) {
             m().gonder(p, "savas-arena-dolu", "&cArena dolu ya da kurulu değil! Teklif geçerli olduğu sürece daha sonra tekrar deneyin.");
             return;
@@ -247,7 +249,22 @@ public class SavasManager implements Listener {
                 up.playSound(up.getLocation(), Sound.EVENT_RAID_HORN, 1f, 1f);
             }
         }
+        if (rastgele) {
+            savasaDuyur(s, "savas-alan-araniyor", "&7Haritada uygun bir savaş alanı aranıyor...");
+            plugin.rastgeleArena().ara(s, bulundu -> {
+                if (!savaslar.contains(s)) return;
+                if (bulundu) {
+                    savasaDuyur(s, "savas-alan-bulundu", "&aSavaş alanı bulundu! &7({konum}) Savaş başlayınca oraya ışınlanacaksınız.",
+                            "konum", RastgeleArena.konumMetni(s));
+                } else {
+                    bitir(s, null, "IPTAL", m().metin("savas-iptal-alan", "Uygun bir savaş alanı bulunamadı"));
+                }
+            });
+        }
     }
+
+    /** Süren savaşlar (salt okunur). */
+    public List<Savas> aktifSavaslar() { return java.util.Collections.unmodifiableList(savaslar); }
 
     public void red(Player p, String gonderenIsim) {
         Klan benim = liderKlani(p);
@@ -379,6 +396,7 @@ public class SavasManager implements Listener {
             return;
         }
         if (!s.arena.hazir()) { bitir(s, null, "IPTAL", m().metin("savas-iptal-arena", "Arena kullanılamıyor")); return; }
+        plugin.rastgeleArena().canavarlariTemizle(s);
 
         long simdi = System.currentTimeMillis();
         s.durum = Savas.Durum.AKTIF;
@@ -393,6 +411,7 @@ public class SavasManager implements Listener {
             plugin.meslek().saglikMuafiyeti(p.getUniqueId(), true);
             isinla(p, takimSpawn(s, e.getValue()));
             plugin.buyuSavas().arenaSeviyeDusur(p); // Arena dengesi: üst seviye büyüler vanilla sınırına
+            plugin.rastgeleArena().sinirGoster(p, s);
             s.bar.addPlayer(p);
             p.showTitle(net.kyori.adventure.title.Title.title(
                     m().bilesen("savas-basladi-baslik", "&4&lSAVAŞ!"),
@@ -457,6 +476,7 @@ public class SavasManager implements Listener {
         klanSavasi.remove(s.klanA);
         klanSavasi.remove(s.klanB);
         s.arena.kullanan = null;
+        plugin.rastgeleArena().birak(s);
 
         for (UUID oyuncu : new ArrayList<>(s.katilimcilar.keySet())) {
             Player p = Bukkit.getPlayer(oyuncu);
@@ -507,6 +527,7 @@ public class SavasManager implements Listener {
 
     /** Oyuncuyu savaştan önceki konumuna döndürür, sağlık muafiyetini kaldırır. */
     private void geriGonder(Player p, Savas s) {
+        plugin.rastgeleArena().sinirKaldir(p);
         if (s != null) {
             if (s.bar != null) s.bar.removePlayer(p);
             s.korumada.remove(p.getUniqueId());
@@ -599,6 +620,7 @@ public class SavasManager implements Listener {
             s.korumada.add(p.getUniqueId());
             int sn = dogmaSaniye();
             Bukkit.getScheduler().runTask(plugin, () -> {
+                plugin.rastgeleArena().sinirGoster(p, s);
                 p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, sn * 20, 0, false, false));
                 p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, sn * 20, 10, false, false));
                 m().gonder(p, "savas-dogma-bekleme", "&7{sure} saniye sonra savaşa dönüyorsunuz...", "sure", sn);
@@ -637,6 +659,7 @@ public class SavasManager implements Listener {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (!p.isOnline()) return;
                 isinla(p, takimSpawn(s, s.katilimcilar.get(p.getUniqueId())));
+                plugin.rastgeleArena().sinirGoster(p, s);
                 if (s.bar != null) s.bar.addPlayer(p);
                 m().gonder(p, "savas-geri-dondun", "&aSavaşa geri döndünüz!");
             });
@@ -750,16 +773,41 @@ public class SavasManager implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
-        if (!event.getPlayer().hasPermission("klan.admin") && plugin.arenalar().arenaAt(event.getBlock().getLocation()) != null) {
+        if (!event.getPlayer().hasPermission("klan.admin") && (plugin.arenalar().arenaAt(event.getBlock().getLocation()) != null
+                || savasAlaninda(event.getBlock().getLocation()))) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
-        if (!event.getPlayer().hasPermission("klan.admin") && plugin.arenalar().arenaAt(event.getBlock().getLocation()) != null) {
+        if (!event.getPlayer().hasPermission("klan.admin") && (plugin.arenalar().arenaAt(event.getBlock().getLocation()) != null
+                || savasAlaninda(event.getBlock().getLocation()))) {
             event.setCancelled(true);
         }
+    }
+
+    /** Konum süren bir savaşın alanında mı? (Rastgele alanlar dahil; savaş yokken maliyetsiz.) */
+    private boolean savasAlaninda(Location l) {
+        if (savaslar.isEmpty()) return false;
+        for (Savas s : savaslar) if (s.arena.icinde(l)) return true;
+        return false;
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onKovaBosalt(org.bukkit.event.player.PlayerBucketEmptyEvent event) {
+        if (!event.getPlayer().hasPermission("klan.admin") && savasAlaninda(event.getBlock().getLocation())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onKovaDoldur(org.bukkit.event.player.PlayerBucketFillEvent event) {
+        if (!event.getPlayer().hasPermission("klan.admin") && savasAlaninda(event.getBlock().getLocation())) event.setCancelled(true);
+    }
+
+    /** Savaş alanında düşman yaratık doğmaz. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCanavar(org.bukkit.event.entity.CreatureSpawnEvent event) {
+        if (event.getEntity() instanceof org.bukkit.entity.Monster && savasAlaninda(event.getLocation())) event.setCancelled(true);
     }
 
     /** Ana menü / panel için kısa durum metni. */

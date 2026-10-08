@@ -50,6 +50,15 @@ Denemeden önce `plugins/` klasörünün yedeğini al.
 - [ ] Savaşta polis copu hapse atmıyor; savaşta hapis cezası alan savaş bitince hücreye gidiyor
 - [ ] Açık dünya prestiji: husumetli klan üyesini ağır yaralayınca +1; güvenli bölgede (claim, köy merkezi) puan yok; `/klan prestij`
 
+### Klan savaşı: rastgele savaş alanı
+- [ ] `/klan admin savasalani bul` → 1-2 dk içinde "Alan bulundu" ve `/klan admin savasalani liste`te görünüyor (sunucu takılmadan)
+- [ ] Savaş kabul edilince "Savaş alanı aranıyor / bulundu (x, z)" mesajları; havuzda alan varsa birkaç saniyede bulunuyor
+- [ ] Savaş başlayınca iki takım düz bir alanın iki ucuna ışınlanıyor; sadece savaşanlar mavi sınır duvarını görüyor
+- [ ] Sınırdan çıkılamıyor; alanda blok kırma/koyma/kova yok; savaş boyunca düşman mob doğmuyor
+- [ ] Ölen oyuncu kendi ucunda doğuyor ve sınır duvarı hâlâ görünüyor; oyundan çıkıp 60 sn içinde dönen de
+- [ ] Savaş bitince herkes eski yerine dönüyor, sınır duvarı kalkıyor
+- [ ] Uygun alan bulunamazsa savaş iptal ediliyor ve kasalar açılıyor
+
 ## Büyü uzmanlığı (dal: buyu-uzmanligi)
 - [ ] `/klan admin buyu alan KILIC kapat` → listede kapalı, atölyede yok; `ac` ile geri açılıyor (config.yml de değişiyor)
 - [ ] Diğer alanlar (KILIC, ZIRH, BALTA_KUREK, YAY) da `/klan uzmanlik liste`te aktif; birini alıp atölyede üret (zırhta Protection 6, yayda Power 7 / arbalette Quick Charge 4)

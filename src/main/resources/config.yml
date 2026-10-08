@@ -62,6 +62,23 @@ savas:
   ayni-klanlar-bekleme-saat: 12
   # Savaştaki oyuncunun kullanamayacağı komutlar ("eklenti:komut" yazımı da engellenir)
   yasak-komutlar: [tpa, tpahere, tpaccept, tpyes, home, homes, spawn, warp, warps, back, rtp, wild, tp, tphere, call, ehome, espawn, ewarp, eback]
+  # Savaş alanı: "rastgele" = her savaşta haritada uzak ve düz bir alan bulunur; "sabit" = /klan admin arena ile kurulan arenalar
+  arena-modu: rastgele
+  rastgele:
+    dunya: ''                     # Boşsa ana dünya
+    boyut: 100                    # Alan boyutu (100x100); savaşanlar dışarı çıkamaz, sadece onlar sınır duvarını görür
+    min-uzaklik: 2000             # Spawn'a uzaklık aralığı
+    max-uzaklik: 8000
+    max-yukseklik-farki: 8        # Zemin yükseklik farkı (ağaçlar ve uç %5'ler hariç); düzlük ölçüsü
+    max-sivi-orani: 0.10          # Su/lav/buz kaplı zemin oranı
+    uygun-biyomlar: [plains, sunflower_plains, savanna, desert, snowy_plains]   # Önce bu biyomlar aranır (dünya üretilmeden)
+    aday-sayisi: 400              # Biyomdan elenecek en fazla aday nokta (çok ucuz)
+    deneme: 6                     # Biyomu uygun adaylardan en fazla kaçının chunk'ları yüklenip ayrıntılı bakılır
+    # Hazır alan havuzu: savaş yokken ve sunucu rahatken (TPS >= 18.5) arka planda alan bulunup saklanır (savas-alanlari.yml).
+    # Savaş kabul edilince havuzdan bir alan birkaç saniyede doğrulanıp kullanılır; havuz boşsa canlı aranır.
+    # Elle: /klan admin savasalani <liste|bul|temizle>
+    havuz-boyutu: 5
+    havuz-aralik-dakika: 10
 
 prestij:
   # Husumetli bir klanın üyesini açık dünyada ağır yaralamak (Meslek sağlık sistemi) klanına prestij kazandırır.
@@ -443,6 +460,8 @@ mesajlar:
   sadece-lider: '&cBunu sadece klan Lideri yapabilir.'
   sadece-oyuncu: '&cBu komut sadece oyun içinden kullanılabilir.'
   savas-admin-bitirildi: '&aSavaş bitirildi.'
+  savas-alan-araniyor: '&7Haritada uygun bir savaş alanı aranıyor...'
+  savas-alan-bulundu: '&aSavaş alanı bulundu! &7({konum}) Savaş başlayınca oraya ışınlanacaksınız.'
   savas-arena-disi: '&cSavaş bitmeden arenadan çıkamazsınız!'
   savas-arena-dolu: '&cArena dolu ya da kurulu değil! Teklif geçerli olduğu sürece daha sonra tekrar deneyin.'
   savas-arena-giris: '&cBu arenada savaş sürüyor, giremezsiniz!'
@@ -471,6 +490,7 @@ mesajlar:
   savas-hazir-oldu: '&a{oyuncu} savaşa hazır! &7({sayi}/{max})'
   savas-hazirlik: '&eSavaş {sure} saniye sonra başlıyor! Kasalar kilitlendi. Katılmak için: '
   savas-husumet-yok: '&cDüello için iki klan arasında HUSUMET olmalı.'
+  savas-iptal-alan: 'Uygun bir savaş alanı bulunamadı'
   savas-iptal-arena: 'Arena kullanılamıyor'
   savas-iptal-katilim: 'Yeterli katılım olmadı (her klandan en az {min} kişi)'
   savas-isinlanma: '&cSavaş sürerken arenadan ışınlanamazsınız!'
@@ -483,6 +503,7 @@ mesajlar:
   savas-oyun-modu: '&cSavaşa sadece Survival/Adventure modunda katılabilirsiniz.'
   savas-oyuncu-cikti: '&7{oyuncu} oyundan çıktı. {sure} saniye içinde dönmezse savaştan düşecek.'
   savas-puan: '&c{katil} &7→ &f{kurban} &a(+1)'
+  savas-rastgele-ad: 'Rastgele alan'
   savas-red-buton: '&c&l[RED]'
   savas-reddedildi: '&e{klan} klanının düello teklifini reddettiniz.'
   savas-sebep: ' &8({sebep})'
@@ -508,6 +529,12 @@ mesajlar:
   savas-yok-admin: '&c{klan} klanının süren bir savaşı yok.'
   savas-zaten-katildin: '&eZaten hazırsınız.'
   savas-zaten-savasta: '&c{klan} şu an başka bir savaşta.'
+  savasalani-araniyor: '&7Savaş alanı aranıyor (sunucuyu yormadan, 1-2 dakika sürebilir)...'
+  savasalani-bulundu: '&aAlan bulundu ve havuza eklendi: &f{x}, {z} &7({sn} sn, havuzda {sayi})'
+  savasalani-liste: '&6Hazır savaş alanları ({sayi}/{max}): &f{liste}'
+  savasalani-temizlendi: '&eSavaş alanı havuzu temizlendi.'
+  savasalani-yok: '&cUygun alan bulunamadı. Tekrar deneyin ya da config''te ölçütleri gevşetin.'
+  savasalani-zaten: '&eZaten bir arama sürüyor.'
   sohbet-acildi: '&aKlan sohbeti açıldı. Mesajlarınız sadece klanınıza gidiyor. Kapatmak için tekrar &e/klan sohbet'
   sohbet-format: '&8[&6{klan}&8] {rol}&r {oyuncu}&7: &f{mesaj}'
   sohbet-kapandi: '&eKlan sohbeti kapatıldı. Mesajlarınız genel sohbete gidiyor.'

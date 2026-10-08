@@ -46,6 +46,7 @@ public class KlanSistemi extends JavaPlugin {
     private me.klansistemi.buyu.BuyuUstasi buyuUstasi;
     private DiplomasiPanel panel;
     private ArenaManager arenaManager;
+    private me.klansistemi.savas.RastgeleArena rastgeleArena;
     private SavasManager savasManager;
     private GuvenliBolgeManager guvenliBolgeler;
     private PrestijManager prestijManager;
@@ -87,6 +88,7 @@ public class KlanSistemi extends JavaPlugin {
         buyuSavas = new me.klansistemi.buyu.BuyuSavas(this);
         buyuUstasi = new me.klansistemi.buyu.BuyuUstasi(this);
         arenaManager = new ArenaManager(this);
+        rastgeleArena = new me.klansistemi.savas.RastgeleArena(this);
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
         prestijManager = new PrestijManager(this);
@@ -221,6 +223,7 @@ public class KlanSistemi extends JavaPlugin {
     public DiplomasiPanel panel() { return panel; }
 
     public ArenaManager arenalar() { return arenaManager; }
+    public me.klansistemi.savas.RastgeleArena rastgeleArena() { return rastgeleArena; }
     public SavasManager savas() { return savasManager; }
     public GuvenliBolgeManager guvenliBolgeler() { return guvenliBolgeler; }
     public PrestijManager prestij() { return prestijManager; }
