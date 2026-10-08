@@ -67,6 +67,8 @@ public class PrestijManager implements Listener {
         if (kurban.getHealth() - event.getFinalDamage() > 0) return; // Ölümcül değil
 
         UUID kId = kurban.getUniqueId();
+        // Sağlıktan muaf oyuncular (Arena Ligi maçı, klan savaşı) arena dövüşündedir; prestij sayılmaz
+        if (plugin.meslek().saglikMuafMi(kId) || plugin.meslek().saglikMuafMi(saldiran.getUniqueId())) return;
         boolean onceYarali = plugin.meslek().agirYaraliMi(kId);
         if (onceYarali) return;
         Bukkit.getScheduler().runTask(plugin, () -> {
