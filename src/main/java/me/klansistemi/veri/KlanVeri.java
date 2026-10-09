@@ -109,6 +109,7 @@ public class KlanVeri {
             y.set(yol + ".aidat-periyot-gun", a.aidatPeriyotGun);
             y.set(yol + ".aidat-bekleyen-periyot-gun", a.bekleyenPeriyotGun);
             y.set(yol + ".aidat-periyot-degisim", a.periyotDegisimAni);
+            y.set(yol + ".alan-koruma-bitis", a.alanKorumaBitis);
             y.set(yol + ".toplam-aidat", a.toplamAidat);
             y.set(yol + ".prestij", a.prestij);
             y.set(yol + ".uzmanliklar", new ArrayList<>(a.uzmanliklar));
@@ -239,6 +240,7 @@ public class KlanVeri {
                     a.aidatPeriyotGun = c.getDouble("aidat-periyot-gun", 0);
                     a.bekleyenPeriyotGun = c.getDouble("aidat-bekleyen-periyot-gun", 0);
                     a.periyotDegisimAni = c.getLong("aidat-periyot-degisim", 0);
+                    a.alanKorumaBitis = c.getLong("alan-koruma-bitis", 0);
                     a.toplamAidat = c.getDouble("toplam-aidat");
                     a.prestij = c.getInt("prestij");
                     a.uzmanliklar.addAll(c.getStringList("uzmanliklar"));

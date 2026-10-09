@@ -76,6 +76,8 @@ public class UzmanlikManager {
 
         k.kasa = Para.kurus(k.kasa - ucret);
         k.uzmanliklar.add(alan.kod);
+        double korumaGun = plugin.getConfig().getDouble("buyu.uzmanlik.alan-alinca-koruma-gun", 3);
+        if (korumaGun > 0) k.alanKorumaBitis = System.currentTimeMillis() + (long) (korumaGun * Zaman.GUN);
         plugin.veri().kaydet();
         plugin.log().yaz(k, p.getName(), "UZMANLIK_ALDI", alan.kod + " | " + Para.yaz(ucret));
         Bukkit.broadcastMessage(m().onek() + m().metin("uzmanlik-alindi-duyuru", "&e{klan} &7klanı artık {alan} &7alanını yönetiyor!", "klan", k.isim, "alan", alan.ad));

@@ -18,6 +18,7 @@ public class Klan {
     public long aidatBaslangic;   // Aidat dönemlerinin başladığı an (dönem 0)
     public double aidatPeriyotGun;      // Liderin seçtiği dönem uzunluğu (gün). 0 = config'teki varsayılan
     public double bekleyenPeriyotGun;   // Bir sonraki dönem başında geçerli olacak yeni uzunluk (0 = yok)
+    public long alanKorumaBitis;        // Büyü alanı yeni alındıysa: bu ana kadar bu klana savaş açılamaz
     public long periyotDegisimAni;      // Bekleyen uzunluğun devreye gireceği an (mevcut dönemin sonu)
     public double toplamAidat;
 

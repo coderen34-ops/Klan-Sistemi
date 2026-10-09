@@ -149,6 +149,10 @@ public class SavasManager implements Listener {
                         "sure", Zaman.sure(kayip + kaybedenBeklemeMs() - simdi));
             }
         }
+        if (!rakip.uzmanliklar.isEmpty() && rakip.alanKorumaBitis > simdi) {
+            return m().metin("savas-alan-koruma", "&c{klan} yakın zamanda büyü alanı aldı, {sure} daha savaş açılamaz.", "klan", rakip.isim,
+                    "sure", Zaman.sure(rakip.alanKorumaBitis - simdi));
+        }
         Long son = ciftBekleme.get(cift(benim.id, rakip.id));
         if (son != null && simdi - son < ciftBeklemeMs()) {
             return m().metin("savas-cift-bekleme", "&cBu iki klan tekrar savaşmak için {sure} beklemeli.", "sure", Zaman.sure(son + ciftBeklemeMs() - simdi));

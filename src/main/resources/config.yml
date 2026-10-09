@@ -105,6 +105,7 @@ buyu:
   uzmanlik:
     alma-ucreti: 100000          # Klan kasasından alınır
     klan-basina-max-alan: 1
+    alan-alinca-koruma-gun: 3    # Alanı yeni alan klana bu süre savaş açılamaz (0 = koruma yok)
   # Klan katmanı (kasa-bağlı) eşyalar: sadece klan kasasında durur, üyeler ödünç alıp kullanır
   kasa-bagli:
     odunc-limit: 3               # Bir oyuncunun aynı anda taşıyabileceği klan eşyası
