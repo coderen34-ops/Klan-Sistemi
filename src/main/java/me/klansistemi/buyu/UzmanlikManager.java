@@ -94,6 +94,26 @@ public class UzmanlikManager {
                 "klan", k.isim, "alan", alan != null ? alan.ad : kod));
     }
 
+    /**
+     * Savaşı kaybeden klan yönettiği alanları kaybeder. Alanlar kazanana geçmez, boşa düşer;
+     * isteyen klan sonra normal yoldan (/klan buyu al) alabilir. Klan katmanı eşyalar kaydı bozulmadan kalır.
+     * @return boşa düşen alan sayısı
+     */
+    public int savasKaybi(Klan kaybeden, Klan kazanan) {
+        if (!plugin.getConfig().getBoolean("savas.kaybeden-alani-kaybeder", true)) return 0;
+        if (kaybeden == null || kaybeden.uzmanliklar.isEmpty()) return 0;
+        List<String> kaybedilen = new java.util.ArrayList<>(kaybeden.uzmanliklar);
+        kaybeden.uzmanliklar.clear();
+        for (String kod : kaybedilen) {
+            BuyuEsyasi.AlanTanimi alan = esya().alan(kod);
+            plugin.log().yaz(kaybeden, "-", "UZMANLIK_SAVASTA_KAYBEDILDI", kod + " | kazanan: " + (kazanan != null ? kazanan.isim : "-"));
+            Bukkit.broadcastMessage(m().onek() + m().metin("uzmanlik-savasta-kaybedildi",
+                    "&e{klan} &7klanı savaşı kaybetti ve {alan} &7alanı boşa düştü!",
+                    "klan", kaybeden.isim, "alan", alan != null ? alan.ad : kod));
+        }
+        return kaybedilen.size();
+    }
+
     private Klan liderKlani(Player p) {
         Klan k = km().oyuncununKlani(p.getUniqueId());
         if (k == null) { m().gonder(p, "klanda-degil", "&cBir klanda değilsiniz."); return null; }

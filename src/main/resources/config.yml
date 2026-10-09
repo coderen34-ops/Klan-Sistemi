@@ -58,7 +58,8 @@ savas:
   klan-ici-hasar: false          # Aynı klan üyeleri arenada birbirine hasar verebilir mi
   ganimet-min: 25                # Kazanan, kaybedenin kasasından %min-%max alır (puan farkına göre)
   ganimet-max: 50
-  buyu-ganimet-min: 25           # Kazanan, kaybedenin klan katmanı büyülü eşyalarından %min-%max alır (puan farkına göre)
+  kaybeden-alani-kaybeder: true  # Savaşı kaybeden klan yönettiği büyü alanlarını kaybeder (alan boşa düşer, kazanana geçmez)
+  buyu-ganimet-min: 25          # Kazanan, kaybedenin klan katmanı büyülü eşyalarından %min-%max alır (puan farkına göre)
   buyu-ganimet-max: 50           # Kasadakiler ve ödünç verilmiş olanlar dahil; ticari eşyalar dahil değil
   kaybeden-bekleme-saat: 6
   ayni-klanlar-bekleme-saat: 12

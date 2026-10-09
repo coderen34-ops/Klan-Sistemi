@@ -507,6 +507,7 @@ public class SavasManager implements Listener {
             kazananKlan.kasa = Para.kurus(kazananKlan.kasa + para);
             esya = plugin.esya().ganimetAktar(kaybeden, kazananKlan, oran);
             buyuGanimet = plugin.buyuSavas().ganimetAktar(kaybeden, kazananKlan, fark / (double) Math.max(1, hedefPuan()));
+            plugin.uzmanlik().savasKaybi(kaybeden, kazananKlan);
             kaybedenBekleme.put(kaybeden.id, simdi);
             plugin.log().yaz(kazananKlan, "-", "GANIMET", kaybeden.isim + " -> %" + Math.round(oran) + " | " + Para.yaz(para) + " + " + esya + " yığın eşya");
         }
