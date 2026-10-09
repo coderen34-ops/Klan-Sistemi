@@ -450,7 +450,8 @@ public class SavasManager implements Listener {
     private boolean kontrolEt(Savas s) {
         if (s.durum != Savas.Durum.AKTIF) return true;
         if (s.puanA >= hedefPuan() || s.puanB >= hedefPuan()) {
-            bitir(s, s.puanA > s.puanB ? s.klanA : s.klanB, "KAZANDI", m().metin("savas-sebep-puan", "Hedef puana ulaşıldı"));
+            if (s.puanA == s.puanB) bitir(s, null, "BERABERE", m().metin("savas-sebep-puan", "Hedef puana ulaşıldı"));
+            else bitir(s, s.puanA > s.puanB ? s.klanA : s.klanB, "KAZANDI", m().metin("savas-sebep-puan", "Hedef puana ulaşıldı"));
             return false;
         }
         boolean aBos = s.aktifKatilimci(s.klanA) == 0 && s.katilimciSayisi(s.klanA) == 0;
@@ -488,7 +489,10 @@ public class SavasManager implements Listener {
         Klan a = am().klanGetir(s.klanA), b = am().klanGetir(s.klanB);
         // Kilit süresince aidat sayacı dondu: dönem başlangıcı kilit süresi kadar ileri alınır
         long kilitSuresi = simdi - s.kilitBaslangic;
-        for (Klan x : new Klan[]{a, b}) if (x != null) x.aidatBaslangic += kilitSuresi;
+        for (Klan x : new Klan[]{a, b}) if (x != null) {
+            x.aidatBaslangic += kilitSuresi;
+            if (x.periyotDegisimAni > 0) x.periyotDegisimAni += kilitSuresi;
+        }
 
         double para = 0;
         int esya = 0;

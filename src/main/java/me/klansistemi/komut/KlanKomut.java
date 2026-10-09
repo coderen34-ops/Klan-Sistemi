@@ -139,6 +139,14 @@ public class KlanKomut implements TabExecutor {
                 if (args.length < 3) { kullanim(p, "/klan aidat ayarla <miktar>"); return; }
                 plugin.aidat().ayarla(p, Para.oku(args[2]));
             }
+            case "gun", "gün", "periyot" -> {
+                if (args.length < 3) { kullanim(p, "/klan aidat gun <gun>"); return; }
+                try {
+                    plugin.aidat().ayarlaPeriyot(p, Double.parseDouble(args[2].replace(',', '.')));
+                } catch (NumberFormatException e) {
+                    kullanim(p, "/klan aidat gun <gun>");
+                }
+            }
             default -> plugin.aidat().bilgi(p);
         }
     }
@@ -287,7 +295,7 @@ public class KlanKomut implements TabExecutor {
                 {"yatir <miktar>", "Kasaya para yatır"}, {"cek <miktar>", "Kasadan para çek"}, {"kasa", "Kasa menüsü"},
                 {"terfi <oyuncu>", "Yardımcı yap"}, {"indir <oyuncu>", "Üye'ye indir"}, {"kidem <yardımcı> <sıra>", "Halef sırası"},
                 {"dagit onayla", "Klanı dağıt"}, {"sohbet", "Klan sohbetini aç/kapat (/kc <mesaj>)"},
-                {"aidat <ode|bilgi|ayarla>", "Aidat işlemleri"}, {"panel", "Diplomasi Paneli (Lider)"},
+                {"aidat <ode|bilgi|ayarla|gun>", "Aidat işlemleri"}, {"panel", "Diplomasi Paneli (Lider)"},
                 {"iliski <klan> <dost|tarafsiz|husumet> [not]", "Görüş/ilişki (Lider)"}, {"iliski liste", "İlişkilerimiz"},
                 {"savas teklif <klan>", "Düello teklif et (Lider, husumet şart)"}, {"savas <kabul|red> [klan]", "Teklifi yanıtla (Lider)"},
                 {"savas katil", "Hazırlıktaki savaşa katıl"}, {"savas birak", "Savaştan ayrıl"}, {"savas", "Savaş durumu"},
@@ -332,7 +340,7 @@ public class KlanKomut implements TabExecutor {
                         }
                     }
                     case "ayril", "dagit" -> oneriler.add("onayla");
-                    case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla"));
+                    case "aidat" -> oneriler.addAll(List.of("ode", "bilgi", "ayarla", "gun"));
                     case "admin" -> { if (p.hasPermission("klan.admin")) oneriler.addAll(List.of("arena", "savasalani", "guvenli", "buyu", "savas", "kasa", "dagit", "etiketyenile", "yenile")); }
                     case "uzmanlik" -> oneriler.addAll(List.of("liste", "al", "birak"));
                     case "buyu" -> oneriler.addAll(List.of("fiyat", "fiyatlar", "gecmis"));

@@ -16,6 +16,9 @@ public class Klan {
     public double kasa;
     public double aidatMiktari;
     public long aidatBaslangic;   // Aidat dönemlerinin başladığı an (dönem 0)
+    public double aidatPeriyotGun;      // Liderin seçtiği dönem uzunluğu (gün). 0 = config'teki varsayılan
+    public double bekleyenPeriyotGun;   // Bir sonraki dönem başında geçerli olacak yeni uzunluk (0 = yok)
+    public long periyotDegisimAni;      // Bekleyen uzunluğun devreye gireceği an (mevcut dönemin sonu)
     public double toplamAidat;
 
     // Açık dünyada husumetli klan üyelerini ağır yaralayarak kazanılan prestij

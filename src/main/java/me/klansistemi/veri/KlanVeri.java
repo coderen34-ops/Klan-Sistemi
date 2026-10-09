@@ -93,6 +93,9 @@ public class KlanVeri {
         }
     }
 
+    // Yüklenemeyen klan kayıtları silinmesin diye ham haliyle saklanıp her kayıtta geri yazılır
+    private final Map<String, Map<String, Object>> yuklenemeyenKlanlar = new java.util.LinkedHashMap<>();
+
     private YamlConfiguration olustur() {
         KlanManager am = plugin.klanManager();
         YamlConfiguration y = new YamlConfiguration();
@@ -103,6 +106,9 @@ public class KlanVeri {
             y.set(yol + ".kasa", a.kasa);
             y.set(yol + ".aidat-miktari", a.aidatMiktari);
             y.set(yol + ".aidat-baslangic", a.aidatBaslangic);
+            y.set(yol + ".aidat-periyot-gun", a.aidatPeriyotGun);
+            y.set(yol + ".aidat-bekleyen-periyot-gun", a.bekleyenPeriyotGun);
+            y.set(yol + ".aidat-periyot-degisim", a.periyotDegisimAni);
             y.set(yol + ".toplam-aidat", a.toplamAidat);
             y.set(yol + ".prestij", a.prestij);
             y.set(yol + ".uzmanliklar", new ArrayList<>(a.uzmanliklar));
@@ -200,6 +206,12 @@ public class KlanVeri {
             }
             y.set("savas.gecmis", gecmis);
         }
+        for (Map.Entry<String, Map<String, Object>> e : yuklenemeyenKlanlar.entrySet()) {
+            try {
+                if (am.klanGetir(UUID.fromString(e.getKey())) != null) continue;
+            } catch (IllegalArgumentException ignored) { }
+            y.createSection("klanlar." + e.getKey(), e.getValue());
+        }
         return y;
     }
 
@@ -224,6 +236,9 @@ public class KlanVeri {
                     a.kasa = c.getDouble("kasa");
                     a.aidatMiktari = c.getDouble("aidat-miktari");
                     a.aidatBaslangic = c.getLong("aidat-baslangic");
+                    a.aidatPeriyotGun = c.getDouble("aidat-periyot-gun", 0);
+                    a.bekleyenPeriyotGun = c.getDouble("aidat-bekleyen-periyot-gun", 0);
+                    a.periyotDegisimAni = c.getLong("aidat-periyot-degisim", 0);
                     a.toplamAidat = c.getDouble("toplam-aidat");
                     a.prestij = c.getInt("prestij");
                     a.uzmanliklar.addAll(c.getStringList("uzmanliklar"));
@@ -281,7 +296,9 @@ public class KlanVeri {
                     }
                     plugin.esya().yukle(a, sayfalar);
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "Klan kaydı yüklenemedi: " + idStr, e);
+                    plugin.getLogger().log(Level.WARNING, "Klan kaydı yüklenemedi: " + idStr + " (kayıt silinmeyecek, dosyada korunuyor)", e);
+                    ConfigurationSection ham = klanlar.getConfigurationSection(idStr);
+                    if (ham != null) yuklenemeyenKlanlar.put(idStr, ham.getValues(true));
                 }
             }
         }

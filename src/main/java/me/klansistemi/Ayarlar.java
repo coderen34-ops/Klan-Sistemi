@@ -35,7 +35,10 @@ public class Ayarlar {
     public boolean aidatAktif() { return c().getBoolean("aidat.aktif", true); }
     public double aidatVarsayilan() { return c().getDouble("aidat.miktar", 1000); }
     public double aidatMin() { return c().getDouble("aidat.min-miktar", 1000); }
-    public double aidatMax() { return c().getDouble("aidat.max-miktar", 50000); }
+    public double aidatMax() { return c().getDouble("aidat.max-miktar", 3000); }
+    public double aidatPeriyotMinGun() { return Math.max(0.01, c().getDouble("aidat.periyot-min-gun", 1)); }
+    public double aidatPeriyotMaxGun() { return Math.max(aidatPeriyotMinGun(), c().getDouble("aidat.periyot-max-gun", 30)); }
+    public double aidatPeriyotVarsayilanGun() { return Math.max(0.01, c().getDouble("aidat.periyot-gun", 7)); }
     public long aidatPeriyotMs() { return (long) (Math.max(0.01, c().getDouble("aidat.periyot-gun", 7)) * Zaman.GUN); }
     public long aidatEkSureMs() { return (long) (c().getDouble("aidat.ek-sure-gun", 2) * Zaman.GUN); }
     public boolean liderMuaf() { return c().getBoolean("aidat.lider-muaf", true); }

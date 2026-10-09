@@ -29,8 +29,10 @@ aidat:
   aktif: true
   miktar: 1000                   # Yeni klanların varsayılan aidatı
   min-miktar: 1000               # Liderin ayarlayabileceği aralık
-  max-miktar: 50000
-  periyot-gun: 7
+  max-miktar: 3000
+  periyot-gun: 7                 # Yeni klanların varsayılan dönem uzunluğu (gün)
+  periyot-min-gun: 1             # Liderin /klan aidat gun ile seçebileceği dönem uzunluğu aralığı
+  periyot-max-gun: 30
   ek-sure-gun: 2
   lider-muaf: true
   yeni-uye-muaf-gun: 7           # Katıldığı dönem her zaman muaftır; bu süre daha uzunsa sonraki dönemler de
@@ -258,6 +260,10 @@ mesajlar:
   admin-kasa-duzeltildi: '&a{klan} kasası {eski} -> {yeni} olarak düzeltildi.'
   admin-yenilendi: '&aKlan ayarları yeniden yüklendi.'
   aidat-aralik: '&cAidat {min} ile {max} arasında olmalı.'
+  aidat-gun-aralik: '&cDönem uzunluğu {min} ile {max} gün arasında olmalı.'
+  aidat-gun-ayni: '&eDönem uzunluğu zaten {gun} gün.'
+  aidat-gun-degisti: '&eAidat dönemi {gun} gün olarak belirlendi. &7{tarih} tarihinde başlayacak (mevcut dönem aynen sürer).'
+  aidat-gun-bekliyor: '&7Yeni dönem uzunluğu: &e{gun} gün &7({tarih} tarihinde başlar)'
   aidat-atan: 'Aidat Sistemi'
   aidat-bakiye: '&cAidat ({miktar}) için banka hesabınızda yeterli bakiye yok.'
   aidat-bilgi-baslik: '&6&l--- AİDAT BİLGİSİ ---'

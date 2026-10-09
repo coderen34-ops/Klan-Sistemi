@@ -48,11 +48,17 @@ public class AidatManager {
     private Ayarlar ayar() { return plugin.ayar(); }
 
     // ------------------------------------------------------------------ DÖNEM HESAPLARI
-    public int donem(Klan a, long zaman) {
-        return (int) Math.floorDiv(zaman - a.aidatBaslangic, ayar().aidatPeriyotMs());
+    /** Klanın dönem uzunluğu: lider seçtiyse o (config aralığına sıkıştırılır), yoksa config varsayılanı. */
+    public long periyotMs(Klan a) {
+        double gun = a.aidatPeriyotGun > 0 ? a.aidatPeriyotGun : ayar().aidatPeriyotVarsayilanGun();
+        return (long) (gun * Zaman.GUN);
     }
 
-    public long donemBaslangic(Klan a, int k) { return a.aidatBaslangic + k * ayar().aidatPeriyotMs(); }
+    public int donem(Klan a, long zaman) {
+        return (int) Math.floorDiv(zaman - a.aidatBaslangic, periyotMs(a));
+    }
+
+    public long donemBaslangic(Klan a, int k) { return a.aidatBaslangic + k * periyotMs(a); }
 
     public long donemSonu(Klan a, int k) { return donemBaslangic(a, k + 1); }
 
@@ -109,6 +115,13 @@ public class AidatManager {
     public void rolDegisti(Klan a, KlanUyesi u) {
         u.hatirlatma24Donem = -1;
         u.hatirlatma1Donem = -1;
+        // Aidattan muaf lider olan borçlu, kasa yetkisiz kalmasın
+        if (u.rol == Rol.LIDER && ayar().liderMuaf()) {
+            u.borclu = false;
+            u.ardisikOdenmeyen = 0;
+            u.bekleyenDonem = -1;
+            u.ekSureBitis = 0;
+        }
     }
 
     // ------------------------------------------------------------------ KOMUTLAR
@@ -158,7 +171,11 @@ public class AidatManager {
         long simdi = System.currentTimeMillis();
         int k = donem(a, simdi);
         p.sendMessage(m().metin("aidat-bilgi-baslik", "&6&l--- AİDAT BİLGİSİ ---"));
-        p.sendMessage(m().metin("aidat-bilgi-miktar", "&7Dönem aidatı: &e{miktar} &7| Periyot: &e{periyot}", "miktar", Para.yaz(a.aidatMiktari), "periyot", Zaman.sure(ayar().aidatPeriyotMs())));
+        p.sendMessage(m().metin("aidat-bilgi-miktar", "&7Dönem aidatı: &e{miktar} &7| Periyot: &e{periyot}", "miktar", Para.yaz(a.aidatMiktari), "periyot", Zaman.sure(periyotMs(a))));
+        if (a.bekleyenPeriyotGun > 0) {
+            p.sendMessage(m().metin("aidat-gun-bekliyor", "&7Yeni dönem uzunluğu: &e{gun} gün &7({tarih} tarihinde başlar)",
+                    "gun", sade(a.bekleyenPeriyotGun), "tarih", Zaman.tarih(a.periyotDegisimAni)));
+        }
         p.sendMessage(m().metin("aidat-bilgi-durum", "&7Durumunuz: {durum}", "durum", durum(a, u, simdi).etiket));
         Integer hedef = odenecekDonem(a, u, simdi);
         if (hedef != null) {
@@ -185,6 +202,78 @@ public class AidatManager {
         plugin.klanManager().klanaGonder(a, "aidat-degisti", "&eKlan aidatı {miktar} olarak belirlendi.", "miktar", Para.yaz(miktar));
     }
 
+    /** Lider dönem uzunluğunu (gün) seçer. Mevcut dönem bozulmaz; yeni uzunluk bir sonraki dönem başında geçerli olur. */
+    public void ayarlaPeriyot(Player p, double gun) {
+        Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (a == null) { m().gonder(p, "klanda-degil", "&cBir klanda değilsiniz."); return; }
+        if (a.uyeler.get(p.getUniqueId()).rol != Rol.LIDER) { m().gonder(p, "sadece-lider", "&cBunu sadece klan Lideri yapabilir."); return; }
+        if (plugin.kasaKilitliMi(a)) { m().gonder(p, "aidat-savas", "&eSavaş sürerken kasa kilitli; aidat süreniz de durduruldu. Savaştan sonra ödeyebilirsiniz."); return; }
+        if (!Double.isFinite(gun) || gun < ayar().aidatPeriyotMinGun() || gun > ayar().aidatPeriyotMaxGun()) {
+            m().gonder(p, "aidat-gun-aralik", "&cDönem uzunluğu {min} ile {max} gün arasında olmalı.",
+                    "min", sade(ayar().aidatPeriyotMinGun()), "max", sade(ayar().aidatPeriyotMaxGun()));
+            return;
+        }
+        gun = Math.round(gun * 100.0) / 100.0;
+        long simdi = System.currentTimeMillis();
+        periyotUygula(a, simdi); // Önceki bekleyen değişiklik süresi dolduysa önce o işlensin
+        double mevcut = a.aidatPeriyotGun > 0 ? a.aidatPeriyotGun : ayar().aidatPeriyotVarsayilanGun();
+        if (Math.abs(gun - mevcut) < 0.005) {
+            a.bekleyenPeriyotGun = 0; // Aynı değere dönüldü: bekleyen değişiklik iptal
+            a.periyotDegisimAni = 0;
+            plugin.veri().kaydet();
+            m().gonder(p, "aidat-gun-ayni", "&eDönem uzunluğu zaten {gun} gün.", "gun", sade(mevcut));
+            return;
+        }
+        int k = donem(a, simdi);
+        a.bekleyenPeriyotGun = gun;
+        a.periyotDegisimAni = donemSonu(a, k);
+        plugin.veri().kaydet();
+        plugin.log().yaz(a, p.getName(), "AIDAT_PERIYOT_AYARLADI", sade(gun) + " gün (geçerlilik " + Zaman.tarih(a.periyotDegisimAni) + ")");
+        plugin.klanManager().klanaGonder(a, "aidat-gun-degisti", "&eAidat dönemi {gun} gün olarak belirlendi. &7{tarih} tarihinde başlayacak (mevcut dönem aynen sürer).",
+                "gun", sade(gun), "tarih", Zaman.tarih(a.periyotDegisimAni));
+    }
+
+    private static String sade(double d) {
+        return d == Math.floor(d) ? String.valueOf((long) d) : String.valueOf(d);
+    }
+
+    /**
+     * Bekleyen dönem uzunluğunu, mevcut dönem bittiği anda devreye alır. Yeni dönem sayımı o andan başlar (dönem 0);
+     * üyelerin eski dönem numaraları buna göre kaydırılır, ödenmiş/işlenmiş durumlar korunur.
+     * @return değişiklik uygulandıysa true
+     */
+    public boolean periyotUygula(Klan a, long simdi) {
+        if (a.bekleyenPeriyotGun <= 0 || a.periyotDegisimAni <= 0 || simdi < a.periyotDegisimAni) return false;
+        int kEski = donem(a, a.periyotDegisimAni - 1); // Biten son dönemin numarası
+        int kayma = -(kEski + 1);
+        a.aidatBaslangic = a.periyotDegisimAni;
+        a.aidatPeriyotGun = a.bekleyenPeriyotGun;
+        a.bekleyenPeriyotGun = 0;
+        a.periyotDegisimAni = 0;
+        for (KlanUyesi u : a.uyeler.values()) {
+            java.util.Set<Integer> yeni = new java.util.HashSet<>();
+            for (int d : u.odenenDonemler) yeni.add(d + kayma);
+            u.odenenDonemler.clear();
+            u.odenenDonemler.addAll(yeni);
+            u.islenenDonem += kayma;
+            if (u.bekleyenDonem != -1) u.bekleyenDonem += kayma;
+            u.hatirlatma24Donem = -1;
+            u.hatirlatma1Donem = -1;
+        }
+        plugin.log().yaz(a, "Aidat Sistemi", "AIDAT_PERIYOT_UYGULANDI", sade(a.aidatPeriyotGun) + " gün");
+        return true;
+    }
+
+    /** Config sınırları değiştiyse (örn. üst sınır düşürüldü) klanın aidatını yeni aralığa çeker. */
+    private boolean miktariSinirla(Klan a) {
+        double min = ayar().aidatMin(), max = ayar().aidatMax();
+        double yeni = Math.max(min, Math.min(max, a.aidatMiktari));
+        if (Math.abs(yeni - a.aidatMiktari) < 0.0001) return false;
+        plugin.log().yaz(a, "Aidat Sistemi", "AIDAT_SINIRLANDI", Para.yaz(a.aidatMiktari) + " -> " + Para.yaz(yeni));
+        a.aidatMiktari = Para.kurus(yeni);
+        return true;
+    }
+
     // ------------------------------------------------------------------ PERİYODİK KONTROL
     /** Dakikada bir: ek süresi biten dönemleri işler, hatırlatma gönderir. */
     public void kontrol() {
@@ -194,6 +283,8 @@ public class AidatManager {
         for (Klan a : new ArrayList<>(plugin.klanManager().klanlar())) {
             // Savaşta kasa kilitliyken aidat sayacı donar (bitince dönemler kilit süresi kadar kaydırılır)
             if (plugin.kasaKilitliMi(a)) continue;
+            if (periyotUygula(a, simdi)) degisti = true;
+            if (miktariSinirla(a)) degisti = true;
             int k = donem(a, simdi);
             List<KlanUyesi> atilacaklar = new ArrayList<>();
             for (KlanUyesi u : new ArrayList<>(a.uyeler.values())) {
