@@ -1,7 +1,9 @@
 package me.klansistemi.gui;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -13,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
@@ -35,17 +38,22 @@ import me.klansistemi.model.Rol;
  */
 public class KlanMenu implements Listener {
 
-    public enum Tip { ANA, UYELER, KASA }
+    public enum Tip { ANA, UYELER, KASA, DAVET, ATMA_ONAY }
 
     /** Menüyü tanımlayan sahip: hangi menü, hangi klan. */
     public static class Sahip implements InventoryHolder {
         public final Tip tip;
         public final UUID klanId;
+        /** Atma onay menüsünde atılacak üye. */
+        public final UUID hedef;
+        /** Üyeler ve Davet menülerinde slot -> oyuncu eşlemesi (kafaya tıklayınca kimin olduğunu bilmek için). */
+        public final Map<Integer, UUID> slotOyuncu = new HashMap<>();
         private Inventory envanter;
 
-        Sahip(Tip tip, UUID klanId) {
+        Sahip(Tip tip, UUID klanId, UUID hedef) {
             this.tip = tip;
             this.klanId = klanId;
+            this.hedef = hedef;
         }
 
         @Override
@@ -54,7 +62,8 @@ public class KlanMenu implements Listener {
 
     private static final int SLOT_BILGI = 4, SLOT_UYELER = 10, SLOT_KASA = 12, SLOT_AIDAT = 14, SLOT_SOHBET = 16, SLOT_YARDIM = 22;
     private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_ESYA = 31, SLOT_SAVAS = 18;
-    private static final int SLOT_GERI = 49;
+    private static final int SLOT_GERI = 49, SLOT_DAVET = 47;
+    private static final int SLOT_ONAY = 11, SLOT_VAZGEC = 15, SLOT_HEDEF = 13;
 
     private final KlanSistemi plugin;
 
@@ -65,10 +74,20 @@ public class KlanMenu implements Listener {
     private Mesaj m() { return plugin.mesaj(); }
 
     private Inventory olustur(Tip tip, Klan a, int boyut, String baslik) {
-        Sahip sahip = new Sahip(tip, a.id);
+        return olustur(tip, a, boyut, baslik, null);
+    }
+
+    private Inventory olustur(Tip tip, Klan a, int boyut, String baslik, UUID hedef) {
+        Sahip sahip = new Sahip(tip, a.id, hedef);
         Inventory inv = Bukkit.createInventory(sahip, boyut, baslik);
         sahip.envanter = inv;
         return inv;
+    }
+
+    /** Atma yetkisi: Lider herkesi (kendisi hariç), Yardımcı sadece Üyeleri atabilir (KlanManager.at ile aynı kural). */
+    private static boolean atabilir(KlanUyesi ben, KlanUyesi hedef) {
+        if (ben.uuid.equals(hedef.uuid)) return false;
+        return ben.rol == Rol.LIDER || (ben.rol == Rol.YARDIMCI && hedef.rol == Rol.UYE);
     }
 
     private static ItemStack esya(Material mat, String ad, List<String> aciklama) {
@@ -167,11 +186,13 @@ public class KlanMenu implements Listener {
     public void uyelerMenu(Player p) {
         Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (a == null) return;
-        boolean liderMi = a.uyeler.get(p.getUniqueId()).rol == Rol.LIDER;
+        KlanUyesi ben = a.uyeler.get(p.getUniqueId());
+        boolean liderMi = ben.rol == Rol.LIDER;
         AidatManager aidat = plugin.aidat();
         long simdi = System.currentTimeMillis();
 
         Inventory inv = olustur(Tip.UYELER, a, 54, m().metin("menu-uyeler-baslik", "&6&l{klan} &8| &7Üyeler", "klan", a.isim));
+        Sahip sahip = (Sahip) inv.getHolder();
         int slot = 0;
         for (KlanUyesi u : a.siraliUyeler()) {
             if (slot >= 45) break;
@@ -189,11 +210,73 @@ public class KlanMenu implements Listener {
                 aciklama.add(ChatColor.GRAY + "Son ödeme: " + ChatColor.WHITE + (u.sonOdeme > 0 ? Zaman.tarih(u.sonOdeme) : "-"));
                 if (u.ardisikOdenmeyen > 0) aciklama.add(ChatColor.RED + "Üst üste ödenmeyen: " + u.ardisikOdenmeyen);
             }
+            if (atabilir(ben, u)) {
+                aciklama.add("");
+                aciklama.add(ChatColor.RED + "► Klandan atmak için tıkla");
+            }
             meta.setLore(aciklama);
             kafa.setItemMeta(meta);
+            sahip.slotOyuncu.put(slot, u.uuid);
             inv.setItem(slot++, kafa);
         }
+        if (ben.rol != Rol.UYE) {
+            inv.setItem(SLOT_DAVET, esya(Material.LIME_DYE, ChatColor.GREEN + "" + ChatColor.BOLD + "Oyuncu Davet Et",
+                    List.of(ChatColor.GRAY + "Klanı olmayan çevrimiçi oyuncuları listeler.",
+                            ChatColor.GRAY + "Seçtiğine davet gider, kabul ederse katılır.",
+                            "", ChatColor.YELLOW + "► Açmak için tıkla")));
+        }
         inv.setItem(SLOT_GERI, esya(Material.ARROW, ChatColor.YELLOW + "Geri", List.of()));
+        doldur(inv);
+        p.openInventory(inv);
+    }
+
+    // ------------------------------------------------------------------ DAVET
+    public void davetMenu(Player p) {
+        Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (a == null) return;
+        KlanUyesi ben = a.uyeler.get(p.getUniqueId());
+        if (ben.rol == Rol.UYE) { m().gonder(p, "yetki-yok", "&cBu işlem için yetkiniz yok."); return; }
+
+        Inventory inv = olustur(Tip.DAVET, a, 54, m().metin("menu-davet-baslik", "&6&l{klan} &8| &7Davet Et", "klan", a.isim));
+        Sahip sahip = (Sahip) inv.getHolder();
+        int slot = 0;
+        for (Player o : Bukkit.getOnlinePlayers()) {
+            if (slot >= 45) break;
+            if (o.getUniqueId().equals(p.getUniqueId())) continue;
+            if (plugin.klanManager().oyuncununKlani(o.getUniqueId()) != null) continue;
+            ItemStack kafa = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) kafa.getItemMeta();
+            meta.setOwningPlayer(o);
+            meta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + o.getName());
+            meta.setLore(List.of(ChatColor.GRAY + "Klanı yok.", "", ChatColor.GREEN + "► Davet göndermek için tıkla"));
+            kafa.setItemMeta(meta);
+            sahip.slotOyuncu.put(slot, o.getUniqueId());
+            inv.setItem(slot++, kafa);
+        }
+        if (slot == 0) {
+            inv.setItem(22, esya(Material.BARRIER, ChatColor.RED + "Davet edilebilecek oyuncu yok",
+                    List.of(ChatColor.GRAY + "Çevrimiçi ve klansız kimse bulunmuyor.")));
+        }
+        inv.setItem(SLOT_GERI, esya(Material.ARROW, ChatColor.YELLOW + "Geri", List.of()));
+        doldur(inv);
+        p.openInventory(inv);
+    }
+
+    // ------------------------------------------------------------------ ATMA ONAYI
+    public void atmaOnayMenu(Player p, KlanUyesi hedef) {
+        Klan a = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (a == null) return;
+        Inventory inv = olustur(Tip.ATMA_ONAY, a, 27, m().metin("menu-atma-baslik", "&6&l{klan} &8| &cAtma Onayı", "klan", a.isim), hedef.uuid);
+        ItemStack kafa = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) kafa.getItemMeta();
+        meta.setOwningPlayer(Bukkit.getOfflinePlayer(hedef.uuid));
+        meta.setDisplayName(hedef.rol.renk + "" + ChatColor.BOLD + hedef.isim);
+        meta.setLore(List.of(ChatColor.GRAY + "Rol: " + hedef.rol.renkliAd(), "", ChatColor.RED + "Bu oyuncu klandan atılacak."));
+        kafa.setItemMeta(meta);
+        inv.setItem(SLOT_HEDEF, kafa);
+        inv.setItem(SLOT_ONAY, esya(Material.RED_CONCRETE, ChatColor.RED + "" + ChatColor.BOLD + "Evet, klandan at",
+                List.of(ChatColor.GRAY + hedef.isim + " klandan çıkarılır.", ChatColor.GRAY + "Bu işlem geri alınamaz.")));
+        inv.setItem(SLOT_VAZGEC, esya(Material.LIME_CONCRETE, ChatColor.GREEN + "" + ChatColor.BOLD + "Vazgeç", List.of()));
         doldur(inv);
         p.openInventory(inv);
     }
@@ -261,13 +344,53 @@ public class KlanMenu implements Listener {
                 else if (slot == SLOT_SAVAS && plugin.savas().hazirliktaMi(a.id)) { plugin.savas().katil(p); anaMenu(p); }
                 else if (slot == SLOT_DIPLOMASI) plugin.panel().ac(p, me.klansistemi.gui.DiplomasiPanel.Sekme.KLANLAR, 0);
             }
-            case UYELER -> { if (slot == SLOT_GERI) anaMenu(p); }
+            case UYELER -> {
+                if (slot == SLOT_GERI) anaMenu(p);
+                else if (slot == SLOT_DAVET) davetMenu(p);
+                else {
+                    UUID uuid = sahip.slotOyuncu.get(slot);
+                    KlanUyesi ben = a.uyeler.get(p.getUniqueId());
+                    KlanUyesi hedef = uuid == null ? null : a.uyeler.get(uuid);
+                    if (hedef != null && atabilir(ben, hedef)) atmaOnayMenu(p, hedef);
+                }
+            }
+            case DAVET -> {
+                if (slot == SLOT_GERI) { uyelerMenu(p); return; }
+                UUID uuid = sahip.slotOyuncu.get(slot);
+                if (uuid == null) return;
+                Player hedef = Bukkit.getPlayer(uuid);
+                if (hedef == null) { m().gonder(p, "oyuncu-cevrimdisi", "&cBu oyuncu çevrimiçi değil."); davetMenu(p); return; }
+                plugin.klanManager().davetEt(p, hedef);
+                davetMenu(p);
+            }
+            case ATMA_ONAY -> {
+                if (slot == SLOT_ONAY) {
+                    KlanUyesi hedef = sahip.hedef == null ? null : a.uyeler.get(sahip.hedef);
+                    if (hedef == null) m().gonder(p, "uye-bulunamadi", "&cKlanınızda bu isimde bir üye yok.");
+                    else plugin.klanManager().at(p, hedef.isim);
+                    if (plugin.klanManager().oyuncununKlani(p.getUniqueId()) != null) uyelerMenu(p);
+                } else if (slot == SLOT_VAZGEC) {
+                    uyelerMenu(p);
+                }
+            }
             case KASA -> {
                 if (slot == SLOT_GERI) anaMenu(p);
                 else if (slot == 33) { plugin.aidat().ode(p); kasaMenu(p); }
                 else if (slot == SLOT_ESYA) plugin.esya().ac(p, 0);
             }
         }
+    }
+
+    /** Kısayol: Shift basılıyken F (eli değiştir) tuşu klan menüsünü açar. Klanı olmayanda normal çalışır. */
+    @EventHandler
+    public void onElDegistir(PlayerSwapHandItemsEvent event) {
+        Player p = event.getPlayer();
+        if (!p.isSneaking()) return;
+        if (!plugin.getConfig().getBoolean("menu.kisayol-shift-f", true)) return;
+        if (!p.hasPermission("klan.kullan")) return;
+        if (plugin.klanManager().oyuncununKlani(p.getUniqueId()) == null) return;
+        event.setCancelled(true);
+        anaMenu(p);
     }
 
     @EventHandler

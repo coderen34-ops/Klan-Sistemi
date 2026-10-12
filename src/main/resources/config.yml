@@ -257,6 +257,10 @@ yasakli-kelimeler:
   - www
 
 # Mesajlar (& renk kodları kullanılabilir, {...} yer tutucuları otomatik doldurulur)
+# Klan menüsü kısayolu: Shift basılıyken F (eli değiştir) tuşu klan menüsünü açar. /klan komutu her zaman çalışır.
+menu:
+  kisayol-shift-f: true
+
 mesajlar:
   admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
   admin-kasa-duzeltildi: '&a{klan} kasası {eski} -> {yeni} olarak düzeltildi.'
