@@ -4,7 +4,10 @@ on:
   push:
 jobs:
   build:
+    if: ${{ !startsWith(github.ref_name, 'jar') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       # MeslekAPI için Meslek-Sistemi derlenip yerel Maven deposuna kurulur
@@ -23,3 +26,14 @@ jobs:
         with:
           name: klan-sistemi
           path: target/*.jar
+      - name: Jar'i jar-claude dalina koy
+        run: |
+          mkdir -p /tmp/out && cp target/*.jar /tmp/out/
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git checkout --orphan jar-claude
+          git rm -rf . -q
+          cp /tmp/out/*.jar .
+          git add -A
+          git commit -q -m "derlenmis jar"
+          git push -f origin jar-claude
