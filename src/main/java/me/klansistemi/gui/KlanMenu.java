@@ -90,6 +90,21 @@ public class KlanMenu implements Listener {
         return ben.rol == Rol.LIDER || (ben.rol == Rol.YARDIMCI && hedef.rol == Rol.UYE);
     }
 
+    /**
+     * Kafa (skull) meta'sına oyuncu profilini yazar. Oyuncu çevrimiçiyse zaten çözülmüş
+     * (texture'lı) profilini kullanır; bu, istemcinin "Dynamic" (henüz çözülmemiş/canlı
+     * sorgulanan skin) uyarısı göstermesini önler. Çevrimdışıysa isim+UUID ile devam eder,
+     * bu durumda istemci skin'i kendi çözer ve "Dynamic" uyarısı yine görünebilir.
+     */
+    private static void kafaProfiliUygula(SkullMeta meta, UUID uuid) {
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null) {
+            meta.setPlayerProfile(online.getPlayerProfile());
+        } else {
+            meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
+        }
+    }
+
     private static ItemStack esya(Material mat, String ad, List<String> aciklama) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
@@ -198,7 +213,7 @@ public class KlanMenu implements Listener {
             if (slot >= 45) break;
             ItemStack kafa = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) kafa.getItemMeta();
-            meta.setOwningPlayer(Bukkit.getOfflinePlayer(u.uuid));
+            kafaProfiliUygula(meta, u.uuid);
             boolean cevrimici = Bukkit.getPlayer(u.uuid) != null;
             meta.setDisplayName(u.rol.renk + "" + ChatColor.BOLD + u.isim + (cevrimici ? ChatColor.GREEN + " ●" : ChatColor.DARK_GRAY + " ○"));
             List<String> aciklama = new ArrayList<>();
@@ -246,7 +261,7 @@ public class KlanMenu implements Listener {
             if (plugin.klanManager().oyuncununKlani(o.getUniqueId()) != null) continue;
             ItemStack kafa = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) kafa.getItemMeta();
-            meta.setOwningPlayer(o);
+            kafaProfiliUygula(meta, o.getUniqueId());
             meta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + o.getName());
             meta.setLore(List.of(ChatColor.GRAY + "Klanı yok.", "", ChatColor.GREEN + "► Davet göndermek için tıkla"));
             kafa.setItemMeta(meta);
@@ -269,7 +284,7 @@ public class KlanMenu implements Listener {
         Inventory inv = olustur(Tip.ATMA_ONAY, a, 27, m().metin("menu-atma-baslik", "&6&l{klan} &8| &cAtma Onayı", "klan", a.isim), hedef.uuid);
         ItemStack kafa = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) kafa.getItemMeta();
-        meta.setOwningPlayer(Bukkit.getOfflinePlayer(hedef.uuid));
+        kafaProfiliUygula(meta, hedef.uuid);
         meta.setDisplayName(hedef.rol.renk + "" + ChatColor.BOLD + hedef.isim);
         meta.setLore(List.of(ChatColor.GRAY + "Rol: " + hedef.rol.renkliAd(), "", ChatColor.RED + "Bu oyuncu klandan atılacak."));
         kafa.setItemMeta(meta);
