@@ -1,0 +1,25 @@
+name: KlanSistemi
+version: '1.0'
+main: me.klansistemi.KlanSistemi
+api-version: '26.2'
+description: Klan kurma, roller, kasa, aidat ve klan sohbeti
+depend: [MeslekSistemi]
+softdepend: [TagPlugin, GriefPrevention, PlaceholderAPI]
+
+commands:
+  klan:
+    description: Klan sistemi komutları
+    usage: /klan [yardim]
+    permission: klan.kullan
+  kc:
+    description: Klan sohbetine mesaj gönderir
+    usage: /kc <mesaj>
+    permission: klan.kullan
+
+permissions:
+  klan.kullan:
+    description: Klan sistemini kullanma
+    default: true
+  klan.admin:
+    description: Klan yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme)
+    default: op
