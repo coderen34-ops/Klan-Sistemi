@@ -15,11 +15,15 @@ commands:
     description: Klan sohbetine mesaj gönderir
     usage: /kc <mesaj>
     permission: klan.kullan
+  vahsikale:
+    description: Vahşi Kale (NPC klanı) yönetim komutları
+    usage: /vahsikale <kur|sil|liste|bilgi|sandik|giris>
+    permission: klan.admin
 
 permissions:
   klan.kullan:
     description: Klan sistemini kullanma
     default: true
   klan.admin:
-    description: Klan yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme)
+    description: Klan yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme, Vahşi Kale kurulumu)
     default: op

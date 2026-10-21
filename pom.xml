@@ -27,6 +27,16 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
+        <!-- LibsDisguises'in kendi resmi Maven deposu (Vahşi Kale nöbetçi NPC'lerini giydirmek için) -->
+        <repository>
+            <id>libsdisguises-repo</id>
+            <url>https://mvn.lib.co.nz/public/</url>
+        </repository>
+        <!-- PacketEvents: LibsDisguises'in içeride kullandığı sınıflar (derleme için gerekli) -->
+        <repository>
+            <id>codemc-repo</id>
+            <url>https://repo.codemc.io/repository/maven-releases/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -55,6 +65,27 @@
             <version>18.4.8</version>
             <scope>provided</scope>
         </dependency>
+        <!-- LibsDisguises: Vahşi Kale nöbetçi/lider NPC'lerini (Vindicator mob'u üzerine) insan görünümüne büründürmek için.
+             Sunucuda zaten kurulu (Meslek-Sistemi pazar standı NPC'leri de kullanıyor), burada sadece derleme için gerekli. -->
+        <dependency>
+            <groupId>me.libraryaddict.disguises</groupId>
+            <artifactId>libsdisguises</artifactId>
+            <version>11.0.13</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.retrooper</groupId>
+            <artifactId>packetevents-spigot</artifactId>
+            <version>2.14.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- SQLite JDBC: Vahşi Kale verisi (kale/nöbetçi/sandık kayıtları) config.yml yerine burada tutulur.
+             Sunucuda kurulu DEĞİL, bu yüzden provided değil - jar'ın içine shade ile gömülür (bkz. build). -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.46.1.3</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -63,6 +94,27 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.14.1</version>
+            </plugin>
+            <!-- sqlite-jdbc'yi (ve içindeki yerel .so/.dll/.dylib dosyalarını) jar'ın içine gömer;
+                 çakışma riskini azaltmak için org.sqlite paketini kendi ad alanımıza taşıyoruz. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.sqlite</pattern>
+                                    <shadedPattern>me.klansistemi.shaded.sqlite</shadedPattern>
+                                </relocation>
+                            </relocations>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

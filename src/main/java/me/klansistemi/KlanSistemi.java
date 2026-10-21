@@ -17,8 +17,10 @@ import me.klansistemi.savas.SavasManager;
 import me.klansistemi.savas.GuvenliBolgeManager;
 import me.klansistemi.savas.PrestijManager;
 import me.klansistemi.bolge.BolgeManager;
+import me.klansistemi.vahsikale.VahsiKaleYonetici;
 import me.klansistemi.komut.KcKomut;
 import me.klansistemi.komut.KlanKomut;
+import me.klansistemi.komut.VahsiKaleKomut;
 import me.klansistemi.veri.KlanVeri;
 import me.mesleksistemi.api.MeslekAPI;
 
@@ -52,6 +54,7 @@ public class KlanSistemi extends JavaPlugin {
     private GuvenliBolgeManager guvenliBolgeler;
     private PrestijManager prestijManager;
     private BolgeManager bolgeManager;
+    private VahsiKaleYonetici vahsiKaleYonetici;
 
     @Override
     public void onEnable() {
@@ -99,6 +102,7 @@ public class KlanSistemi extends JavaPlugin {
         veri.yukle();
         menu = new KlanMenu(this);
         panel = new DiplomasiPanel(this);
+        vahsiKaleYonetici = new VahsiKaleYonetici(this);
 
         KlanKomut klanKomut = new KlanKomut(this);
         PluginCommand klan = getCommand("klan");
@@ -108,6 +112,12 @@ public class KlanSistemi extends JavaPlugin {
         }
         PluginCommand ac = getCommand("kc");
         if (ac != null) ac.setExecutor(new KcKomut(this));
+        VahsiKaleKomut vahsiKaleKomut = new VahsiKaleKomut(this);
+        PluginCommand vk = getCommand("vahsikale");
+        if (vk != null) {
+            vk.setExecutor(vahsiKaleKomut);
+            vk.setTabCompleter(vahsiKaleKomut);
+        }
 
         getServer().getPluginManager().registerEvents(new OyuncuListener(this), this);
         getServer().getPluginManager().registerEvents(menu, this);
@@ -120,11 +130,14 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(atolye, this);
         getServer().getPluginManager().registerEvents(buyuUstasi, this);
         getServer().getPluginManager().registerEvents(bolgeManager, this);
+        getServer().getPluginManager().registerEvents(vahsiKaleYonetici, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
         // Savaş geri sayımı, süre, skor çubuğu ve çıkış toleransı saniyede bir işlenir
         Bukkit.getScheduler().runTaskTimer(this, savasManager::tick, 20L, 20L);
+        // Vahşi Kale tespit/uyarı/saldırı taraması saniyede bir işlenir
+        Bukkit.getScheduler().runTaskTimer(this, vahsiKaleYonetici::tick, 20L, 20L);
         // Kasa-bağlı büyülü eşyalar düzenli denetlenir (kopya / geçersiz / klandan ayrılmış oyuncu)
         long buyuKontrol = Math.max(20L, getConfig().getLong("buyu.kasa-bagli.kontrol-saniye", 60) * 20L);
         Bukkit.getScheduler().runTaskTimer(this, buyuKurallari::periyodikKontrol, buyuKontrol, buyuKontrol);
@@ -153,6 +166,7 @@ public class KlanSistemi extends JavaPlugin {
         }
         if (veri != null && klanManager != null) veri.hemenKaydet();
         if (defter != null) defter.hemenKaydet();
+        if (vahsiKaleYonetici != null) vahsiKaleYonetici.kapat();
     }
 
     /**
@@ -232,6 +246,7 @@ public class KlanSistemi extends JavaPlugin {
     public GuvenliBolgeManager guvenliBolgeler() { return guvenliBolgeler; }
     public PrestijManager prestij() { return prestijManager; }
     public BolgeManager bolgeler() { return bolgeManager; }
+    public VahsiKaleYonetici vahsiKale() { return vahsiKaleYonetici; }
 
     /** Savaş kabul edildiği andan bitene kadar klanın kasası kilitlidir. */
     public boolean kasaKilitliMi(Klan klan) {
