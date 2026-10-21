@@ -5,6 +5,10 @@ api-version: '26.2'
 description: Klan kurma, roller, kasa, aidat ve klan sohbeti
 depend: [MeslekSistemi]
 softdepend: [TagPlugin, GriefPrevention, PlaceholderAPI]
+# Vahşi Kale verisi için SQLite JDBC - jar'a gömülmüyor, Paper sunucu açılışta Maven Central'dan indirip
+# izole bir classloader'a yükler.
+libraries:
+  - org.xerial:sqlite-jdbc:3.46.1.3
 
 commands:
   klan:

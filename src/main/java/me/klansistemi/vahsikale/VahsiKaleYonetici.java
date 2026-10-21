@@ -440,7 +440,7 @@ public class VahsiKaleYonetici implements Listener {
     private void baglan() {
         try {
             if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
-            Class.forName("me.klansistemi.shaded.sqlite.JDBC");
+            Class.forName("org.sqlite.JDBC");
             baglanti = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "vahsikaleler.db'ye bağlanılamadı! Vahşi Kale sistemi devre dışı kalabilir.", e);
