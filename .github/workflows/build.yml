@@ -20,13 +20,18 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - run: mvn -B -f meslek-sistemi/pom.xml install
-      - run: mvn -B package
+      - name: mvn build (cikti log dosyasina da yazilir)
+        run: |
+          set -o pipefail
+          mvn -B -f meslek-sistemi/pom.xml install 2>&1 | tee /tmp/build.log
+          mvn -B package 2>&1 | tee -a /tmp/build.log
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: klan-sistemi
           path: target/*.jar
       - name: Jar'i jar-claude dalina koy
+        if: success()
         run: |
           mkdir -p /tmp/out && cp target/*.jar /tmp/out/
           git config user.name github-actions
@@ -37,3 +42,14 @@ jobs:
           git add -A
           git commit -q -m "derlenmis jar"
           git push -f origin jar-claude
+      - name: Build log'u jar-claude-log dalina koy (log indirmek icin, blob storage engelliyse)
+        if: always()
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git checkout --orphan jar-claude-log
+          git rm -rf . -q 2>/dev/null || true
+          cp /tmp/build.log ./build.log
+          git add -A
+          git commit -q -m "build log"
+          git push -f origin jar-claude-log
