@@ -16,6 +16,7 @@ import me.klansistemi.savas.ArenaManager;
 import me.klansistemi.savas.SavasManager;
 import me.klansistemi.savas.GuvenliBolgeManager;
 import me.klansistemi.savas.PrestijManager;
+import me.klansistemi.bolge.BolgeManager;
 import me.klansistemi.komut.KcKomut;
 import me.klansistemi.komut.KlanKomut;
 import me.klansistemi.veri.KlanVeri;
@@ -50,6 +51,7 @@ public class KlanSistemi extends JavaPlugin {
     private SavasManager savasManager;
     private GuvenliBolgeManager guvenliBolgeler;
     private PrestijManager prestijManager;
+    private BolgeManager bolgeManager;
 
     @Override
     public void onEnable() {
@@ -92,6 +94,7 @@ public class KlanSistemi extends JavaPlugin {
         savasManager = new SavasManager(this);
         guvenliBolgeler = new GuvenliBolgeManager(this);
         prestijManager = new PrestijManager(this);
+        bolgeManager = new BolgeManager(this);
         veri = new KlanVeri(this);
         veri.yukle();
         menu = new KlanMenu(this);
@@ -116,6 +119,7 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(buyuKurallari, this);
         getServer().getPluginManager().registerEvents(atolye, this);
         getServer().getPluginManager().registerEvents(buyuUstasi, this);
+        getServer().getPluginManager().registerEvents(bolgeManager, this);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
@@ -227,6 +231,7 @@ public class KlanSistemi extends JavaPlugin {
     public SavasManager savas() { return savasManager; }
     public GuvenliBolgeManager guvenliBolgeler() { return guvenliBolgeler; }
     public PrestijManager prestij() { return prestijManager; }
+    public BolgeManager bolgeler() { return bolgeManager; }
 
     /** Savaş kabul edildiği andan bitene kadar klanın kasası kilitlidir. */
     public boolean kasaKilitliMi(Klan klan) {
