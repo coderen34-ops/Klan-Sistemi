@@ -160,6 +160,9 @@ public class VahsiKaleYonetici implements Listener {
         kale.tespitYaricap = varsayilanTespit();
         kale.saldiriYaricap = varsayilanSaldiri();
         kale.klanTuru = KlanSkinHavuzu.rastgeleKlanTuru(rng);
+        kale.sinirMinX = yapi.sinirMinX; kale.sinirMaxX = yapi.sinirMaxX;
+        kale.sinirMinY = yapi.sinirMinY; kale.sinirMaxY = yapi.sinirMaxY;
+        kale.sinirMinZ = yapi.sinirMinZ; kale.sinirMaxZ = yapi.sinirMaxZ;
         kaleler.put(kale.id, kale);
         kaydet(kale);
 
@@ -451,6 +454,27 @@ public class VahsiKaleYonetici implements Listener {
         }
     }
 
+    // Fethedilene kadar kale sınırları içindeki bloklar korunur - sadece demir kapı (ve zaten
+    // kendi mantığıyla korunan sandıklar) kırılabilir. Fethedildikten sonra koruma tamamen kalkar.
+    // onSandikKir'den ÖNCE çalışması için daha yüksek öncelikte (HIGHEST), böylece bir sandık
+    // bloğuna gelen kırma isteği burada iptal edilmeden onSandikKir'in kendi kilit mantığına ulaşır.
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onYapiKorumasi(BlockBreakEvent event) {
+        Material tip = event.getBlock().getType();
+        if (tip == Material.IRON_DOOR) return; // kapı her zaman kırılabilir - alternatif giriş yolu
+
+        String konum = ArenaManager.konumYaz(event.getBlock().getLocation());
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi) continue; // fethedilmiş kalede koruma yok, tüm bloklar kırılabilir
+            if (kale.sandiklar.containsKey(konum)) return; // sandık - kendi kilit mantığı onSandikKir'de
+            if (kale.sinirIcindeMi(event.getBlock().getLocation())) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Mesaj.renk("&cBu kale henüz fethedilmedi! Sadece demir kapıyı kırabilirsin."));
+                return;
+            }
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSandikKir(BlockBreakEvent event) {
         String konum = ArenaManager.konumYaz(event.getBlock().getLocation());
@@ -579,6 +603,12 @@ public class VahsiKaleYonetici implements Listener {
         }
         // Migration: önceki sürümlerde olmayan kolonlar - zaten varsa SQLException atar, sessizce yutulur
         migrasyonKolonEkle("kaleler", "klan_turu TEXT DEFAULT 'INSAN'");
+        migrasyonKolonEkle("kaleler", "sinir_minx INTEGER");
+        migrasyonKolonEkle("kaleler", "sinir_maxx INTEGER");
+        migrasyonKolonEkle("kaleler", "sinir_miny INTEGER");
+        migrasyonKolonEkle("kaleler", "sinir_maxy INTEGER");
+        migrasyonKolonEkle("kaleler", "sinir_minz INTEGER");
+        migrasyonKolonEkle("kaleler", "sinir_maxz INTEGER");
         migrasyonKolonEkle("nobetciler", "skin TEXT");
     }
 
@@ -595,11 +625,13 @@ public class VahsiKaleYonetici implements Listener {
         if (baglanti == null) return;
         plugin.arkaPlanda(() -> {
             try (PreparedStatement ps = baglanti.prepareStatement(
-                    "INSERT INTO kaleler (id, isim, seviye, merkez, giris, tespit_yaricap, saldiri_yaricap, fethedildi, fetheden_klan, fetih_zamani, prestij_verildi, klan_turu) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
+                    "INSERT INTO kaleler (id, isim, seviye, merkez, giris, tespit_yaricap, saldiri_yaricap, fethedildi, fetheden_klan, fetih_zamani, prestij_verildi, klan_turu, " +
+                            "sinir_minx, sinir_maxx, sinir_miny, sinir_maxy, sinir_minz, sinir_maxz) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
                             "merkez=excluded.merkez, giris=excluded.giris, tespit_yaricap=excluded.tespit_yaricap, saldiri_yaricap=excluded.saldiri_yaricap, " +
                             "fethedildi=excluded.fethedildi, fetheden_klan=excluded.fetheden_klan, fetih_zamani=excluded.fetih_zamani, prestij_verildi=excluded.prestij_verildi, " +
-                            "klan_turu=excluded.klan_turu")) {
+                            "klan_turu=excluded.klan_turu, sinir_minx=excluded.sinir_minx, sinir_maxx=excluded.sinir_maxx, sinir_miny=excluded.sinir_miny, " +
+                            "sinir_maxy=excluded.sinir_maxy, sinir_minz=excluded.sinir_minz, sinir_maxz=excluded.sinir_maxz")) {
                 ps.setString(1, kale.id.toString());
                 ps.setString(2, kale.isim);
                 ps.setInt(3, kale.seviye);
@@ -612,6 +644,12 @@ public class VahsiKaleYonetici implements Listener {
                 ps.setLong(10, kale.fetihZamani);
                 ps.setInt(11, kale.prestijVerildi ? 1 : 0);
                 ps.setString(12, kale.klanTuru);
+                ps.setInt(13, kale.sinirMinX);
+                ps.setInt(14, kale.sinirMaxX);
+                ps.setInt(15, kale.sinirMinY);
+                ps.setInt(16, kale.sinirMaxY);
+                ps.setInt(17, kale.sinirMinZ);
+                ps.setInt(18, kale.sinirMaxZ);
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Vahşi Kale kaydedilemedi: " + kale.isim, e);
@@ -700,6 +738,12 @@ public class VahsiKaleYonetici implements Listener {
                 kale.prestijVerildi = rs.getInt("prestij_verildi") == 1;
                 String klanTuru = rs.getString("klan_turu");
                 kale.klanTuru = klanTuru == null ? "INSAN" : klanTuru;
+                kale.sinirMinX = rs.getInt("sinir_minx");
+                kale.sinirMaxX = rs.getInt("sinir_maxx");
+                kale.sinirMinY = rs.getInt("sinir_miny");
+                kale.sinirMaxY = rs.getInt("sinir_maxy");
+                kale.sinirMinZ = rs.getInt("sinir_minz");
+                kale.sinirMaxZ = rs.getInt("sinir_maxz");
                 if (kale.merkez == null) {
                     plugin.getLogger().warning("'" + kale.isim + "' Vahşi Kalesinin dünyası yüklü değil, şimdilik atlanıyor.");
                     continue;

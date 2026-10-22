@@ -25,12 +25,14 @@ public final class KaleInsaatYardimcisi {
 
     private KaleInsaatYardimcisi() { }
 
-    /** İnşaat sonucu: NPC doğurma/sandık/respawn için gereken konumlar. */
+    /** İnşaat sonucu: NPC doğurma/sandık/respawn için gereken konumlar + yapı koruması için sınır kutusu. */
     public static final class Sonuc {
         public Location girisIci;              // Respawn / "merkez" olarak kullanılır (kapının hemen içi)
         public Location liderKonumu;            // Taht platformu
         public final List<Location> nobetciKonumlari = new ArrayList<>();
         public final List<Location> sandikKonumlari = new ArrayList<>();
+        // Yapının tam sınırları (blok koordinatları, dahil) - fethedilene kadar blok kırma koruması için
+        public int sinirMinX, sinirMaxX, sinirMinY, sinirMaxY, sinirMinZ, sinirMaxZ;
     }
 
     /**
@@ -146,6 +148,10 @@ public final class KaleInsaatYardimcisi {
         Sonuc sonuc = new Sonuc();
         sonuc.liderKonumu = new Location(dunya, merkezX + 0.5, tahtY + 1, merkezZ + 0.5);
         sonuc.girisIci = new Location(dunya, merkezX + 0.5, y0 + 1, zMax - 2.5);
+        // Blok kırma koruması için tam yapı sınırı (taban dahil, çatı dahil, kule tepeleri dahil)
+        sonuc.sinirMinX = xMin; sonuc.sinirMaxX = xMax;
+        sonuc.sinirMinY = y0 - 1; sonuc.sinirMaxY = y0 + yukseklik + 6; // kuleler çatıdan biraz yüksek çıkıyor
+        sonuc.sinirMinZ = zMin; sonuc.sinirMaxZ = zMax;
 
         // 8) Nöbetçi doğum noktaları: iç mekanda dağınık
         int nobetciHedef = Math.max(4, seviye * 3);

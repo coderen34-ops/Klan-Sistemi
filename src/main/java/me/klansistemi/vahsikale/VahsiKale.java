@@ -27,6 +27,16 @@ public class VahsiKale {
     // farklı bir klan hissi versin diye üretimde rastgele seçilir.
     public String klanTuru = "INSAN";
 
+    // Yapının tam sınır kutusu (blok koordinatları, dahil) - fethedilene kadar sadece demir kapının
+    // kırılabilmesi, diğer tüm blokların korunması için (bkz. VahsiKaleYonetici#onYapiKorumasi).
+    public int sinirMinX, sinirMaxX, sinirMinY, sinirMaxY, sinirMinZ, sinirMaxZ;
+
+    public boolean sinirIcindeMi(Location l) {
+        if (merkez == null || merkez.getWorld() == null || l.getWorld() == null || !l.getWorld().equals(merkez.getWorld())) return false;
+        int x = l.getBlockX(), y = l.getBlockY(), z = l.getBlockZ();
+        return x >= sinirMinX && x <= sinirMaxX && y >= sinirMinY && y <= sinirMaxY && z >= sinirMinZ && z <= sinirMaxZ;
+    }
+
     public boolean fethedildi;
     public UUID fetihedenKlanId;
     public long fetihZamani;
