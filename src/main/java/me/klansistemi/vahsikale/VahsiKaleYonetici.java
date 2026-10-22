@@ -1068,6 +1068,39 @@ public class VahsiKaleYonetici implements Listener {
         if (!kaleler.isEmpty()) {
             plugin.getLogger().info(kaleler.size() + " Vahşi Kale yüklendi.");
             Bukkit.getScheduler().runTaskLater(plugin, this::disguiseleriTazele, 100L);
+            Bukkit.getScheduler().runTaskLater(plugin, this::sandikLootuGeriDoldur, 120L);
+        }
+    }
+
+    /** Tek seferlik geriye dönük düzeltme: bu oturumdaki LootTablosu genişletmesinden ÖNCE üretilmiş
+     *  sandıklar dünyada fiziksel olarak hâlâ TAMAMEN BOŞ duruyor - eski sürümde sandığa hiçbir item
+     *  konulmuyordu, sadece kırılınca kasaya nakit aktarılıyordu (bkz. onSandikKir'deki not). Oyuncu
+     *  "sandığı kırdım ama içinden sadece para çıktı, loot düşmedi" diye şikayet etti - sebep bu.
+     *  Henüz AÇILMAMIŞ (acildi=false) her sandık için: fiziksel blok hâlâ bir sandıksa VE envanteri
+     *  tamamen boşsa (idempotent kontrol - yeni üretilen, zaten dolu sandıklara dokunmaz) LootTablosu
+     *  ile dolduruluyor. "acildi" durumu değişmediği için DB'ye ayrıca yazmaya gerek yok. */
+    private void sandikLootuGeriDoldur() {
+        Random rng = new Random();
+        int dolduruldu = 0;
+        for (VahsiKale kale : kaleler.values()) {
+            for (Map.Entry<String, Boolean> giris : kale.sandiklar.entrySet()) {
+                if (Boolean.TRUE.equals(giris.getValue())) continue; // zaten kırılmış/açılmış
+                Location konum = ArenaManager.konumOku(giris.getKey());
+                if (konum == null || konum.getWorld() == null) continue;
+                BlockState durum = konum.getBlock().getState();
+                if (!(durum instanceof Chest sandik)) continue; // yapı bozulmuş/blok artık sandık değil
+                boolean zatenDolu = false;
+                for (ItemStack esya : sandik.getInventory().getContents()) {
+                    if (esya != null) { zatenDolu = true; break; }
+                }
+                if (zatenDolu) continue; // zaten dolu (yeni üretim) - dokunma
+                LootTablosu.doldur(sandik.getInventory(), kale.seviye, rng);
+                sandik.update(true, false);
+                dolduruldu++;
+            }
+        }
+        if (dolduruldu > 0) {
+            plugin.getLogger().info(dolduruldu + " eski (boş) Vahşi Kale sandığı geriye dönük loot ile dolduruldu.");
         }
     }
 
