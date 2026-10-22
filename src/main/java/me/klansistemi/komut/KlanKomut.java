@@ -254,7 +254,15 @@ public class KlanKomut implements TabExecutor {
                 am().adminKasaDuzelt(s, a, miktar);
             }
             case "dagit" -> {
-                if (args.length < 3) { kullanim(s, "/klan admin dagit <klan>"); return; }
+                if (args.length < 3) { kullanim(s, "/klan admin dagit <klan|hepsi onayla>"); return; }
+                if (args[2].equalsIgnoreCase("hepsi")) {
+                    if (args.length < 4 || !args[3].equalsIgnoreCase("onayla")) {
+                        s.sendMessage(Mesaj.renk("&cTÜM klanları dağıtmak üzeresiniz, bu geri alınamaz! Onaylamak için: &e/klan admin dagit hepsi onayla"));
+                        return;
+                    }
+                    am().adminHepsiniDagit(s);
+                    return;
+                }
                 Klan a = am().klanBul(args[2]);
                 if (a == null) { m().gonder(s, "klan-yok", "&cBöyle bir klan bulunamadı."); return; }
                 am().adminDagit(s, a);
@@ -374,10 +382,11 @@ public class KlanKomut implements TabExecutor {
                     for (int i = 1; i <= a.yardimcilar().size(); i++) oneriler.add(String.valueOf(i));
                 } else if (alt.equals("admin") && p.hasPermission("klan.admin")) {
                     if (args[1].equalsIgnoreCase("kasa")) oneriler.add("duzelt");
-                    else if (args[1].equalsIgnoreCase("dagit")) am().klanlar().forEach(x -> oneriler.add(x.isim));
+                    else if (args[1].equalsIgnoreCase("dagit")) { oneriler.add("hepsi"); am().klanlar().forEach(x -> oneriler.add(x.isim)); }
                 }
             } else if (args.length == 4 && alt.equals("admin") && p.hasPermission("klan.admin")) {
-                if (args[1].equalsIgnoreCase("kasa") || args[1].equalsIgnoreCase("savas")) am().klanlar().forEach(x -> oneriler.add(x.isim));
+                if (args[1].equalsIgnoreCase("dagit") && args[2].equalsIgnoreCase("hepsi")) oneriler.add("onayla");
+                else if (args[1].equalsIgnoreCase("kasa") || args[1].equalsIgnoreCase("savas")) am().klanlar().forEach(x -> oneriler.add(x.isim));
                 else if (args[1].equalsIgnoreCase("arena") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.arenalar().isimler());
                 else if (args[1].equalsIgnoreCase("guvenli") && !args[2].equalsIgnoreCase("kur")) oneriler.addAll(plugin.guvenliBolgeler().isimler());
                 else if (args[1].equalsIgnoreCase("buyu") && args[2].equalsIgnoreCase("uret")) am().klanlar().forEach(x -> oneriler.add(x.isim));

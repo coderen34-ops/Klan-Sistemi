@@ -302,13 +302,32 @@ public class VahsiKaleYonetici implements Listener {
         String aranan = String.join(" ", java.util.Arrays.asList(args).subList(1, args.length));
         VahsiKale kale = bul(aranan);
         if (kale == null) { s.sendMessage(Mesaj.renk("&cBöyle bir kale bulunamadı.")); return; }
+        silKaleyi(kale);
+        s.sendMessage(Mesaj.renk("&a" + kale.isim + " silindi."));
+    }
+
+    /** Bir kaleyi (nöbetçi entity'leri dahil) hem bellekten hem DB'den kaldırır. sil() komutu ve
+     *  klan silme kaskad mantığı (bkz. klanaAitKaleleriSil) tarafından paylaşılır. */
+    private void silKaleyi(VahsiKale kale) {
         for (UUID npcId : kale.nobetciRolleri.keySet()) {
             org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
             if (e != null) e.remove();
         }
         kaleler.remove(kale.id);
         silDb(kale.id);
-        s.sendMessage(Mesaj.renk("&a" + kale.isim + " silindi."));
+    }
+
+    /** Bir klan silindiğinde/dağıldığında, o klanın fethettiği Vahşi Kale(ler) de silinir -
+     *  aksi halde kale "fethedildi" durumunda kalır ama artık var olmayan bir klana referans tutar.
+     *  Silinen kale sayısını döner (log/bilgi mesajı için). Periyodik kontrol (otomatikKontrolEt)
+     *  eksik kalan aktif kale sayısını zaten otomatik tamamlayacaktır. */
+    public int klanaAitKaleleriSil(UUID klanId) {
+        List<VahsiKale> silinecekler = new ArrayList<>();
+        for (VahsiKale kale : kaleler.values()) {
+            if (klanId.equals(kale.fetihedenKlanId)) silinecekler.add(kale);
+        }
+        for (VahsiKale kale : silinecekler) silKaleyi(kale);
+        return silinecekler.size();
     }
 
     private void liste(CommandSender s) {
@@ -432,7 +451,40 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     // ------------------------------------------------------------------ TESPİT / SALDIRI (periyodik)
+    private int disguiseBekciSayaci = 0;
+
+    /** Her tick() çağrısında (1 sn) sayaç artırılır; ~15 saniyede bir, disguise'ı düşmüş (ör. bir
+     *  anti-cheat/paket eklentisinin resync'i, LibsDisguises'in geçici bir hatası) İnsan tipi
+     *  nöbetçi/lider NPC'leri tespit edip yeniden giydirir - ham Vindicator görünümünde kalıp
+     *  kalmadıklarını kalıcı olarak düzeltir (bkz. kullanıcı raporu: "hala vindicator'dı"). */
+    private void disguiseBekcisi() {
+        if (!Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) return;
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi) continue;
+            for (Map.Entry<UUID, String> e : kale.nobetciSkinleri.entrySet()) {
+                String skin = e.getValue();
+                if (skin == null) continue; // VINDICATOR tipi - ham görünüm bilerek korunuyor
+                if (kale.oluNobetciler.contains(e.getKey())) continue;
+                org.bukkit.entity.Entity ent = Bukkit.getEntity(e.getKey());
+                if (!(ent instanceof LivingEntity le)) continue;
+                if (NobetciDisguiseYardimcisi.disguisliMi(le)) continue;
+                String rol = kale.nobetciRolleri.get(e.getKey());
+                String goruntuAdi = kale.isim + ("LIDER".equals(rol) ? " Lideri" : " Nöbetçisi");
+                try {
+                    boolean basarili = NobetciDisguiseYardimcisi.giydir(le, skin, goruntuAdi);
+                    plugin.getLogger().info("Vahşi Kale disguise bekçisi: " + goruntuAdi + " disguise'siz bulundu, yeniden giydirildi (sonuç: " + basarili + ", skin: " + skin + ").");
+                } catch (Throwable t) {
+                    plugin.getLogger().log(Level.WARNING, "Vahşi Kale disguise bekçisi hata: " + goruntuAdi, t);
+                }
+            }
+        }
+    }
+
     public void tick() {
+        if (++disguiseBekciSayaci >= 15) {
+            disguiseBekciSayaci = 0;
+            disguiseBekcisi();
+        }
         long simdi = System.currentTimeMillis();
         for (VahsiKale kale : kaleler.values()) {
             if (kale.fethedildi || kale.merkez == null || kale.merkez.getWorld() == null) continue;

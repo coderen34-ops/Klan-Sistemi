@@ -488,6 +488,9 @@ public class KlanManager {
         plugin.uzmanlik().klanDagildi(a);
         plugin.esya().dagit(a, uyeler);
         plugin.iliski().klanSilindi(a.id);
+        // Bu klanın fethettiği Vahşi Kale(ler) de silinsin - aksi halde "fethedildi" durumunda
+        // artık var olmayan bir klana referans tutarak kalırlardı.
+        plugin.vahsiKale().klanaAitKaleleriSil(a.id);
 
         for (KlanUyesi u : uyeler) {
             oyuncuKlani.remove(u.uuid);
@@ -546,6 +549,23 @@ public class KlanManager {
         klaniDagit(a, m().metin("dagildi-admin", "Yönetim tarafından dağıtıldı"));
         kaydet();
         m().gonder(s, "admin-dagitildi", "&a{klan} klanı zorla dağıtıldı.", "klan", isim);
+    }
+
+    /** TÜM klanları tek seferde dağıtır (bkz. /klan admin dagit hepsi onayla) - test/reset amaçlı.
+     *  Her klan normal adminDagit akışından geçer (kasa payı üyelere dağılır, log tutulur, o klanın
+     *  fethettiği Vahşi Kale(ler) de klaniDagit içinden otomatik silinir). */
+    public void adminHepsiniDagit(CommandSender s) {
+        List<Klan> hepsi = new ArrayList<>(klanlar.values());
+        if (hepsi.isEmpty()) { m().gonder(s, "klan-yok", "&7Zaten hiç klan yok."); return; }
+        int sayi = 0;
+        for (Klan a : hepsi) {
+            if (plugin.kasaKilitliMi(a)) plugin.savas().adminBitir(s, a);
+            plugin.log().yaz(a, s.getName(), "ADMIN_DAGITTI_HEPSI", null);
+            klaniDagit(a, m().metin("dagildi-admin", "Yönetim tarafından dağıtıldı"));
+            sayi++;
+        }
+        kaydet();
+        s.sendMessage(Mesaj.renk("&a" + sayi + " klan dağıtıldı (fethettikleri Vahşi Kaleler de silindi)."));
     }
 
     /** Oyuncu girişinde bilinen adı günceller (isim değişikliği). */

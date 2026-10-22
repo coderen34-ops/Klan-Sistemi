@@ -37,4 +37,8 @@ final class NobetciDisguiseYardimcisi {
     static void soyun(LivingEntity mob) {
         if (DisguiseAPI.isDisguised(mob)) DisguiseAPI.undisguiseToAll(mob);
     }
+
+    static boolean disguisliMi(LivingEntity mob) {
+        return DisguiseAPI.isDisguised(mob);
+    }
 }
