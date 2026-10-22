@@ -203,7 +203,7 @@ public final class KaleInsaatYardimcisi {
 
     private static void zincirFenerAs(World dunya, int x, int tavanY, int z) {
         Block zincir = dunya.getBlockAt(x, tavanY - 1, z);
-        zincir.setType(Material.CHAIN, false);
+        zincir.setType(Material.IRON_CHAIN, false);
         if (zincir.getBlockData() instanceof Chain c) {
             c.setAxis(org.bukkit.Axis.Y);
             zincir.setBlockData(c);
