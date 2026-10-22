@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,9 +30,11 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
 import org.bukkit.entity.Vindicator;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -41,10 +44,14 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -83,6 +90,12 @@ public class VahsiKaleYonetici implements Listener {
 
     private final NamespacedKey kaleIdKey;
     private final NamespacedKey rolKey; // "NOBETCI" ya da "LIDER"
+    private final NamespacedKey elciKey; // elçi NPC'sini nöbetçi/liderden ayırt etmek için (byte=1)
+
+    // oyuncu -> bekleyen "elçi görevi" (tek seferlik, aynı anda sadece bir görev tutulabilir)
+    private final Map<UUID, ElciGorevi> elciGorevleri = new LinkedHashMap<>();
+
+    private record ElciGorevi(UUID kaleId, Material esya, int miktar, double odul) { }
 
     private final Map<UUID, VahsiKale> kaleler = new LinkedHashMap<>();
     // Oyuncu -> son uyarı anı (actionbar throttle), kale bazlı tutmaya gerek yok, genel throttle yeterli
@@ -100,6 +113,7 @@ public class VahsiKaleYonetici implements Listener {
         this.dbFile = new File(plugin.getDataFolder(), "vahsikaleler.db");
         this.kaleIdKey = new NamespacedKey(plugin, "vahsikale-id");
         this.rolKey = new NamespacedKey(plugin, "vahsikale-rol");
+        this.elciKey = new NamespacedKey(plugin, "vahsikale-elci");
         baglan();
         tablolariOlustur();
         yukle();
@@ -196,6 +210,7 @@ public class VahsiKaleYonetici implements Listener {
                 org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
                 if (e != null) e.remove();
             }
+            elciSil(kale);
             araziYedekGeriYukle(kale.id);
             kaleler.remove(kale.id);
             silDb(kale.id);
@@ -304,6 +319,7 @@ public class VahsiKaleYonetici implements Listener {
                 + " sandık başarıyla loot ile dolduruldu.");
 
         nobetcileriDogur(kale, yapi, rng);
+        elciDogur(kale);
         araziYedekKaydet(kale.id, dunya.getName(), yapi);
         plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ", klan türü: "
                 + kale.klanTuru + ") @ " + dunya.getName() + " " + konum.getBlockX() + "," + konum.getBlockZ());
@@ -415,6 +431,7 @@ public class VahsiKaleYonetici implements Listener {
             org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
             if (e != null) e.remove();
         }
+        elciSil(kale);
         araziYedekGeriYukle(kale.id);
         kaleler.remove(kale.id);
         silDb(kale.id);
@@ -588,6 +605,253 @@ public class VahsiKaleYonetici implements Listener {
         String liderSkin = KlanSkinHavuzu.liderSkin(kale.klanTuru, rng);
         dogurBir(kale, yapi.liderKonumu, "LIDER", liderCan(kale.seviye), nobetciHasar(kale.seviye) * 1.5,
                 kale.isim + " Lideri", liderSkin);
+    }
+
+    // ------------------------------------------------------------------ ELÇİ NPC (savaşmayan: ticaret/görev/barış)
+    /** Nöbetçi/liderlerden ayrı, savaşmayan özel bir Villager - giriş noktasına yakın doğurulur.
+     *  PazarManager'daki stand NPC'leriyle AYNI kalıp: AI kapalı, vurulamaz, NITWIT (vanilla ticaret
+     *  ekranı açılmasın), PDC ile etiketlenir. kale.elciId persist edilir (bkz. kaydet()/yukle()),
+     *  entity kaybolursa elciBekcisi() (tick() içinde, 15 sn'de bir) fark edip yeniden doğurur. */
+    private void elciDogur(VahsiKale kale) {
+        Location konum = (kale.giris != null && kale.giris.getWorld() != null) ? kale.giris : kale.merkez;
+        if (konum == null || konum.getWorld() == null) return;
+        Villager v = (Villager) konum.getWorld().spawnEntity(konum, EntityType.VILLAGER);
+        v.setAI(false);
+        v.setInvulnerable(true);
+        v.setSilent(true);
+        v.setPersistent(true);
+        v.setRemoveWhenFarAway(false);
+        v.setCollidable(false);
+        v.setProfession(Villager.Profession.NITWIT);
+        v.getPersistentDataContainer().set(elciKey, PersistentDataType.BYTE, (byte) 1);
+        v.getPersistentDataContainer().set(kaleIdKey, PersistentDataType.STRING, kale.id.toString());
+        v.setCustomName(ChatColor.GOLD + kale.isim + " Elçisi");
+        v.setCustomNameVisible(true);
+        kale.elciId = v.getUniqueId();
+        kaydet(kale);
+    }
+
+    /** disguiseBekciSayaci ile aynı 15 sn'lik döngüde (tick() içinden) çağrılır: elçisi kaybolmuş
+     *  (chunk unload sonrası despawn, manuel /kill, vs.) henüz fethedilmemiş kaleler için yeniden doğurur. */
+    private void elciBekcisi() {
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi) continue;
+            if (kale.elciId != null && Bukkit.getEntity(kale.elciId) != null) continue;
+            elciDogur(kale);
+        }
+    }
+
+    private void elciSil(VahsiKale kale) {
+        if (kale.elciId == null) return;
+        org.bukkit.entity.Entity e = Bukkit.getEntity(kale.elciId);
+        if (e != null) e.remove();
+        kale.elciId = null;
+    }
+
+    private double ticaretFiyati(int seviye, double temel) { return Math.round(temel * (1 + (seviye - 1) * 0.35)); }
+
+    private record TicaretKalemi(Material esya, int miktar, double temelFiyat, int minSeviye, java.util.function.Function<Integer, ItemStack> yapici) { }
+
+    private static ItemStack basitEsya(Material m, int miktar) { return new ItemStack(m, miktar); }
+
+    private List<TicaretKalemi> elciKatalogu(int seviye) {
+        List<TicaretKalemi> hepsi = new ArrayList<>();
+        hepsi.add(new TicaretKalemi(Material.GOLDEN_APPLE, 2, 150, 1, s -> basitEsya(Material.GOLDEN_APPLE, 2)));
+        hepsi.add(new TicaretKalemi(Material.DIAMOND, 2, 220, 1, s -> basitEsya(Material.DIAMOND, 2)));
+        hepsi.add(new TicaretKalemi(Material.ENCHANTED_BOOK, 1, 500, 2, s -> {
+            ItemStack kitap = new ItemStack(Material.ENCHANTED_BOOK, 1);
+            if (kitap.getItemMeta() instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta meta) {
+                meta.addStoredEnchant(Enchantment.MENDING, 1, true);
+                kitap.setItemMeta(meta);
+            }
+            return kitap;
+        }));
+        hepsi.add(new TicaretKalemi(Material.NAME_TAG, 1, 300, 1, s -> basitEsya(Material.NAME_TAG, 1)));
+        hepsi.add(new TicaretKalemi(Material.TOTEM_OF_UNDYING, 1, 2500, 4, s -> basitEsya(Material.TOTEM_OF_UNDYING, 1)));
+        hepsi.removeIf(k -> k.minSeviye() > seviye);
+        return hepsi;
+    }
+
+    private void acElciMenusu(Player p, VahsiKale kale) {
+        Inventory gui = Bukkit.createInventory(null, 9, ChatColor.GOLD + "Elçi - " + kale.isim);
+        gui.setItem(2, menuEsyasi(Material.EMERALD, ChatColor.GREEN + "Ticaret",
+                Arrays.asList(ChatColor.GRAY + "Nadir/özel ürünler satın al.", ChatColor.DARK_GRAY + "Klan kasasından ödenir.")));
+        gui.setItem(4, menuEsyasi(Material.WRITABLE_BOOK, ChatColor.AQUA + "Görev Al",
+                Arrays.asList(ChatColor.GRAY + "Bize eşya getir, ödül kazan.", ChatColor.DARK_GRAY + "Tek seferlik, küçük bir iş.")));
+        gui.setItem(6, menuEsyasi(Material.WHITE_BANNER, ChatColor.WHITE + "Barış Teklif Et",
+                Arrays.asList(ChatColor.GRAY + "Ücret öde, bir süre nöbetçiler", ChatColor.GRAY + "klanına saldırmasın.")));
+        p.openInventory(gui);
+        elciMenuBekleyenler.put(p.getUniqueId(), kale.id);
+    }
+
+    private ItemStack menuEsyasi(Material m, String ad, List<String> lore) {
+        ItemStack item = new ItemStack(m);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) { meta.setDisplayName(ad); meta.setLore(lore); item.setItemMeta(meta); }
+        return item;
+    }
+
+    // oyuncu -> şu an açık olan elçi menüsünün ait olduğu kale (hangi alt-menüde olduğunu anlamak için)
+    private final Map<UUID, UUID> elciMenuBekleyenler = new LinkedHashMap<>();
+
+    private void acTicaretMenusu(Player p, VahsiKale kale) {
+        List<TicaretKalemi> katalog = elciKatalogu(kale.seviye);
+        Inventory gui = Bukkit.createInventory(null, 9, ChatColor.GREEN + "Ticaret - " + kale.isim);
+        int slot = 0;
+        for (TicaretKalemi k : katalog) {
+            if (slot > 8) break;
+            double fiyat = ticaretFiyati(kale.seviye, k.temelFiyat());
+            ItemStack gosterim = k.yapici().apply(kale.seviye);
+            ItemMeta meta = gosterim.getItemMeta();
+            List<String> lore = new ArrayList<>();
+            if (meta != null && meta.hasLore()) lore.addAll(meta.getLore());
+            lore.add(ChatColor.YELLOW + "Fiyat: " + ChatColor.GREEN + "$" + (long) fiyat + ChatColor.GRAY + " (klan kasasından)");
+            lore.add(ChatColor.DARK_GRAY + "Satın almak için tıkla.");
+            if (meta != null) { meta.setLore(lore); gosterim.setItemMeta(meta); }
+            gui.setItem(slot++, gosterim);
+        }
+        p.openInventory(gui);
+    }
+
+    private void elciTicaretSatinAl(Player p, VahsiKale kale, int slot) {
+        List<TicaretKalemi> katalog = elciKatalogu(kale.seviye);
+        if (slot < 0 || slot >= katalog.size()) return;
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin, bu yüzden ticaret yapamazsın.")); return; }
+        TicaretKalemi k = katalog.get(slot);
+        double fiyat = ticaretFiyati(kale.seviye, k.temelFiyat());
+        if (klan.kasa < fiyat) { p.sendMessage(Mesaj.renk("&cKlan kasasında yeterli para yok! Gerekli: &e$" + (long) fiyat)); return; }
+        klan.kasa = Para.kurus(klan.kasa - fiyat);
+        plugin.veri().kaydet();
+        ItemStack esya = k.yapici().apply(kale.seviye);
+        p.getInventory().addItem(esya);
+        plugin.log().yaz(klan, p.getName(), "VAHSI_KALE_TICARET", kale.isim + " elçisinden " + esya.getType() + " -> " + Para.yaz(fiyat));
+        p.sendMessage(Mesaj.renk("&aSatın alındı! &7Ödenen: &e" + Para.yaz(fiyat) + " &7(klan kasasından)"));
+        p.closeInventory();
+    }
+
+    private void elciGorevVer(Player p, VahsiKale kale) {
+        if (elciGorevleri.containsKey(p.getUniqueId())) {
+            ElciGorevi mevcut = elciGorevleri.get(p.getUniqueId());
+            p.sendMessage(Mesaj.renk("&eZaten bekleyen bir görevin var: &f" + mevcut.miktar() + " " + mevcut.esya()
+                    + " &7getir, ödül: &a" + Para.yaz(mevcut.odul()) + "&7. Getirince elçiye sağ tık + shift yap."));
+            p.closeInventory();
+            return;
+        }
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin, bu yüzden görev alamazsın.")); p.closeInventory(); return; }
+        Material[] havuz = {Material.IRON_INGOT, Material.GOLD_INGOT, Material.EMERALD, Material.COAL, Material.STRING, Material.LEATHER};
+        Random rng = new Random();
+        Material esya = havuz[rng.nextInt(havuz.length)];
+        int miktar = 5 + kale.seviye * 3 + rng.nextInt(6);
+        double odul = ticaretFiyati(kale.seviye, miktar * (8 + rng.nextInt(6)));
+        elciGorevleri.put(p.getUniqueId(), new ElciGorevi(kale.id, esya, miktar, odul));
+        p.sendMessage(Mesaj.renk("&a" + kale.isim + " Elçisi: &f" + miktar + " " + esya + " &7getir, karşılığında &a"
+                + Para.yaz(odul) + " &7(klan kasana) veririm. Getirince elçiye &eshift + sağ tık&7 yap."));
+        p.closeInventory();
+    }
+
+    private void elciGorevTeslimEt(Player p, VahsiKale kale) {
+        ElciGorevi gorev = elciGorevleri.get(p.getUniqueId());
+        if (gorev == null || !gorev.kaleId().equals(kale.id)) {
+            p.sendMessage(Mesaj.renk("&7Bu elçiden bekleyen bir görevin yok."));
+            return;
+        }
+        int sahipOlunan = 0;
+        for (ItemStack it : p.getInventory().getContents()) if (it != null && it.getType() == gorev.esya()) sahipOlunan += it.getAmount();
+        if (sahipOlunan < gorev.miktar()) {
+            p.sendMessage(Mesaj.renk("&cYeterli eşya yok! Gerekli: &e" + gorev.miktar() + " " + gorev.esya() + " &7(elinde: " + sahipOlunan + ")"));
+            return;
+        }
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin, ödül verilemiyor.")); return; }
+        removeItemFromInventory(p.getInventory(), gorev.esya(), gorev.miktar());
+        klan.kasa = Para.kurus(klan.kasa + gorev.odul());
+        plugin.veri().kaydet();
+        elciGorevleri.remove(p.getUniqueId());
+        plugin.log().yaz(klan, p.getName(), "VAHSI_KALE_GOREV", kale.isim + " elçi görevi -> " + Para.yaz(gorev.odul()));
+        p.sendMessage(Mesaj.renk("&aGörev tamamlandı! &7Klan kasana: &a" + Para.yaz(gorev.odul())));
+    }
+
+    private void removeItemFromInventory(Inventory env, Material mat, int miktar) {
+        int kalan = miktar;
+        for (ItemStack it : env.getContents()) {
+            if (it == null || it.getType() != mat) continue;
+            int cek = Math.min(kalan, it.getAmount());
+            it.setAmount(it.getAmount() - cek);
+            kalan -= cek;
+            if (kalan <= 0) break;
+        }
+    }
+
+    private int barisSuresiDakika() { return plugin.getConfig().getInt("vahsikale.baris-suresi-dakika", 5); }
+    private double barisUcreti(int seviye) { return ticaretFiyati(seviye, 400); }
+
+    private void elciBarisTeklifEt(Player p, VahsiKale kale) {
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin, barış teklif edemezsin.")); p.closeInventory(); return; }
+        if (kale.barisVarMi(klan.id)) {
+            p.sendMessage(Mesaj.renk("&eKlanın zaten bu kaleyle barış içinde."));
+            p.closeInventory();
+            return;
+        }
+        double ucret = barisUcreti(kale.seviye);
+        if (klan.kasa < ucret) { p.sendMessage(Mesaj.renk("&cKlan kasasında yeterli para yok! Gerekli: &e$" + (long) ucret)); p.closeInventory(); return; }
+        klan.kasa = Para.kurus(klan.kasa - ucret);
+        plugin.veri().kaydet();
+        int dakika = barisSuresiDakika();
+        kale.barisAnlasmalari.put(klan.id, System.currentTimeMillis() + dakika * 60_000L);
+        plugin.log().yaz(klan, p.getName(), "VAHSI_KALE_BARIS", kale.isim + " ile " + dakika + " dk barış -> " + Para.yaz(ucret));
+        p.sendMessage(Mesaj.renk("&a" + kale.isim + " &7ile klanın için &e" + dakika + " dakika&7 barış sağlandı (nöbetçiler saldırmayacak)."));
+        p.closeInventory();
+    }
+
+    @EventHandler
+    public void onElciEtkilesim(PlayerInteractEntityEvent event) {
+        if (!event.getRightClicked().getPersistentDataContainer().has(elciKey, PersistentDataType.BYTE)) return;
+        event.setCancelled(true);
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        String kaleIdStr = event.getRightClicked().getPersistentDataContainer().get(kaleIdKey, PersistentDataType.STRING);
+        if (kaleIdStr == null) return;
+        VahsiKale kale = kaleler.get(UUID.fromString(kaleIdStr));
+        if (kale == null) return;
+        Player p = event.getPlayer();
+        if (kale.fethedildi) {
+            p.sendMessage(Mesaj.renk("&7Bu kale fethedildi, elçi artık burada değil."));
+            return;
+        }
+        if (p.isSneaking()) {
+            elciGorevTeslimEt(p, kale);
+            return;
+        }
+        acElciMenusu(p, kale);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onElciMenuTikla(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player p)) return;
+        String title = event.getView().getTitle();
+        if (title.startsWith(ChatColor.GOLD + "Elçi - ")) {
+            event.setCancelled(true);
+            UUID kaleId = elciMenuBekleyenler.get(p.getUniqueId());
+            if (kaleId == null) return;
+            VahsiKale kale = kaleler.get(kaleId);
+            if (kale == null) return;
+            int slot = event.getRawSlot();
+            if (slot == 2) { p.closeInventory(); acTicaretMenusu(p, kale); }
+            else if (slot == 4) elciGorevVer(p, kale);
+            else if (slot == 6) elciBarisTeklifEt(p, kale);
+            return;
+        }
+        if (title.startsWith(ChatColor.GREEN + "Ticaret - ")) {
+            event.setCancelled(true);
+            UUID kaleId = elciMenuBekleyenler.get(p.getUniqueId());
+            if (kaleId == null) return;
+            VahsiKale kale = kaleler.get(kaleId);
+            if (kale == null) return;
+            if (event.getCurrentItem() == null) return;
+            elciTicaretSatinAl(p, kale, event.getRawSlot());
+        }
     }
 
     private void dogurBir(VahsiKale kale, Location konum, String rol, double can, double hasar, String goruntuAdi, String skinAdi) {
@@ -777,9 +1041,10 @@ public class VahsiKaleYonetici implements Listener {
             if (++disguiseBekciSayaci >= 15) {
                 disguiseBekciSayaci = 0;
                 disguiseBekcisi();
+                elciBekcisi();
             }
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - disguise bekçisi hatası (atlanıyor)", e);
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - disguise/elçi bekçisi hatası (atlanıyor)", e);
         }
         try {
             fethedilenSuresiDolanlariSil();
@@ -826,6 +1091,10 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void saldirTetikle(VahsiKale kale, Player p) {
+        if (!kale.barisAnlasmalari.isEmpty()) {
+            Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+            if (klan != null && kale.barisVarMi(klan.id)) return; // elçiyle barış yapılmış, nöbetçiler saldırmaz
+        }
         for (UUID npcId : kale.nobetciRolleri.keySet()) {
             if (kale.oluNobetciler.contains(npcId)) continue;
             org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
@@ -928,6 +1197,7 @@ public class VahsiKaleYonetici implements Listener {
                 kale.fetihZamani = System.currentTimeMillis();
                 klan.prestij += fetihPrestiji();
                 plugin.veri().kaydet();
+                elciSil(kale); // fethedilince elçiyle diplomasi/ticaret anlamsızlaşıyor
                 kaydet(kale);
                 plugin.klanManager().klanaGonder(klan, "vahsikale-fetih",
                         "&6{kale} &7tamamen fethedildi! Klanınız &e+{prestij} prestij&7 kazandı.",
@@ -1050,6 +1320,7 @@ public class VahsiKaleYonetici implements Listener {
         migrasyonKolonEkle("kaleler", "sinir_minz INTEGER");
         migrasyonKolonEkle("kaleler", "sinir_maxz INTEGER");
         migrasyonKolonEkle("nobetciler", "skin TEXT");
+        migrasyonKolonEkle("kaleler", "elci_id TEXT");
     }
 
     private void migrasyonKolonEkle(String tablo, String kolonTanimi) {
@@ -1066,12 +1337,12 @@ public class VahsiKaleYonetici implements Listener {
         plugin.arkaPlanda(() -> {
             try (PreparedStatement ps = baglanti.prepareStatement(
                     "INSERT INTO kaleler (id, isim, seviye, merkez, giris, tespit_yaricap, saldiri_yaricap, fethedildi, fetheden_klan, fetih_zamani, prestij_verildi, klan_turu, " +
-                            "sinir_minx, sinir_maxx, sinir_miny, sinir_maxy, sinir_minz, sinir_maxz) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
+                            "sinir_minx, sinir_maxx, sinir_miny, sinir_maxy, sinir_minz, sinir_maxz, elci_id) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
                             "merkez=excluded.merkez, giris=excluded.giris, tespit_yaricap=excluded.tespit_yaricap, saldiri_yaricap=excluded.saldiri_yaricap, " +
                             "fethedildi=excluded.fethedildi, fetheden_klan=excluded.fetheden_klan, fetih_zamani=excluded.fetih_zamani, prestij_verildi=excluded.prestij_verildi, " +
                             "klan_turu=excluded.klan_turu, sinir_minx=excluded.sinir_minx, sinir_maxx=excluded.sinir_maxx, sinir_miny=excluded.sinir_miny, " +
-                            "sinir_maxy=excluded.sinir_maxy, sinir_minz=excluded.sinir_minz, sinir_maxz=excluded.sinir_maxz")) {
+                            "sinir_maxy=excluded.sinir_maxy, sinir_minz=excluded.sinir_minz, sinir_maxz=excluded.sinir_maxz, elci_id=excluded.elci_id")) {
                 ps.setString(1, kale.id.toString());
                 ps.setString(2, kale.isim);
                 ps.setInt(3, kale.seviye);
@@ -1090,6 +1361,7 @@ public class VahsiKaleYonetici implements Listener {
                 ps.setInt(16, kale.sinirMaxY);
                 ps.setInt(17, kale.sinirMinZ);
                 ps.setInt(18, kale.sinirMaxZ);
+                ps.setString(19, kale.elciId == null ? null : kale.elciId.toString());
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Vahşi Kale kaydedilemedi: " + kale.isim, e);
@@ -1184,6 +1456,8 @@ public class VahsiKaleYonetici implements Listener {
                 kale.sinirMaxY = rs.getInt("sinir_maxy");
                 kale.sinirMinZ = rs.getInt("sinir_minz");
                 kale.sinirMaxZ = rs.getInt("sinir_maxz");
+                String elciIdStr = rs.getString("elci_id");
+                kale.elciId = elciIdStr == null ? null : UUID.fromString(elciIdStr);
                 if (kale.merkez == null) {
                     plugin.getLogger().warning("'" + kale.isim + "' Vahşi Kalesinin dünyası yüklü değil, şimdilik atlanıyor.");
                     continue;

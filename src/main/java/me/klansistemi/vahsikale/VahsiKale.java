@@ -74,6 +74,20 @@ public class VahsiKale {
     // Runtime-only: şu an bu kalede kuşatmada sayılan oyuncular (persist edilmez)
     public final Set<UUID> kusatmadakiOyuncular = new LinkedHashSet<>();
 
+    // Elçi NPC'si (savaşmayan, ticaret/görev/barış menüsü açan Villager) - SQLite'a "elci_id" kolonuyla
+    // persist edilir; entity dünyadan kaybolursa (chunk unload sonrası despawn, vb.) tick() içindeki
+    // elciBekcisi() bunu fark edip yeniden doğurur (bkz. VahsiKaleYonetici).
+    public UUID elciId;
+
+    // klanId -> bu kaleyle barışın bittiği (System.currentTimeMillis()) zamanı. Runtime-only (persist
+    // edilmez) - kısa süreli, geçici bir durum olduğundan bir restart'ta sıfırlanması zararsız kabul edildi.
+    public final Map<UUID, Long> barisAnlasmalari = new LinkedHashMap<>();
+
+    public boolean barisVarMi(UUID klanId) {
+        Long bitis = barisAnlasmalari.get(klanId);
+        return bitis != null && bitis > System.currentTimeMillis();
+    }
+
     public VahsiKale(UUID id) {
         this.id = id;
     }
