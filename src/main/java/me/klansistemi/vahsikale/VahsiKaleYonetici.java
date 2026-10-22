@@ -876,7 +876,23 @@ public class VahsiKaleYonetici implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onEtkilesim(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        // Elçi NPC (ticaret/görev/barış) bu sürümde YOK - ileride eklenecek. Şimdilik sadece sandık kilidi geçerli.
+        // Elçi NPC (ticaret/görev/barış) bu sürümde YOK - ileride eklenecek.
+        // Sandık kilidi: kale tamamen fethedilmeden (tüm nöbetçi+lider ölmeden) sandığın İÇİ
+        // açılamaz/görülemez - kırmak hâlâ mümkün olabilir ama onSandikKir zaten ayrıca bunu
+        // engelliyor. Burada sadece GUI açmayı (right-click) engelliyoruz; kale fethedilince
+        // (tumuOldu()) normal şekilde açılabilir, içindeki gerçek loot elle alınabilir.
+        var block = event.getClickedBlock();
+        if (block == null || block.getState() instanceof Chest == false) return;
+        String konum = ArenaManager.konumYaz(block.getLocation());
+        for (VahsiKale kale : kaleler.values()) {
+            if (!kale.sandiklar.containsKey(konum)) continue;
+            if (Boolean.TRUE.equals(kale.sandiklar.get(konum))) return; // zaten kırılmış/açılmış, serbest
+            if (!kale.tumuOldu()) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Mesaj.renk("&cBu sandığı açamazsın - önce bu kalenin tüm nöbetçilerini ve liderini yok etmelisin."));
+            }
+            return;
+        }
     }
 
     // ------------------------------------------------------------------ SQLITE
