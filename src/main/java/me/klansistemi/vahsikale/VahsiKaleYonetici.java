@@ -692,6 +692,17 @@ public class VahsiKaleYonetici implements Listener {
                 elciSil(kale);
                 kaydet(kale);
             }
+            // Güvenlik ağı (kullanıcı raporu: "elçi temizlenmemiş" - bkz. elciSil() javadoc'undaki eski
+            // hata): kale.elciId artık hiçbir kaleden takip edilmeyen "yetim" elçiler olabilir. Şu an
+            // YÜKLÜ olan tüm dünyalardaki etiketli Villager'ları tarayıp bunları da temizler - bir
+            // oyuncu o bölgeye her yaklaştığında (chunk yüklenince) bu tarama onu bulup kaldıracaktır.
+            for (World dunya : Bukkit.getWorlds()) {
+                for (org.bukkit.entity.Entity e : dunya.getEntitiesByClass(Villager.class)) {
+                    if (e.getPersistentDataContainer().has(elciKey, PersistentDataType.BYTE)) {
+                        e.remove();
+                    }
+                }
+            }
             return;
         }
         for (VahsiKale kale : kaleler.values()) {
@@ -701,11 +712,21 @@ public class VahsiKaleYonetici implements Listener {
         }
     }
 
+    /**
+     * DİKKAT (bulunan gerçek hata - bkz. kullanıcı raporu "elçi temizlenmemiş"): kale.elciId'yi
+     * entity GERÇEKTEN silinmeden null'a çekmek, chunk yüklü değilken Bukkit.getEntity() null
+     * dönerse elçiyi sonsuza dek "yetim" (hiçbir kalenin elciId'si artık ona işaret etmiyor, ama
+     * dünyada hâlâ duruyor) bırakırdı - bir daha asla bekçi tarafından bulunup silinemezdi. Artık
+     * SADECE entity gerçekten bulunup silinirse elciId null'lanır; bulunamazsa (chunk yüklü değil)
+     * elciId olduğu gibi kalır, bir sonraki bekçi turunda (chunk yüklenince) tekrar denenir.
+     */
     private void elciSil(VahsiKale kale) {
         if (kale.elciId == null) return;
         org.bukkit.entity.Entity e = Bukkit.getEntity(kale.elciId);
-        if (e != null) e.remove();
-        kale.elciId = null;
+        if (e != null) {
+            e.remove();
+            kale.elciId = null;
+        }
     }
 
     private double ticaretFiyati(int seviye, double temel) { return Math.round(temel * (1 + (seviye - 1) * 0.35)); }
