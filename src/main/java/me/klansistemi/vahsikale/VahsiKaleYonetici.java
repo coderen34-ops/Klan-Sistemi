@@ -7,7 +7,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -108,6 +110,7 @@ public class VahsiKaleYonetici implements Listener {
         switch (alt) {
             case "uret" -> uret(s, args);
             case "sil" -> sil(s, args);
+            case "hepsinisil" -> hepsiniSil(s);
             case "liste" -> liste(s);
             case "bilgi" -> bilgi(s);
             case "giris" -> girisAyarla(s);
@@ -116,7 +119,25 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void kullanim(CommandSender s) {
-        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|liste|bilgi|giris>"));
+        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris>"));
+    }
+
+    /** Şu an kayıtlı TÜM Vahşi Kaleleri tek seferde siler: NPC'leri dünyadan kaldırır,
+     *  bellekten ve SQLite'tan (kaleler/nobetciler/sandiklar) temizler. Fiziksel yapı (bloklar)
+     *  dünyada kalır - sadece oyun kaydı/varlıkları temizlenir, test verisini toplu sıfırlamak için. */
+    private void hepsiniSil(CommandSender s) {
+        if (kaleler.isEmpty()) { s.sendMessage(Mesaj.renk("&7Silinecek Vahşi Kale yok.")); return; }
+        int toplam = kaleler.size();
+        List<VahsiKale> kopya = new ArrayList<>(kaleler.values());
+        for (VahsiKale kale : kopya) {
+            for (UUID npcId : kale.nobetciRolleri.keySet()) {
+                org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
+                if (e != null) e.remove();
+            }
+            kaleler.remove(kale.id);
+            silDb(kale.id);
+        }
+        s.sendMessage(Mesaj.renk("&a" + toplam + " Vahşi Kale (ve nöbetçileri/sandık kayıtları) silindi."));
     }
 
     /**
@@ -150,7 +171,11 @@ public class VahsiKaleYonetici implements Listener {
         Location konum = rastgeleKonumBul(dunya, rng);
         if (konum == null) return null;
 
-        KaleInsaatYardimcisi.Sonuc yapi = KaleInsaatYardimcisi.insaEt(konum, seviye, rng);
+        // Klan türü yapı inşasından ÖNCE belirlenir: Vindicator/İnsan klanlarının kaleleri artık
+        // farklı malzeme/süsleme paletiyle inşa ediliyor (bkz. KaleInsaatYardimcisi), sadece nöbetçi
+        // skin'i değil.
+        String klanTuru = KlanSkinHavuzu.rastgeleKlanTuru(rng);
+        KaleInsaatYardimcisi.Sonuc yapi = KaleInsaatYardimcisi.insaEt(konum, seviye, rng, klanTuru);
 
         VahsiKale kale = new VahsiKale(UUID.randomUUID());
         kale.seviye = seviye;
@@ -159,7 +184,7 @@ public class VahsiKaleYonetici implements Listener {
         kale.giris = yapi.girisIci.clone();
         kale.tespitYaricap = varsayilanTespit();
         kale.saldiriYaricap = varsayilanSaldiri();
-        kale.klanTuru = KlanSkinHavuzu.rastgeleKlanTuru(rng);
+        kale.klanTuru = klanTuru;
         kale.sinirMinX = yapi.sinirMinX; kale.sinirMaxX = yapi.sinirMaxX;
         kale.sinirMinY = yapi.sinirMinY; kale.sinirMaxY = yapi.sinirMaxY;
         kale.sinirMinZ = yapi.sinirMinZ; kale.sinirMaxZ = yapi.sinirMaxZ;
@@ -360,14 +385,20 @@ public class VahsiKaleYonetici implements Listener {
         AttributeInstance hasarOzniteligi = v.getAttribute(Attribute.ATTACK_DAMAGE);
         if (hasarOzniteligi != null) hasarOzniteligi.setBaseValue(hasar);
         // skinAdi null ise bu NPC "VINDICATOR" tipi bir klana ait - bilerek disguise giydirilmiyor, ham görünüm kalıyor
-        if (skinAdi != null) {
-            try {
-                if (Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
-                    NobetciDisguiseYardimcisi.giydir(v, skinAdi, goruntuAdi);
+        // 1 tik sonraya bırakılıyor: entity world.spawn() ile AYNI tikte disguise edilirse (henüz dünyanın
+        // entity takip listesine tam eklenmemiş olabileceğinden) LibsDisguises bazı Paper sürümlerinde
+        // sessizce (hata fırlatmadan) tutmayabiliyor - bu yüzden isDisguised ile de doğrulanıp loglanıyor.
+        if (skinAdi != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    boolean basarili = NobetciDisguiseYardimcisi.giydir(v, skinAdi, goruntuAdi);
+                    if (!basarili) {
+                        plugin.getLogger().warning("Vahşi Kale NPC'si (" + goruntuAdi + ") disguise UYGULANAMADI (isDisguised=false) - skin: " + skinAdi);
+                    }
+                } catch (Throwable t) {
+                    plugin.getLogger().log(Level.WARNING, "Vahşi Kale NPC'si giydirilemedi (LibsDisguises sorunu)", t);
                 }
-            } catch (Throwable t) {
-                plugin.getLogger().log(Level.WARNING, "Vahşi Kale NPC'si giydirilemedi (LibsDisguises sorunu)", t);
-            }
+            });
         }
         kale.nobetciRolleri.put(v.getUniqueId(), rol);
         kale.nobetciSkinleri.put(v.getUniqueId(), skinAdi);
@@ -388,7 +419,10 @@ public class VahsiKaleYonetici implements Listener {
                 if (ent instanceof LivingEntity le) {
                     String goruntuAdi = kale.isim + ("LIDER".equals(e.getValue()) ? " Lideri" : " Nöbetçisi");
                     try {
-                        NobetciDisguiseYardimcisi.giydir(le, skin, goruntuAdi);
+                        boolean basarili = NobetciDisguiseYardimcisi.giydir(le, skin, goruntuAdi);
+                        if (!basarili) {
+                            plugin.getLogger().warning("Vahşi Kale disguise TAZELEME BAŞARISIZ (isDisguised=false): " + goruntuAdi + " - skin: " + skin);
+                        }
                     } catch (Throwable t) {
                         plugin.getLogger().log(Level.WARNING, "Vahşi Kale disguise tazeleme hatası", t);
                     }

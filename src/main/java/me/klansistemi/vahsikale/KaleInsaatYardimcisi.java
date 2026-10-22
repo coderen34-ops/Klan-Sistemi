@@ -36,10 +36,13 @@ public final class KaleInsaatYardimcisi {
     }
 
     /**
-     * @param merkez  Yapının ortalanacağı yaklaşık konum (Y önemsiz, zemin otomatik bulunur)
-     * @param seviye  1-5, boyutu ve kule yüksekliğini belirler
+     * @param merkez   Yapının ortalanacağı yaklaşık konum (Y önemsiz, zemin otomatik bulunur)
+     * @param seviye   1-5, boyutu ve kule yüksekliğini belirler
+     * @param klanTuru "VINDICATOR" (ham/vahşi - kaba taş+moss, süslemesiz) ya da "INSAN" (cilalı
+     *                 blackstone+gilded süsleme) - kale her klan türüne göre farklı görünsün diye.
      */
-    public static Sonuc insaEt(Location merkez, int seviye, Random rng) {
+    public static Sonuc insaEt(Location merkez, int seviye, Random rng, String klanTuru) {
+        boolean vahsi = "VINDICATOR".equals(klanTuru);
         World dunya = merkez.getWorld();
         int genislik = 20 + (seviye - 1) * 4;   // X ekseni: 20..36
         int derinlik = 16 + (seviye - 1) * 4;   // Z ekseni: 16..32
@@ -75,8 +78,16 @@ public final class KaleInsaatYardimcisi {
             }
         }
 
-        Material[] duvarKaris = {Material.BLACKSTONE, Material.BLACKSTONE, Material.POLISHED_BLACKSTONE,
-                Material.POLISHED_BLACKSTONE_BRICKS, Material.CRACKED_POLISHED_BLACKSTONE_BRICKS};
+        // İnsan klanları: cilalı/düzgün blackstone ailesi. Vindicator klanları: kaba taş + yosun,
+        // vahşi/düzensiz bir fortress hissi - ikisi artık görsel olarak da birbirinden ayrılıyor.
+        Material[] duvarKaris = vahsi
+                ? new Material[]{Material.BLACKSTONE, Material.COBBLESTONE, Material.MOSSY_COBBLESTONE,
+                        Material.COBBLESTONE, Material.BLACKSTONE}
+                : new Material[]{Material.BLACKSTONE, Material.BLACKSTONE, Material.POLISHED_BLACKSTONE,
+                        Material.POLISHED_BLACKSTONE_BRICKS, Material.CRACKED_POLISHED_BLACKSTONE_BRICKS};
+        Material kuleMalzeme = vahsi ? Material.COBBLESTONE : Material.GILDED_BLACKSTONE;
+        Material tahtMalzeme = vahsi ? Material.MOSSY_COBBLESTONE : Material.GILDED_BLACKSTONE;
+        Material tahtIsigi = vahsi ? Material.REDSTONE_TORCH : Material.END_ROD;
 
         // 3) Dış duvarlar (2 blok kalın, tam çevre) + tam kapalı çatı + taban
         for (int x = xMin; x <= xMax; x++) {
@@ -104,7 +115,7 @@ public final class KaleInsaatYardimcisi {
                     boolean cerceve = (x == kose[0] || x == kose[0] + kuleBoy - 1 || z == kose[1] || z == kose[1] + kuleBoy - 1);
                     if (cerceve) {
                         for (int y = y0 + yukseklik - 2; y <= y0 + yukseklik + 5; y++) {
-                            dunya.getBlockAt(x, y, z).setType(Material.GILDED_BLACKSTONE, false);
+                            dunya.getBlockAt(x, y, z).setType(kuleMalzeme, false);
                         }
                     }
                 }
@@ -139,11 +150,11 @@ public final class KaleInsaatYardimcisi {
         int tahtY = y0;
         for (int x = merkezX - 1; x <= merkezX + 1; x++) {
             for (int z = merkezZ - 1; z <= merkezZ + 1; z++) {
-                dunya.getBlockAt(x, tahtY, z).setType(Material.GILDED_BLACKSTONE, false);
+                dunya.getBlockAt(x, tahtY, z).setType(tahtMalzeme, false);
             }
         }
-        Block endRod = dunya.getBlockAt(merkezX, tahtY + 1, merkezZ);
-        endRod.setType(Material.END_ROD, false);
+        Block tahtIsikBlok = dunya.getBlockAt(merkezX, tahtY + 1, merkezZ);
+        tahtIsikBlok.setType(tahtIsigi, false);
 
         Sonuc sonuc = new Sonuc();
         sonuc.liderKonumu = new Location(dunya, merkezX + 0.5, tahtY + 1, merkezZ + 0.5);

@@ -20,7 +20,9 @@ final class NobetciDisguiseYardimcisi {
 
     private NobetciDisguiseYardimcisi() {}
 
-    static void giydir(LivingEntity mob, String skinAdi, String goruntuAdi) {
+    /** @return disguise gerçekten tutmuş mu (DisguiseAPI.isDisguised ile hemen sonra doğrulanır) - çağıran taraf
+     *  false dönerse loglayıp görünür hale getirebilir (örn. ağ/skin çözümleme hatası sessizce yutulmasın). */
+    static boolean giydir(LivingEntity mob, String skinAdi, String goruntuAdi) {
         if (DisguiseAPI.isDisguised(mob)) DisguiseAPI.undisguiseToAll(mob);
         PlayerDisguise disguise = new PlayerDisguise(skinAdi);
         disguise.setHideArmorFromSelf(false);
@@ -29,6 +31,7 @@ final class NobetciDisguiseYardimcisi {
             disguise.setTablistName(goruntuAdi);
         }
         DisguiseAPI.disguiseToAll(mob, disguise);
+        return DisguiseAPI.isDisguised(mob);
     }
 
     static void soyun(LivingEntity mob) {
