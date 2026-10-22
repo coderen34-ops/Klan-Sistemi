@@ -133,6 +133,7 @@ public class VahsiKaleYonetici implements Listener {
             case "uret" -> uret(s, args);
             case "sil" -> sil(s, args);
             case "hepsinisil" -> hepsiniSil(s);
+            case "yedekgeri" -> yedekGeriKomut(s, args);
             case "liste" -> liste(s);
             case "bilgi" -> bilgi(s);
             case "giris" -> girisAyarla(s);
@@ -143,7 +144,7 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void kullanim(CommandSender s) {
-        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris|yardim|git <isim>>"));
+        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|yedekgeri <uuid>|liste|bilgi|giris|yardim|git <isim>>"));
     }
 
     /** /vahsikale git <isim>: admin, kalenin giriş noktasına (ayarlanmadıysa merkezine) ışınlanır -
@@ -180,8 +181,12 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     /** Şu an kayıtlı TÜM Vahşi Kaleleri tek seferde siler: NPC'leri dünyadan kaldırır,
-     *  bellekten ve SQLite'tan (kaleler/nobetciler/sandiklar) temizler. Fiziksel yapı (bloklar)
-     *  dünyada kalır - sadece oyun kaydı/varlıkları temizlenir, test verisini toplu sıfırlamak için. */
+     *  bellekten ve SQLite'tan (kaleler/nobetciler/sandiklar) temizler, VE (silKaleyi() ile
+     *  aynı mantıkla) her kalenin arazi yedeğini varsa eski haline döndürür. Önceden bu komut
+     *  arazi geri yüklemesini atlıyordu - bu da gerçek, fethedilmiş bir kalenin "hepsinisil" ile
+     *  silinmesi durumunda arazisinin asla eski haline dönmemesine ve kalenin hem sistemden hem
+     *  de 2 Minecraft günlük otomatik silme/undo mekanizmasının görüş alanından tamamen
+     *  kaybolup fiziksel olarak dünyada "yetim" kalmasına yol açıyordu (bkz. kullanıcı raporu). */
     private void hepsiniSil(CommandSender s) {
         if (kaleler.isEmpty()) { s.sendMessage(Mesaj.renk("&7Silinecek Vahşi Kale yok.")); return; }
         int toplam = kaleler.size();
@@ -191,10 +196,30 @@ public class VahsiKaleYonetici implements Listener {
                 org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
                 if (e != null) e.remove();
             }
+            araziYedekGeriYukle(kale.id);
             kaleler.remove(kale.id);
             silDb(kale.id);
         }
-        s.sendMessage(Mesaj.renk("&a" + toplam + " Vahşi Kale (ve nöbetçileri/sandık kayıtları) silindi."));
+        s.sendMessage(Mesaj.renk("&a" + toplam + " Vahşi Kale (ve nöbetçileri/sandık kayıtları) silindi, arazileri eski haline döndürüldü."));
+    }
+
+    /** Admin aracı: eskiden (fix'ten önce) "hepsinisil" ile silinmiş ama arazisi geri
+     *  yüklenmemiş "yetim" kaleler için - kale artık kaleler map'inde/DB'de olmasa bile,
+     *  sadece elindeki UUID ile (plugins/KlanSistemi/kale-yedekleri/<uuid>.txt.gz dosyasından)
+     *  arazisini manuel olarak eski haline döndürür. */
+    private void yedekGeriKomut(CommandSender s, String[] args) {
+        if (args.length < 2) { s.sendMessage(Mesaj.renk("&cKullanım: /vahsikale yedekgeri <kale-uuid>")); return; }
+        UUID id;
+        try {
+            id = UUID.fromString(args[1]);
+        } catch (IllegalArgumentException e) {
+            s.sendMessage(Mesaj.renk("&cGeçersiz UUID: " + args[1]));
+            return;
+        }
+        File dosya = araziYedekDosyasi(id);
+        if (!dosya.exists()) { s.sendMessage(Mesaj.renk("&cBu UUID için yedek dosyası bulunamadı: " + dosya.getPath())); return; }
+        araziYedekGeriYukle(id);
+        s.sendMessage(Mesaj.renk("&aArazi yedeği uygulandı - detaylar için konsol/log'a bak."));
     }
 
     /**
@@ -459,8 +484,13 @@ public class VahsiKaleYonetici implements Listener {
             }
             plugin.getLogger().info("[VahsiKale] Kale (" + kaleId + ") silinirken arazi eski haline döndürüldü ("
                     + geriYuklendi + " blok).");
-        } catch (java.io.IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale arazi yedeği okunamadı (" + kaleId + ") - arazi eski haline döndürülemedi.", e);
+        } catch (Exception e) {
+            // DİKKAT: sadece IOException değil, her türlü hata (bozuk/yarım yazılmış yedek dosyası
+            // header'ından NumberFormatException/ArrayIndexOutOfBoundsException gibi) burada
+            // yakalanıyor - yoksa tick() içinden fırlayan yakalanmamış bir exception, Bukkit'in
+            // tüm periyodik görevi (fethedilenSuresiDolanlariSil dahil) sessizce ve KALICI olarak
+            // iptal etmesine yol açabilir (restart'a kadar hiçbir kale bir daha otomatik silinmez).
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale arazi yedeği okunamadı/işlenemedi (" + kaleId + ") - arazi eski haline döndürülemedi.", e);
         } finally {
             dosya.delete();
         }
@@ -737,43 +767,61 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     public void tick() {
-        if (++disguiseBekciSayaci >= 15) {
-            disguiseBekciSayaci = 0;
-            disguiseBekcisi();
+        // DİKKAT: runTaskTimer ile çağrılan bu metottan yakalanmamış bir exception fırlarsa,
+        // Bukkit o tekrarlı görevi SESSİZCE ve KALICI olarak iptal eder (restart'a kadar bir
+        // daha hiç çalışmaz) - yani tek bir hatalı kale/veri, TÜM Vahşi Kale sistemini (otomatik
+        // silme, disguise bekçisi, saldırı tespiti...) durdurabilir. Bu yüzden ana adımlar ayrı
+        // ayrı try/catch ile sarılıyor: biri patlarsa sadece o adım o tick'te atlanır, görev
+        // bir sonraki saniye yine çalışır.
+        try {
+            if (++disguiseBekciSayaci >= 15) {
+                disguiseBekciSayaci = 0;
+                disguiseBekcisi();
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - disguise bekçisi hatası (atlanıyor)", e);
         }
-        fethedilenSuresiDolanlariSil();
-        long simdi = System.currentTimeMillis();
-        for (VahsiKale kale : kaleler.values()) {
-            if (kale.fethedildi || kale.merkez == null || kale.merkez.getWorld() == null) continue;
-            for (Player p : kale.merkez.getWorld().getPlayers()) {
-                double mesafe = p.getLocation().distance(kale.merkez);
-                // Eskiden sadece merkeze düz mesafe bakılıyordu - büyük/yüksek kalelerde yapının
-                // fiziksel sınırları (sinirMinX/MaxX/...) merkeze olan daire yarıçapından taşabiliyordu,
-                // bu da kale İÇİNDEYKEN "kuşatmadan çekildin"/"yaklaşıyorsun, uzak dur" gibi hatalı
-                // mesajlara yol açıyordu. sinirIcindeMi ile yapı sınırları da kontrol edilerek, kalenin
-                // fiziksel olarak HER yeri "içeride" sayılıyor artık (merkeze olan mesafe fark etmeksizin).
-                boolean icerde = mesafe <= kale.saldiriYaricap || kale.sinirIcindeMi(p.getLocation());
-                if (icerde) {
-                    if (kale.kusatmadakiOyuncular.add(p.getUniqueId())) {
-                        kusatmaBasladi(kale, p);
-                    }
-                    saldirTetikle(kale, p);
-                } else {
-                    if (kale.kusatmadakiOyuncular.remove(p.getUniqueId())) {
-                        // Kuşatmadan geri çekildi (kaçtı/çıktı) - takviye çağırıp hemen geri ışınlanmasını
-                        // önlemek için 5 dakika TP kilidi.
-                        tpKilitli.put(p.getUniqueId(), simdi + 5 * 60 * 1000L);
-                        p.sendMessage(Mesaj.renk("&c" + kale.isim + " kuşatmasından çekildin - 5 dakika boyunca ışınlanamazsın (takviye çağırmayı önlemek için)."));
-                    }
-                    if (mesafe <= kale.tespitYaricap) {
-                        Long son = sonUyari.get(p.getUniqueId());
-                        if (son == null || simdi - son > 5000L) {
-                            p.sendActionBar(Mesaj.renk("&c" + kale.isim + " Klanı'nın Kalesi - Buradan uzak dur!"));
-                            sonUyari.put(p.getUniqueId(), simdi);
+        try {
+            fethedilenSuresiDolanlariSil();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - otomatik silme kontrolü hatası (atlanıyor)", e);
+        }
+        try {
+            long simdi = System.currentTimeMillis();
+            for (VahsiKale kale : kaleler.values()) {
+                if (kale.fethedildi || kale.merkez == null || kale.merkez.getWorld() == null) continue;
+                for (Player p : kale.merkez.getWorld().getPlayers()) {
+                    double mesafe = p.getLocation().distance(kale.merkez);
+                    // Eskiden sadece merkeze düz mesafe bakılıyordu - büyük/yüksek kalelerde yapının
+                    // fiziksel sınırları (sinirMinX/MaxX/...) merkeze olan daire yarıçapından taşabiliyordu,
+                    // bu da kale İÇİNDEYKEN "kuşatmadan çekildin"/"yaklaşıyorsun, uzak dur" gibi hatalı
+                    // mesajlara yol açıyordu. sinirIcindeMi ile yapı sınırları da kontrol edilerek, kalenin
+                    // fiziksel olarak HER yeri "içeride" sayılıyor artık (merkeze olan mesafe fark etmeksizin).
+                    boolean icerde = mesafe <= kale.saldiriYaricap || kale.sinirIcindeMi(p.getLocation());
+                    if (icerde) {
+                        if (kale.kusatmadakiOyuncular.add(p.getUniqueId())) {
+                            kusatmaBasladi(kale, p);
+                        }
+                        saldirTetikle(kale, p);
+                    } else {
+                        if (kale.kusatmadakiOyuncular.remove(p.getUniqueId())) {
+                            // Kuşatmadan geri çekildi (kaçtı/çıktı) - takviye çağırıp hemen geri ışınlanmasını
+                            // önlemek için 5 dakika TP kilidi.
+                            tpKilitli.put(p.getUniqueId(), simdi + 5 * 60 * 1000L);
+                            p.sendMessage(Mesaj.renk("&c" + kale.isim + " kuşatmasından çekildin - 5 dakika boyunca ışınlanamazsın (takviye çağırmayı önlemek için)."));
+                        }
+                        if (mesafe <= kale.tespitYaricap) {
+                            Long son = sonUyari.get(p.getUniqueId());
+                            if (son == null || simdi - son > 5000L) {
+                                p.sendActionBar(Mesaj.renk("&c" + kale.isim + " Klanı'nın Kalesi - Buradan uzak dur!"));
+                                sonUyari.put(p.getUniqueId(), simdi);
+                            }
                         }
                     }
                 }
             }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - saldırı/tespit kontrolü hatası (atlanıyor)", e);
         }
     }
 
