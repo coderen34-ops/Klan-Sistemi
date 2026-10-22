@@ -247,40 +247,35 @@ public class VahsiKaleYonetici implements Listener {
         kaleler.put(kale.id, kale);
         kaydet(kale);
 
+        // DİKKAT: getState() (snapshot=true) DEĞİL, getState(false) (CANLI state) kullanılıyor.
+        // Kök sebep (loglarla doğrulandı): snapshot'un getInventory()'si her çağrıldığında
+        // envanterin ayrı bir KOPYASINI veriyor olabiliyor - doldur() o kopyayı doldursa da
+        // update(true,false) orijinal (hâlâ boş) snapshot verisini dünyaya geri yazıyordu, sonuç:
+        // sandık dünyada "chest" olarak görünüyor ama Items hep boş kalıyordu (seviye 1 tick erteleme
+        // denemesi de bunu çözmedi, çünkü sorun zamanlama değil, snapshot/live state ayrımıydı).
+        // Live state ile setItem DOĞRUDAN gerçek tile entity'ye yazılıyor.
+        int dolduruldu = 0;
         for (Location sandikKonum : yapi.sandikKonumlari) {
             String konumYazisi = ArenaManager.konumYaz(sandikKonum);
             kale.sandiklar.put(konumYazisi, false);
             sandikKaydet(kale.id, konumYazisi, false);
-        }
-        // DİKKAT: Sandık doldurma, blok setType() ile aynı tick'te DEĞİL, 1 tick sonra yapılıyor.
-        // Aynı senkron çağrı içinde yeni yerleştirilmiş bir chest'in BlockState'ini almak bazen
-        // (tile entity henüz tam "yerleşmeden") update(true,false)'un gerçek dünyaya yazmasını
-        // engelliyor - sandık dünyada chest olarak görünüyor ama Items hep boş kalıyor (geriye dönük
-        // migration'ın ÇOK sonradan - restart'lar arası - eski sandıklarda çalışmasının, ama yeni
-        // üretimde çalışmamasının sebebi büyük ihtimalle bu). 1 tick beklemek tile entity'nin
-        // tamamen oluşmasına yetiyor.
-        Random dolgurRng = rng;
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            int dolduruldu = 0;
-            for (Location sandikKonum : yapi.sandikKonumlari) {
-                BlockState durum = sandikKonum.getBlock().getState();
-                if (durum instanceof Chest sandik) {
-                    LootTablosu.doldur(sandik.getInventory(), seviye, dolgurRng);
-                    sandik.update(true, false);
-                    int itemSayisi = 0;
-                    for (ItemStack it : sandik.getInventory().getContents()) if (it != null) itemSayisi++;
-                    if (itemSayisi > 0) dolduruldu++;
-                    plugin.getLogger().info("[VahsiKale] Sandık dolduruldu: " + sandikKonum.getBlockX() + ","
-                            + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ() + " -> " + itemSayisi
-                            + " item (envanter boyutu " + sandik.getInventory().getSize() + ")");
-                } else {
-                    plugin.getLogger().warning("[VahsiKale] Sandık konumunda CHEST bulunamadı! tür=" + durum.getType()
-                            + " @ " + sandikKonum.getBlockX() + "," + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ());
-                }
+            BlockState durum = sandikKonum.getBlock().getState(false);
+            if (durum instanceof Chest sandik) {
+                LootTablosu.doldur(sandik.getInventory(), seviye, rng);
+                sandik.update(true, false);
+                int itemSayisi = 0;
+                for (ItemStack it : sandik.getInventory().getContents()) if (it != null) itemSayisi++;
+                if (itemSayisi > 0) dolduruldu++;
+                plugin.getLogger().info("[VahsiKale] Sandık dolduruldu: " + sandikKonum.getBlockX() + ","
+                        + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ() + " -> " + itemSayisi
+                        + " item (envanter boyutu " + sandik.getInventory().getSize() + ")");
+            } else {
+                plugin.getLogger().warning("[VahsiKale] Sandık konumunda CHEST bulunamadı! tür=" + durum.getType()
+                        + " @ " + sandikKonum.getBlockX() + "," + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ());
             }
-            plugin.getLogger().info("[VahsiKale] " + kale.isim + ": " + dolduruldu + "/" + yapi.sandikKonumlari.size()
-                    + " sandık başarıyla loot ile dolduruldu.");
-        });
+        }
+        plugin.getLogger().info("[VahsiKale] " + kale.isim + ": " + dolduruldu + "/" + yapi.sandikKonumlari.size()
+                + " sandık başarıyla loot ile dolduruldu.");
 
         nobetcileriDogur(kale, yapi, rng);
         plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ", klan türü: "
@@ -1111,7 +1106,13 @@ public class VahsiKaleYonetici implements Listener {
                 if (Boolean.TRUE.equals(giris.getValue())) continue; // zaten kırılmış/açılmış
                 Location konum = ArenaManager.konumOku(giris.getKey());
                 if (konum == null || konum.getWorld() == null) continue;
-                BlockState durum = konum.getBlock().getState();
+                // DİKKAT: getState() (snapshot=true) DEĞİL, getState(false) (CANLI/live state)
+                // kullanılıyor. Snapshot'un getInventory()'si her çağrıldığında envanterin KOPYASINI
+                // döndürebiliyor - doldur() o kopyayı doldursa da update(true,false) orijinal (hâlâ
+                // boş) snapshot verisini dünyaya geri yazıyor, sonuç: sandık dünyada hep boş kalıyor.
+                // Live state ile setItem DOĞRUDAN gerçek tile entity'ye yazılıyor, update() gerekmiyor
+                // ama yine de çağrılıyor (zararsız, bazı sürümlerde ekstra güvence için).
+                BlockState durum = konum.getBlock().getState(false);
                 if (!(durum instanceof Chest sandik)) continue; // yapı bozulmuş/blok artık sandık değil
                 boolean zatenDolu = false;
                 for (ItemStack esya : sandik.getInventory().getContents()) {
@@ -1120,7 +1121,10 @@ public class VahsiKaleYonetici implements Listener {
                 if (zatenDolu) continue; // zaten dolu (yeni üretim) - dokunma
                 LootTablosu.doldur(sandik.getInventory(), kale.seviye, rng);
                 sandik.update(true, false);
-                dolduruldu++;
+                int yeniItemSayisi = 0;
+                for (ItemStack esya : sandik.getInventory().getContents()) if (esya != null) yeniItemSayisi++;
+                if (yeniItemSayisi > 0) dolduruldu++;
+                else plugin.getLogger().warning("[VahsiKale] Geriye dönük doldurma BAŞARISIZ (hâlâ boş): " + giris.getKey());
             }
         }
         if (dolduruldu > 0) {
