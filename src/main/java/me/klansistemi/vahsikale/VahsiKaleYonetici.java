@@ -262,10 +262,16 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     /** Dışarıdan (otomatik tetikleyici ya da komut) çağrılır. Başarısızsa null döner. */
-    public VahsiKale otomatikUret(int seviye) {
+    public VahsiKale otomatikUret(int seviye) { return otomatikUret(seviye, null); }
+
+    /**
+     * merkezNoktasi verilirse (oyuncu yakınlığı garantisi, bkz. oyuncuYakinligiKontrolEt) konum o noktanın
+     * yakın çevresinde aranır; null ise eski davranış (dünya spawn'ından min/max-spawn-uzakligi aralığı).
+     */
+    public VahsiKale otomatikUret(int seviye, Location merkezNoktasi) {
         World dunya = Bukkit.getWorlds().get(0);
         Random rng = new Random();
-        Location konum = rastgeleKonumBul(dunya, rng);
+        Location konum = rastgeleKonumBul(dunya, rng, merkezNoktasi);
         if (konum == null) return null;
 
         // Klan türü yapı inşasından ÖNCE belirlenir: Vindicator/İnsan klanlarının kaleleri artık
@@ -357,19 +363,61 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     /**
-     * Dünya spawn'ından ve diğer Vahşi Kalelerden uzak, kuru/düzgün zeminli rastgele bir konum arar.
-     * GriefPrevention yüklüyse (opsiyonel, yansıma ile - eksik/uyumsuz olsa sessizce atlanır) arazi
-     * talebiyle çakışmayı da kontrol eder.
+     * Daha sık çağrılır (bkz. KlanSistemi onEnable, ~60 sn'de bir). otomatikKontrolEt() SADECE toplam
+     * aktif kale sayısını asgarinin üstünde tutar - dünya spawn'ından rastgele dağıtıldığı için bir
+     * oyuncu spawn'dan çok uzağa (binlerce blok) keşfe çıkarsa o bölgede HİÇ kale olmayabilir. Bu metot
+     * her online oyuncunun konumuna en yakın kaleye olan uzaklığı kontrol eder; eşiği aşıyorsa (hiç kale
+     * yok ya da çok uzaktaysa) oyuncunun biraz ötesine (yakinlik-spawn-uzakligi) yeni bir kale üretir -
+     * böylece keşif her zaman erişilebilir içerik bulur. Sunucuyu yormamak/spam'lememek için bir
+     * çalıştırmada en fazla 1 kale üretilir.
      */
-    private Location rastgeleKonumBul(World dunya, Random rng) {
+    public void oyuncuYakinligiKontrolEt() {
+        World dunya = Bukkit.getWorlds().get(0);
+        double esik = plugin.getConfig().getDouble("vahsikale.yakinlik-esigi", 2800);
+        double spawnUzakligi = plugin.getConfig().getDouble("vahsikale.yakinlik-spawn-uzakligi", 1000);
+        Random rng = new Random();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            Location loc = p.getLocation();
+            if (!dunya.equals(loc.getWorld())) continue;
+            double enYakin = Double.MAX_VALUE;
+            for (VahsiKale k : kaleler.values()) {
+                if (k.merkez == null || !dunya.equals(k.merkez.getWorld())) continue;
+                double dx = k.merkez.getX() - loc.getX();
+                double dz = k.merkez.getZ() - loc.getZ();
+                double d = Math.sqrt(dx * dx + dz * dz);
+                if (d < enYakin) enYakin = d;
+            }
+            if (enYakin <= esik) continue;
+            double aci = rng.nextDouble() * Math.PI * 2;
+            Location merkezNoktasi = new Location(dunya, loc.getX() + Math.cos(aci) * spawnUzakligi, 0, loc.getZ() + Math.sin(aci) * spawnUzakligi);
+            VahsiKale yeni = otomatikUret(1 + rng.nextInt(5), merkezNoktasi);
+            if (yeni != null) {
+                plugin.getLogger().info("[VahsiKale] Yakınlık kontrolü: " + p.getName() + " en yakın kaleden ~"
+                        + Math.round(enYakin) + " blok uzaktaydı -> " + yeni.isim + " o bölgeye üretildi.");
+            }
+            return; // bir çalıştırmada en fazla 1 kale
+        }
+    }
+
+    /**
+     * Dünya spawn'ından (ya da merkezNoktasi verilmişse O noktadan) ve diğer Vahşi Kalelerden uzak,
+     * kuru/düzgün zeminli rastgele bir konum arar. GriefPrevention yüklüyse (opsiyonel, yansıma ile -
+     * eksik/uyumsuz olsa sessizce atlanır) arazi talebiyle çakışmayı da kontrol eder.
+     *
+     * merkezNoktasi != null ise (oyuncu yakınlığı garantisi): aranan uzaklık min/max-spawn-uzakligi
+     * DEĞİL, o noktanın ~0-400 blok civarıdır - amaç oyuncunun "etrafına" bir kale koymak, dünya
+     * spawn'ından olan mesafeyi değil.
+     */
+    private Location rastgeleKonumBul(World dunya, Random rng, Location merkezNoktasi) {
         double minUzaklik = plugin.getConfig().getDouble("vahsikale.min-spawn-uzakligi", 1200);
         double maxUzaklik = plugin.getConfig().getDouble("vahsikale.max-spawn-uzakligi", 6000);
         double kalelerArasiMin = plugin.getConfig().getDouble("vahsikale.kaleler-arasi-min-uzaklik", 300);
-        Location spawn = dunya.getSpawnLocation();
+        boolean ozelMerkez = merkezNoktasi != null;
+        Location spawn = ozelMerkez ? merkezNoktasi : dunya.getSpawnLocation();
 
         for (int deneme = 0; deneme < 60; deneme++) {
             double aci = rng.nextDouble() * Math.PI * 2;
-            double uzaklik = minUzaklik + rng.nextDouble() * (maxUzaklik - minUzaklik);
+            double uzaklik = ozelMerkez ? rng.nextDouble() * 400 : (minUzaklik + rng.nextDouble() * (maxUzaklik - minUzaklik));
             int x = spawn.getBlockX() + (int) Math.round(Math.cos(aci) * uzaklik);
             int z = spawn.getBlockZ() + (int) Math.round(Math.sin(aci) * uzaklik);
 

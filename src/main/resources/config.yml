@@ -270,6 +270,8 @@ vahsikale:
   min-spawn-uzakligi: 1200          # Dünya spawn'ından minimum uzaklık (blok)
   max-spawn-uzakligi: 6000          # Dünya spawn'ından maksimum uzaklık (blok)
   kaleler-arasi-min-uzaklik: 300    # İki Vahşi Kale birbirinden en az bu kadar uzak olur
+  yakinlik-esigi: 2800              # Bir oyuncunun en yakın kaleye uzaklığı bunu aşarsa (keşifte "boş bölge") yeni kale üretilir
+  yakinlik-spawn-uzakligi: 1000     # Yukarıdaki durumda yeni kale, oyuncunun bu kadar (rastgele yönde) ötesine üretilir
   fethedilen-silinme-minecraft-gun: 2  # Fethedilen bir kale, fetihten bu kadar Minecraft günü (1 gün=20 gerçek dk) sonra otomatik silinir
   tespit-yaricap: 40
   saldiri-yaricap: 20
