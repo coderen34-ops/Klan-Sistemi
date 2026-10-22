@@ -26,7 +26,7 @@ public class VahsiKaleKomut implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return List.of("uret", "sil", "hepsinisil", "liste", "bilgi", "giris", "yardim");
+        if (args.length == 1) return List.of("uret", "sil", "hepsinisil", "liste", "bilgi", "giris", "yardim", "git");
         if (args.length == 2 && args[0].equalsIgnoreCase("uret")) return List.of("1", "2", "3", "4", "5");
         return List.of();
     }

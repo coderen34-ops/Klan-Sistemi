@@ -21,7 +21,7 @@ commands:
     permission: klan.kullan
   vahsikale:
     description: Vahşi Kale (NPC klanı) yönetim komutları
-    usage: /vahsikale <uret [seviye]|sil|hepsinisil|liste|bilgi|giris|yardim>
+    usage: /vahsikale <uret [seviye]|sil|hepsinisil|liste|bilgi|giris|yardim|git [isim]>
     permission: klan.admin
 
 permissions:

@@ -136,12 +136,27 @@ public class VahsiKaleYonetici implements Listener {
             case "bilgi" -> bilgi(s);
             case "giris" -> girisAyarla(s);
             case "yardim" -> yardimKabulEt(s);
+            case "git" -> git(s, args);
             default -> kullanim(s);
         }
     }
 
     private void kullanim(CommandSender s) {
-        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris|yardim>"));
+        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris|yardim|git <isim>>"));
+    }
+
+    /** /vahsikale git <isim>: admin, kalenin giriş noktasına (ayarlanmadıysa merkezine) ışınlanır -
+     *  liste()'deki tıklanabilir koordinat butonu da bunu çağırır (bkz. ClickEvent.runCommand). */
+    private void git(CommandSender s, String[] args) {
+        if (!(s instanceof Player p)) { s.sendMessage(Mesaj.renk("&cBu komut sadece oyun içinden kullanılabilir.")); return; }
+        if (args.length < 2) { kullanim(s); return; }
+        String aranan = String.join(" ", java.util.Arrays.asList(args).subList(1, args.length));
+        VahsiKale kale = bul(aranan);
+        if (kale == null) { p.sendMessage(Mesaj.renk("&cBöyle bir kale bulunamadı.")); return; }
+        Location hedef = (kale.giris != null) ? kale.giris : kale.merkez;
+        if (hedef == null || hedef.getWorld() == null) { p.sendMessage(Mesaj.renk("&cBu kalenin geçerli bir konumu yok.")); return; }
+        p.teleport(hedef);
+        p.sendMessage(Mesaj.renk("&a" + kale.isim + " kalesine ışınlandın."));
     }
 
     /** Bir klan üyesi, klanının aktif bir Vahşi Kale kuşatması için gelen yardım çağrısını 30 sn
@@ -377,8 +392,29 @@ public class VahsiKaleYonetici implements Listener {
         for (VahsiKale k : kaleler.values()) {
             String durum = k.fethedildi ? "&cFethedildi" : "&a" + k.oluNobetciler.size() + "/" + k.nobetciRolleri.size() + " nöbetçi öldü";
             String tur = "VINDICATOR".equals(k.klanTuru) ? "Vindicator" : "İnsan";
-            s.sendMessage(Mesaj.renk("&e" + k.isim + " &7(seviye " + k.seviye + ", " + tur + ") - " + durum));
+            net.kyori.adventure.text.Component satir = net.kyori.adventure.text.Component.text()
+                    .append(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                            .deserialize(Mesaj.renk("&e" + k.isim + " &7(seviye " + k.seviye + ", " + tur + ") - " + durum + " &7| ")))
+                    .append(koordinatButonu(k))
+                    .build();
+            s.sendMessage(satir);
         }
+    }
+
+    /** liste()'de her kale için gösterilen, tıklanınca o kaleye ışınlayan koordinat bileşeni
+     *  (/vahsikale git <isim> komutunu tetikler). Konum yoksa düz "konum yok" metni döner. */
+    private net.kyori.adventure.text.Component koordinatButonu(VahsiKale k) {
+        if (k.merkez == null || k.merkez.getWorld() == null) {
+            return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                    .deserialize(Mesaj.renk("&8[konum yok]"));
+        }
+        String koordMetni = k.merkez.getWorld().getName() + " " + k.merkez.getBlockX() + ", " + k.merkez.getBlockY() + ", " + k.merkez.getBlockZ();
+        net.kyori.adventure.text.Component ipucu = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                .deserialize(Mesaj.renk("&7Işınlanmak için tıkla: &e/vahsikale git " + k.isim));
+        return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                .deserialize(Mesaj.renk("&b&n[" + koordMetni + "]"))
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/vahsikale git " + k.isim))
+                .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(ipucu));
     }
 
     private void bilgi(CommandSender s) {
@@ -1028,9 +1064,35 @@ public class VahsiKaleYonetici implements Listener {
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Vahşi Kale sandıkları yüklenemedi!", e);
         }
+        sinirlariGenislet();
         if (!kaleler.isEmpty()) {
             plugin.getLogger().info(kaleler.size() + " Vahşi Kale yüklendi.");
             Bukkit.getScheduler().runTaskLater(plugin, this::disguiseleriTazele, 100L);
+        }
+    }
+
+    /** Tek seferlik geriye dönük düzeltme: KaleInsaatYardimcisi#insaEt artık yapı etrafındaki
+     *  düzleştirilmiş platformu da koruma sınırına dahil ediyor, ama bu kodu derlemeden ÖNCE
+     *  üretilmiş kaleler DB'de hâlâ eski (daha dar) sınırlarla duruyor - o kaleler için platform
+     *  korumasız kalırdı. DİKKAT: kale.merkez burada yapının GEOMETRİK merkezi DEĞİL - girisIci
+     *  (kapının içi, bkz. otomatikUret: "kale.merkez = yapi.girisIci.clone()") olduğu için X/Z'yi
+     *  merkez+seviyeden yeniden hesaplamak Z ekseninde kaymaya yol açar (kapı zMax kenarında).
+     *  Bunun yerine var olan sinirMinX/MaxX/MinZ/MaxZ (eski kodun ürettiği TAM xMin/xMax/zMin/zMax
+     *  değerleri) doğrudan kenarPay kadar genişletiliyor - konum bağımsız, güvenli. Genişlik
+     *  karşılaştırmasıyla idempotent: eski (dar) genişlik hâlâ duruyorsa genişlet, zaten genişse
+     *  (ya da yeni/çok-katlı formatla üretilmiş bir kaleyse - o format her zaman daha geniş çıkar)
+     *  dokunma. Fethedilmiş kalelerde koruma zaten uygulanmadığı için onlara dokunmuyoruz. */
+    private void sinirlariGenislet() {
+        final int kenarPay = 3;
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi) continue;
+            int eskiGenislikFormulu = 20 + (kale.seviye - 1) * 4;
+            int suankiGenislik = kale.sinirMaxX - kale.sinirMinX + 1;
+            if (suankiGenislik >= eskiGenislikFormulu + 2 * kenarPay) continue; // zaten genişletilmiş/yeni format
+            kale.sinirMinX -= kenarPay; kale.sinirMaxX += kenarPay;
+            kale.sinirMinZ -= kenarPay; kale.sinirMaxZ += kenarPay;
+            kale.sinirMaxY += 4; // eski +6 payından yeni +10 paya çıkar (adım 2 temizlik yüksekliğiyle tutarlı)
+            kaydet(kale);
         }
     }
 
