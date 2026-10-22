@@ -23,6 +23,10 @@ public class VahsiKale {
     public double tespitYaricap;
     public double saldiriYaricap;
 
+    // "VINDICATOR" (ham, disguise yok) ya da "INSAN" (PlayerDisguise ile giydirilmiş) - kaleden kaleye
+    // farklı bir klan hissi versin diye üretimde rastgele seçilir.
+    public String klanTuru = "INSAN";
+
     public boolean fethedildi;
     public UUID fetihedenKlanId;
     public long fetihZamani;
@@ -30,6 +34,8 @@ public class VahsiKale {
 
     // npcUuid -> rol ("NOBETCI" ya da "LIDER")
     public final Map<UUID, String> nobetciRolleri = new LinkedHashMap<>();
+    // npcUuid -> PlayerDisguise skin adı (null = disguise yok, ham Vindicator görünümü)
+    public final Map<UUID, String> nobetciSkinleri = new LinkedHashMap<>();
     // Ölmüş (idempotent kilit açma kontrolü için - entity dünyadan kaybolsa/chunk unload olsa bile kalıcı)
     public final Set<UUID> oluNobetciler = new LinkedHashSet<>();
 

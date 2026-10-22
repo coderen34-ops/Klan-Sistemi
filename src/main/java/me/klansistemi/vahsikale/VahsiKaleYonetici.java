@@ -159,6 +159,7 @@ public class VahsiKaleYonetici implements Listener {
         kale.giris = yapi.girisIci.clone();
         kale.tespitYaricap = varsayilanTespit();
         kale.saldiriYaricap = varsayilanSaldiri();
+        kale.klanTuru = KlanSkinHavuzu.rastgeleKlanTuru(rng);
         kaleler.put(kale.id, kale);
         kaydet(kale);
 
@@ -173,9 +174,9 @@ public class VahsiKaleYonetici implements Listener {
             sandikKaydet(kale.id, konumYazisi, false);
         }
 
-        nobetcileriDogur(kale, yapi);
-        plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ") @ "
-                + dunya.getName() + " " + konum.getBlockX() + "," + konum.getBlockZ());
+        nobetcileriDogur(kale, yapi, rng);
+        plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ", klan türü: "
+                + kale.klanTuru + ") @ " + dunya.getName() + " " + konum.getBlockX() + "," + konum.getBlockZ());
         return kale;
     }
 
@@ -287,7 +288,8 @@ public class VahsiKaleYonetici implements Listener {
         s.sendMessage(Mesaj.renk("&6&l--- VAHŞİ KALELER ---"));
         for (VahsiKale k : kaleler.values()) {
             String durum = k.fethedildi ? "&cFethedildi" : "&a" + k.oluNobetciler.size() + "/" + k.nobetciRolleri.size() + " nöbetçi öldü";
-            s.sendMessage(Mesaj.renk("&e" + k.isim + " &7(seviye " + k.seviye + ") - " + durum));
+            String tur = "VINDICATOR".equals(k.klanTuru) ? "Vindicator" : "İnsan";
+            s.sendMessage(Mesaj.renk("&e" + k.isim + " &7(seviye " + k.seviye + ", " + tur + ") - " + durum));
         }
     }
 
@@ -295,7 +297,8 @@ public class VahsiKaleYonetici implements Listener {
         if (!(s instanceof Player p)) return;
         VahsiKale en = enYakin(p.getLocation());
         if (en == null) { p.sendMessage(Mesaj.renk("&7Yakında kayıtlı bir Vahşi Kale yok.")); return; }
-        p.sendMessage(Mesaj.renk("&6" + en.isim + " &7| Seviye: &f" + en.seviye + " &7| Durum: "
+        String turGosterim = "VINDICATOR".equals(en.klanTuru) ? "&cVahşi Vindicator Klanı" : "&eİnsansı Klan";
+        p.sendMessage(Mesaj.renk("&6" + en.isim + " &7(" + turGosterim + "&7) | Seviye: &f" + en.seviye + " &7| Durum: "
                 + (en.fethedildi ? "&cFethedildi" : "&a" + en.oluNobetciler.size() + "/" + en.nobetciRolleri.size() + " öldü")
                 + " &7| Sandık: &f" + en.sandiklar.values().stream().filter(b -> !b).count() + " kilitli / " + en.sandiklar.size() + " toplam"));
     }
@@ -327,14 +330,17 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     // ------------------------------------------------------------------ NÖBETÇİ/LİDER DOĞURMA
-    /** Yapı zaten inşa edilmişken (KaleInsaatYardimcisi.insaEt) döndürdüğü iç mekan noktalarına doğurur. */
-    private void nobetcileriDogur(VahsiKale kale, KaleInsaatYardimcisi.Sonuc yapi) {
+    /** Yapı zaten inşa edilmişken (KaleInsaatYardimcisi.insaEt) döndürdüğü iç mekan noktalarına doğurur.
+     *  Klan türü (VINDICATOR ham / INSAN giydirilmiş) kale.klanTuru'ya göre - bkz. otomatikUret. */
+    private void nobetcileriDogur(VahsiKale kale, KaleInsaatYardimcisi.Sonuc yapi, Random rng) {
         for (Location konum : yapi.nobetciKonumlari) {
+            String skin = KlanSkinHavuzu.nobetciSkin(kale.klanTuru, rng);
             dogurBir(kale, konum, "NOBETCI", nobetciCan(kale.seviye), nobetciHasar(kale.seviye),
-                    kale.isim + " Nöbetçisi", "MHF_Zombie");
+                    kale.isim + " Nöbetçisi", skin);
         }
+        String liderSkin = KlanSkinHavuzu.liderSkin(kale.klanTuru, rng);
         dogurBir(kale, yapi.liderKonumu, "LIDER", liderCan(kale.seviye), nobetciHasar(kale.seviye) * 1.5,
-                kale.isim + " Lideri", "MHF_Herobrine");
+                kale.isim + " Lideri", liderSkin);
     }
 
     private void dogurBir(VahsiKale kale, Location konum, String rol, double can, double hasar, String goruntuAdi, String skinAdi) {
@@ -350,26 +356,33 @@ public class VahsiKaleYonetici implements Listener {
         v.setHealth(can);
         AttributeInstance hasarOzniteligi = v.getAttribute(Attribute.ATTACK_DAMAGE);
         if (hasarOzniteligi != null) hasarOzniteligi.setBaseValue(hasar);
-        try {
-            if (Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
-                NobetciDisguiseYardimcisi.giydir(v, skinAdi, goruntuAdi);
+        // skinAdi null ise bu NPC "VINDICATOR" tipi bir klana ait - bilerek disguise giydirilmiyor, ham görünüm kalıyor
+        if (skinAdi != null) {
+            try {
+                if (Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+                    NobetciDisguiseYardimcisi.giydir(v, skinAdi, goruntuAdi);
+                }
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.WARNING, "Vahşi Kale NPC'si giydirilemedi (LibsDisguises sorunu)", t);
             }
-        } catch (Throwable t) {
-            plugin.getLogger().log(Level.WARNING, "Vahşi Kale NPC'si giydirilemedi (LibsDisguises sorunu)", t);
         }
         kale.nobetciRolleri.put(v.getUniqueId(), rol);
-        nobetciKaydet(kale.id, v.getUniqueId(), rol, false);
+        kale.nobetciSkinleri.put(v.getUniqueId(), skinAdi);
+        nobetciKaydet(kale.id, v.getUniqueId(), rol, false, skinAdi);
     }
 
-    /** Sunucu restart'ında LibsDisguises tüm disguise'ları kaybeder; mevcut nöbetçiler bulunup yeniden giydirilir. */
+    /** Sunucu restart'ında LibsDisguises tüm disguise'ları kaybeder; mevcut nöbetçiler PERSİSTE EDİLMİŞ
+     *  kendi skin'leriyle (bkz. nobetciSkinleri, DB'den yüklenir) yeniden giydirilir - VINDICATOR tipi
+     *  klanlarda skin null olduğundan dokunulmaz, ham görünüm korunur. */
     private void disguiseleriTazele() {
         if (!Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) return;
         for (VahsiKale kale : kaleler.values()) {
             for (Map.Entry<UUID, String> e : kale.nobetciRolleri.entrySet()) {
                 if (kale.oluNobetciler.contains(e.getKey())) continue;
+                String skin = kale.nobetciSkinleri.get(e.getKey());
+                if (skin == null) continue; // VINDICATOR tipi - disguise yok
                 org.bukkit.entity.Entity ent = Bukkit.getEntity(e.getKey());
                 if (ent instanceof LivingEntity le) {
-                    String skin = "LIDER".equals(e.getValue()) ? "MHF_Herobrine" : "MHF_Zombie";
                     String goruntuAdi = kale.isim + ("LIDER".equals(e.getValue()) ? " Lideri" : " Nöbetçisi");
                     try {
                         NobetciDisguiseYardimcisi.giydir(le, skin, goruntuAdi);
@@ -564,16 +577,29 @@ public class VahsiKaleYonetici implements Listener {
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "vahsikaleler.db tabloları oluşturulamadı!", e);
         }
+        // Migration: önceki sürümlerde olmayan kolonlar - zaten varsa SQLException atar, sessizce yutulur
+        migrasyonKolonEkle("kaleler", "klan_turu TEXT DEFAULT 'INSAN'");
+        migrasyonKolonEkle("nobetciler", "skin TEXT");
+    }
+
+    private void migrasyonKolonEkle(String tablo, String kolonTanimi) {
+        if (baglanti == null) return;
+        try (Statement st = baglanti.createStatement()) {
+            st.execute("ALTER TABLE " + tablo + " ADD COLUMN " + kolonTanimi);
+        } catch (SQLException ignored) {
+            // Kolon zaten var - beklenen durum, sessizce geç
+        }
     }
 
     private void kaydet(VahsiKale kale) {
         if (baglanti == null) return;
         plugin.arkaPlanda(() -> {
             try (PreparedStatement ps = baglanti.prepareStatement(
-                    "INSERT INTO kaleler (id, isim, seviye, merkez, giris, tespit_yaricap, saldiri_yaricap, fethedildi, fetheden_klan, fetih_zamani, prestij_verildi) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
+                    "INSERT INTO kaleler (id, isim, seviye, merkez, giris, tespit_yaricap, saldiri_yaricap, fethedildi, fetheden_klan, fetih_zamani, prestij_verildi, klan_turu) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET isim=excluded.isim, seviye=excluded.seviye, " +
                             "merkez=excluded.merkez, giris=excluded.giris, tespit_yaricap=excluded.tespit_yaricap, saldiri_yaricap=excluded.saldiri_yaricap, " +
-                            "fethedildi=excluded.fethedildi, fetheden_klan=excluded.fetheden_klan, fetih_zamani=excluded.fetih_zamani, prestij_verildi=excluded.prestij_verildi")) {
+                            "fethedildi=excluded.fethedildi, fetheden_klan=excluded.fetheden_klan, fetih_zamani=excluded.fetih_zamani, prestij_verildi=excluded.prestij_verildi, " +
+                            "klan_turu=excluded.klan_turu")) {
                 ps.setString(1, kale.id.toString());
                 ps.setString(2, kale.isim);
                 ps.setInt(3, kale.seviye);
@@ -585,6 +611,7 @@ public class VahsiKaleYonetici implements Listener {
                 ps.setString(9, kale.fetihedenKlanId == null ? null : kale.fetihedenKlanId.toString());
                 ps.setLong(10, kale.fetihZamani);
                 ps.setInt(11, kale.prestijVerildi ? 1 : 0);
+                ps.setString(12, kale.klanTuru);
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Vahşi Kale kaydedilemedi: " + kale.isim, e);
@@ -607,16 +634,17 @@ public class VahsiKaleYonetici implements Listener {
         });
     }
 
-    private void nobetciKaydet(UUID kaleId, UUID npcId, String rol, boolean oldu) {
+    private void nobetciKaydet(UUID kaleId, UUID npcId, String rol, boolean oldu, String skin) {
         if (baglanti == null) return;
         plugin.arkaPlanda(() -> {
             try (PreparedStatement ps = baglanti.prepareStatement(
-                    "INSERT INTO nobetciler (kale_id, npc_uuid, rol, oldu) VALUES (?,?,?,?) " +
-                            "ON CONFLICT(kale_id, npc_uuid) DO UPDATE SET oldu=excluded.oldu")) {
+                    "INSERT INTO nobetciler (kale_id, npc_uuid, rol, oldu, skin) VALUES (?,?,?,?,?) " +
+                            "ON CONFLICT(kale_id, npc_uuid) DO UPDATE SET oldu=excluded.oldu, skin=excluded.skin")) {
                 ps.setString(1, kaleId.toString());
                 ps.setString(2, npcId.toString());
                 ps.setString(3, rol);
                 ps.setInt(4, oldu ? 1 : 0);
+                ps.setString(5, skin);
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Nöbetçi kaydedilemedi", e);
@@ -670,6 +698,8 @@ public class VahsiKaleYonetici implements Listener {
                 kale.fetihedenKlanId = fklan == null ? null : UUID.fromString(fklan);
                 kale.fetihZamani = rs.getLong("fetih_zamani");
                 kale.prestijVerildi = rs.getInt("prestij_verildi") == 1;
+                String klanTuru = rs.getString("klan_turu");
+                kale.klanTuru = klanTuru == null ? "INSAN" : klanTuru;
                 if (kale.merkez == null) {
                     plugin.getLogger().warning("'" + kale.isim + "' Vahşi Kalesinin dünyası yüklü değil, şimdilik atlanıyor.");
                     continue;
@@ -687,6 +717,7 @@ public class VahsiKaleYonetici implements Listener {
                     while (rs.next()) {
                         UUID npcId = UUID.fromString(rs.getString("npc_uuid"));
                         kale.nobetciRolleri.put(npcId, rs.getString("rol"));
+                        kale.nobetciSkinleri.put(npcId, rs.getString("skin"));
                         if (rs.getInt("oldu") == 1) kale.oluNobetciler.add(npcId);
                     }
                 }
