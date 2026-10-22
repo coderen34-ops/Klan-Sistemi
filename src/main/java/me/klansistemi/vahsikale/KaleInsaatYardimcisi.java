@@ -338,7 +338,209 @@ public final class KaleInsaatYardimcisi {
             sonuc.sandikKonumlari.add(sandikBlok.getLocation());
         }
 
+        // 12) Yaşam alanı / "mansion" dekorasyonu - kullanıcı isteğiyle: kale artık boş bir labirent
+        // değil, içinde gerçekten YAŞAYAN bir NPC klanının izleri var - yatak odaları, mutfak,
+        // toplantı/yemek salonu, cephanelik, yerlerde halılar. Odalardan (taht hariç) rastgele
+        // seçilen bir kısmı bu şekilde "temalı" döşenir; kalan tüm odalara da hafif bir halı konup
+        // genel "yaşanan yer" hissi güçlendirilir - tamamen boş koridor kalmasın.
+        Material[] haliRenkleri = vahsi
+                ? new Material[]{Material.GREEN_CARPET, Material.GRAY_CARPET}
+                : new Material[]{Material.RED_CARPET, Material.BLACK_CARPET};
+        Material yatakMalzeme = vahsi ? Material.GRAY_BED : Material.RED_BED;
+        List<int[]> dosemeHavuzu = new ArrayList<>(dolduOdaIndeksleri);
+        java.util.Collections.shuffle(dosemeHavuzu, rng);
+        java.util.Set<String> temaliOdalar = new java.util.HashSet<>();
+        int havuzIdx = 0;
+        int yatakSayisi = 1 + seviye / 2;
+        for (int i = 0; i < yatakSayisi && havuzIdx < dosemeHavuzu.size(); i++, havuzIdx++) {
+            int[] oda = dosemeHavuzu.get(havuzIdx);
+            if (yatakOdasiDosemesi(dunya, rng, sinirlarX, sinirlarZ, oda, y0, katYuksekligi, haliRenkleri, yatakMalzeme)) {
+                temaliOdalar.add(odaAnahtari(oda));
+            }
+        }
+        if (havuzIdx < dosemeHavuzu.size()) {
+            int[] oda = dosemeHavuzu.get(havuzIdx++);
+            if (mutfakDosemesi(dunya, sinirlarX, sinirlarZ, oda, y0, katYuksekligi)) temaliOdalar.add(odaAnahtari(oda));
+        }
+        int toplantiSayisi = seviye >= 3 ? 2 : 1;
+        for (int i = 0; i < toplantiSayisi && havuzIdx < dosemeHavuzu.size(); i++, havuzIdx++) {
+            int[] oda = dosemeHavuzu.get(havuzIdx);
+            if (toplantiOdasiDosemesi(dunya, rng, sinirlarX, sinirlarZ, oda, y0, katYuksekligi, haliRenkleri, vahsi)) {
+                temaliOdalar.add(odaAnahtari(oda));
+            }
+        }
+        if (havuzIdx < dosemeHavuzu.size()) {
+            int[] oda = dosemeHavuzu.get(havuzIdx++);
+            if (cephanelikDosemesi(dunya, sinirlarX, sinirlarZ, oda, y0, katYuksekligi)) temaliOdalar.add(odaAnahtari(oda));
+        }
+        for (int[] oda : dolduOdaIndeksleri) {
+            if (temaliOdalar.contains(odaAnahtari(oda))) continue;
+            hafifHaliDosemesi(dunya, rng, sinirlarX, sinirlarZ, oda, y0, katYuksekligi, haliRenkleri);
+        }
+
         return sonuc;
+    }
+
+    private static String odaAnahtari(int[] oda) {
+        return oda[0] + "," + oda[1] + "," + oda[2];
+    }
+
+    /** Sandık KÖŞESİ (ox[0],oz[0]) her zaman buraya konur (bkz. ana döngüdeki sandıkBlok). Mobilya
+     *  döşemesi aynı odaya denk gelirse sandığı EZMESİN - üzerine yazmadan önce bu kontrolden geçer. */
+    private static void guvenliYerlestir(World dunya, int x, int y, int z, Material malzeme) {
+        Block b = dunya.getBlockAt(x, y, z);
+        if (b.getType() == Material.CHEST) return;
+        b.setType(malzeme, false);
+    }
+
+    private static void haliDosemesi(World dunya, int[] ox, int[] oz, int y, Material hali) {
+        for (int x = ox[0]; x <= ox[1]; x++) {
+            for (int z = oz[0]; z <= oz[1]; z++) {
+                Block b = dunya.getBlockAt(x, y, z);
+                if (b.getType() == Material.AIR) b.setType(hali, false);
+            }
+        }
+    }
+
+    private static void yatakKoy(World dunya, Material yatakMalzeme, int x, int y, int zAyak, int zBas, BlockFace yon) {
+        Block ayak = dunya.getBlockAt(x, y, zAyak);
+        Block bas = dunya.getBlockAt(x, y, zBas);
+        ayak.setType(yatakMalzeme, false);
+        bas.setType(yatakMalzeme, false);
+        if (ayak.getBlockData() instanceof org.bukkit.block.data.type.Bed ayakVeri) {
+            ayakVeri.setPart(org.bukkit.block.data.type.Bed.Part.FOOT);
+            ayakVeri.setFacing(yon);
+            ayak.setBlockData(ayakVeri);
+        }
+        if (bas.getBlockData() instanceof org.bukkit.block.data.type.Bed basVeri) {
+            basVeri.setPart(org.bukkit.block.data.type.Bed.Part.HEAD);
+            basVeri.setFacing(yon);
+            bas.setBlockData(basVeri);
+        }
+    }
+
+    /** Yatak odası: halı + yatak (baş/ayak) + başucu feneri + köşede bir "dolap" (barrel). Oda çok
+     *  küçükse (duvar kolonu hariç 3 bloktan az) hiçbir şey yapmadan false döner - çağıran kod o
+     *  odayı hafif halı döşemesine (hafifHaliDosemesi) bırakır. */
+    private static boolean yatakOdasiDosemesi(World dunya, Random rng, int[] sinirlarX, int[] sinirlarZ, int[] oda,
+            int y0, int katYuksekligi, Material[] haliRenkleri, Material yatakMalzeme) {
+        int kat = oda[0], cx = oda[1], cz = oda[2];
+        int odaY = y0 + kat * (katYuksekligi + 1);
+        int[] ox = icAralik(sinirlarX, cx);
+        int[] oz = icAralik(sinirlarZ, cz);
+        if (ox[1] - ox[0] < 2 || oz[1] - oz[0] < 2) return false;
+        haliDosemesi(dunya, ox, oz, odaY, rastgeleSec(haliRenkleri, rng));
+        int yatakX = ox[0] + 1;
+        int yatakZAyak = oz[0] + 1, yatakZBas = yatakZAyak + 1;
+        yatakKoy(dunya, yatakMalzeme, yatakX, odaY, yatakZAyak, yatakZBas, BlockFace.NORTH);
+        Block fener = dunya.getBlockAt(Math.min(ox[1], yatakX + 1), odaY, yatakZAyak);
+        if (fener.getType() == Material.AIR) fener.setType(Material.LANTERN, false);
+        dunya.getBlockAt(ox[1], odaY, oz[1]).setType(Material.BARREL, false);
+        return true;
+    }
+
+    /** Mutfak: fırın + tüten/smoker + fıçı (kiler) + crafting table (tezgah) + kazan. */
+    private static boolean mutfakDosemesi(World dunya, int[] sinirlarX, int[] sinirlarZ, int[] oda,
+            int y0, int katYuksekligi) {
+        int kat = oda[0], cx = oda[1], cz = oda[2];
+        int odaY = y0 + kat * (katYuksekligi + 1);
+        int[] ox = icAralik(sinirlarX, cx);
+        int[] oz = icAralik(sinirlarZ, cz);
+        if (ox[1] - ox[0] < 2 || oz[1] - oz[0] < 2) return false;
+        guvenliYerlestir(dunya, ox[0], odaY, oz[0], Material.FURNACE);
+        dunya.getBlockAt(ox[0] + 1, odaY, oz[0]).setType(Material.SMOKER, false);
+        dunya.getBlockAt(ox[1], odaY, oz[0]).setType(Material.BARREL, false);
+        dunya.getBlockAt(ox[1], odaY, oz[1]).setType(Material.CRAFTING_TABLE, false);
+        dunya.getBlockAt(ox[0], odaY, oz[1]).setType(Material.CAULDRON, false);
+        return true;
+    }
+
+    /** Toplantı/yemek salonu: çit bacaklı + kapak masa üstü bir "masa" + çevresinde merdiven
+     *  "sandalyeler" + halı. Mansion hissi için en görsel oda. */
+    private static boolean toplantiOdasiDosemesi(World dunya, Random rng, int[] sinirlarX, int[] sinirlarZ, int[] oda,
+            int y0, int katYuksekligi, Material[] haliRenkleri, boolean vahsi) {
+        int kat = oda[0], cx = oda[1], cz = oda[2];
+        int odaY = y0 + kat * (katYuksekligi + 1);
+        int[] ox = icAralik(sinirlarX, cx);
+        int[] oz = icAralik(sinirlarZ, cz);
+        if (ox[1] - ox[0] < 3 || oz[1] - oz[0] < 3) return false;
+        haliDosemesi(dunya, ox, oz, odaY, rastgeleSec(haliRenkleri, rng));
+        Material bacakMalzeme = vahsi ? Material.OAK_FENCE : Material.DARK_OAK_FENCE;
+        Material tablaMalzeme = vahsi ? Material.OAK_TRAPDOOR : Material.DARK_OAK_TRAPDOOR;
+        Material sandalyeMalzeme = vahsi ? Material.OAK_STAIRS : Material.DARK_OAK_STAIRS;
+        int mx = (ox[0] + ox[1]) / 2, mz = (oz[0] + oz[1]) / 2;
+        int[][] masaBacaklari = {{mx - 1, mz - 1}, {mx - 1, mz + 1}, {mx + 1, mz - 1}, {mx + 1, mz + 1}};
+        for (int[] bacak : masaBacaklari) {
+            if (bacak[0] < ox[0] || bacak[0] > ox[1] || bacak[1] < oz[0] || bacak[1] > oz[1]) continue;
+            dunya.getBlockAt(bacak[0], odaY, bacak[1]).setType(bacakMalzeme, false);
+            Block tabla = dunya.getBlockAt(bacak[0], odaY + 1, bacak[1]);
+            tabla.setType(tablaMalzeme, false);
+            if (tabla.getBlockData() instanceof org.bukkit.block.data.Openable acilabilir) {
+                acilabilir.setOpen(true);
+                tabla.setBlockData(acilabilir);
+            }
+        }
+        sandalyeKoy(dunya, mx - 1, odaY, mz - 2, BlockFace.SOUTH, sandalyeMalzeme, ox, oz);
+        sandalyeKoy(dunya, mx + 1, odaY, mz - 2, BlockFace.SOUTH, sandalyeMalzeme, ox, oz);
+        sandalyeKoy(dunya, mx - 1, odaY, mz + 2, BlockFace.NORTH, sandalyeMalzeme, ox, oz);
+        sandalyeKoy(dunya, mx + 1, odaY, mz + 2, BlockFace.NORTH, sandalyeMalzeme, ox, oz);
+        Block kitaplik = dunya.getBlockAt(ox[0], odaY, oz[0]);
+        if (kitaplik.getType() != Material.CHEST
+                && (kitaplik.getType() == Material.AIR || kitaplik.getType().name().contains("CARPET"))) {
+            kitaplik.setType(Material.BOOKSHELF, false);
+        }
+        return true;
+    }
+
+    private static void sandalyeKoy(World dunya, int x, int y, int z, BlockFace yon, Material malzeme, int[] ox, int[] oz) {
+        if (x < ox[0] || x > ox[1] || z < oz[0] || z > oz[1]) return; // oda dışına taşmasın
+        Block b = dunya.getBlockAt(x, y, z);
+        if (b.getType() != Material.AIR && !b.getType().name().contains("CARPET")) return; // yer kaplıyorsa atla
+        b.setType(malzeme, false);
+        if (b.getBlockData() instanceof Directional dir) {
+            dir.setFacing(yon);
+            b.setBlockData(dir);
+        }
+    }
+
+    /** Cephanelik: örs + bileme taşı + iki fıçı (mühimmat sandığı hissi) + duvar boyunca demir
+     *  parmaklık (silah rafı hissi). */
+    private static boolean cephanelikDosemesi(World dunya, int[] sinirlarX, int[] sinirlarZ, int[] oda,
+            int y0, int katYuksekligi) {
+        int kat = oda[0], cx = oda[1], cz = oda[2];
+        int odaY = y0 + kat * (katYuksekligi + 1);
+        int[] ox = icAralik(sinirlarX, cx);
+        int[] oz = icAralik(sinirlarZ, cz);
+        if (ox[1] - ox[0] < 2 || oz[1] - oz[0] < 2) return false;
+        guvenliYerlestir(dunya, ox[0], odaY, oz[0], Material.ANVIL);
+        dunya.getBlockAt(ox[0] + 1, odaY, oz[0]).setType(Material.GRINDSTONE, false);
+        dunya.getBlockAt(ox[1], odaY, oz[0]).setType(Material.BARREL, false);
+        dunya.getBlockAt(ox[1], odaY, oz[1]).setType(Material.BARREL, false);
+        for (int x = ox[0]; x <= ox[1]; x++) {
+            Block parmaklik = dunya.getBlockAt(x, odaY, oz[1]);
+            if (parmaklik.getType() == Material.AIR) parmaklik.setType(Material.IRON_BARS, false);
+        }
+        return true;
+    }
+
+    /** Temalı döşenmeyen tüm diğer odalara: ortaya küçük bir halı "paspas" - koridor/boş oda hissini
+     *  kırar, kale tamamen yaşanan bir yer gibi dursun. */
+    private static void hafifHaliDosemesi(World dunya, Random rng, int[] sinirlarX, int[] sinirlarZ, int[] oda,
+            int y0, int katYuksekligi, Material[] haliRenkleri) {
+        int kat = oda[0], cx = oda[1], cz = oda[2];
+        int odaY = y0 + kat * (katYuksekligi + 1);
+        int[] ox = icAralik(sinirlarX, cx);
+        int[] oz = icAralik(sinirlarZ, cz);
+        int mx = (ox[0] + ox[1]) / 2, mz = (oz[0] + oz[1]) / 2;
+        Material hali = rastgeleSec(haliRenkleri, rng);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                int x = mx + dx, z = mz + dz;
+                if (x < ox[0] || x > ox[1] || z < oz[0] || z > oz[1]) continue;
+                Block b = dunya.getBlockAt(x, odaY, z);
+                if (b.getType() == Material.AIR) b.setType(hali, false);
+            }
+        }
     }
 
     /** Hücre idx'in duvar kolonu HARİÇ gerçek yürünebilir [başlangıç, bitiş] aralığı: idx=0 için
