@@ -8,11 +8,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -26,6 +28,7 @@ import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -35,12 +38,16 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.persistence.PersistentDataType;
@@ -49,6 +56,7 @@ import me.klansistemi.KlanSistemi;
 import me.klansistemi.Mesaj;
 import me.klansistemi.Para;
 import me.klansistemi.model.Klan;
+import me.klansistemi.model.KlanUyesi;
 import me.klansistemi.savas.ArenaManager;
 
 /**
@@ -78,6 +86,13 @@ public class VahsiKaleYonetici implements Listener {
     private final Map<UUID, VahsiKale> kaleler = new LinkedHashMap<>();
     // Oyuncu -> son uyarı anı (actionbar throttle), kale bazlı tutmaya gerek yok, genel throttle yeterli
     private final Map<UUID, Long> sonUyari = new LinkedHashMap<>();
+    // Oyuncu -> ışınlanma kilidi biten zaman (ms). Kuşatmadan geri çekilenlere VE 30 saniye içinde
+    // "yardım" çağrısına cevap vermeyen klan üyelerine uygulanır - takviye/kaçış amaçlı anlık
+    // ışınlanmayı önlemek için (bkz. tick(), kusatmaBasladi(), onKomutEngeli).
+    private final Map<UUID, Long> tpKilitli = new LinkedHashMap<>();
+    // Kale id -> o kaleye yönelik aktif yardım çağrısını kabul eden oyuncu UUID'leri (30 sn'lik
+    // pencere boyunca tutulur, bkz. kusatmaBasladi() / "/vahsikale yardim").
+    private final Map<UUID, Set<UUID>> yardimKabulEdenler = new LinkedHashMap<>();
 
     public VahsiKaleYonetici(KlanSistemi plugin) {
         this.plugin = plugin;
@@ -98,8 +113,11 @@ public class VahsiKaleYonetici implements Listener {
     private double nobetciCan(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".nobetci-can", 20 + seviye * 10); }
     private double liderCan(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".lider-can", 60 + seviye * 20); }
     private double nobetciHasar(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".nobetci-hasar", 4 + seviye); }
-    private double sandikLootMin(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".sandik-min", 3000 * seviye); }
-    private double sandikLootMax(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".sandik-max", 8000 * seviye); }
+    // Not: Bir kalede 2-4 sandık olabiliyor, her biri bu aralıktan AYRI AYRI nakit veriyor - eskiden
+    // 3000-8000*seviye idi, bu da seviye 5'te sandık başına 15000-40000, birkaç sandıkla birlikte
+    // 80000+ toplam veriyordu. Kullanıcı isteğiyle sandık başına çok daha mütevazı bir miktara düşürüldü.
+    private double sandikLootMin(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".sandik-min", 400 * seviye); }
+    private double sandikLootMax(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".sandik-max", 1000 * seviye); }
     private int fetihPrestiji() { return plugin.getConfig().getInt("vahsikale.fetih-prestiji", 10); }
     private int olumPrestijKaybi() { return plugin.getConfig().getInt("vahsikale.olum-prestij-kaybi", 30); }
 
@@ -114,12 +132,32 @@ public class VahsiKaleYonetici implements Listener {
             case "liste" -> liste(s);
             case "bilgi" -> bilgi(s);
             case "giris" -> girisAyarla(s);
+            case "yardim" -> yardimKabulEt(s);
             default -> kullanim(s);
         }
     }
 
     private void kullanim(CommandSender s) {
-        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris>"));
+        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|hepsinisil|liste|bilgi|giris|yardim>"));
+    }
+
+    /** Bir klan üyesi, klanının aktif bir Vahşi Kale kuşatması için gelen yardım çağrısını 30 sn
+     *  içinde kabul eder - bkz. kusatmaBasladi(). Kabul etmek, 30 sn sonra uygulanacak 5 dakikalık
+     *  TP kilidinden muafiyet sağlar (fiilen gelip gelmemek oyuncunun kendi işi, bu sadece "geldim/
+     *  geliyorum" bildirimi). */
+    private void yardimKabulEt(CommandSender s) {
+        if (!(s instanceof Player p)) return;
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin.")); return; }
+        boolean bulundu = false;
+        for (Map.Entry<UUID, Set<UUID>> e : yardimKabulEdenler.entrySet()) {
+            VahsiKale kale = kaleler.get(e.getKey());
+            if (kale == null) continue;
+            boolean klanSaldiriyor = kale.kusatmadakiOyuncular.stream().anyMatch(uuid -> klan.uyeler.containsKey(uuid));
+            if (klanSaldiriyor) { e.getValue().add(p.getUniqueId()); bulundu = true; }
+        }
+        if (bulundu) p.sendMessage(Mesaj.renk("&aYardım çağrısını kabul ettin - ışınlanma kilidinden muafsın."));
+        else p.sendMessage(Mesaj.renk("&7Şu an klanının aktif bir kuşatma yardım çağrısı yok."));
     }
 
     /** Şu an kayıtlı TÜM Vahşi Kaleleri tek seferde siler: NPC'leri dünyadan kaldırır,
@@ -403,6 +441,7 @@ public class VahsiKaleYonetici implements Listener {
         v.setHealth(can);
         AttributeInstance hasarOzniteligi = v.getAttribute(Attribute.ATTACK_DAMAGE);
         if (hasarOzniteligi != null) hasarOzniteligi.setBaseValue(hasar);
+        donatimGiydir(v, rol);
         // skinAdi null ise bu NPC "VINDICATOR" tipi bir klana ait - bilerek disguise giydirilmiyor, ham görünüm kalıyor
         // 1 tik sonraya bırakılıyor: entity world.spawn() ile AYNI tikte disguise edilirse (henüz dünyanın
         // entity takip listesine tam eklenmemiş olabileceğinden) LibsDisguises bazı Paper sürümlerinde
@@ -422,6 +461,40 @@ public class VahsiKaleYonetici implements Listener {
         kale.nobetciRolleri.put(v.getUniqueId(), rol);
         kale.nobetciSkinleri.put(v.getUniqueId(), skinAdi);
         nobetciKaydet(kale.id, v.getUniqueId(), rol, false, skinAdi);
+    }
+
+    /** Nöbetçiler büyülü demir zırh + kalkan, liderler büyülü elmas zırh giyer. Not: vanilla
+     *  Vindicator AI'ının aktif "kalkanla blokla" davranışı yok (bu sadece oyuncularda/Piglinlerde
+     *  var) - kalkan elde tutulur ve kol/el görünümünü değiştirir ama otomatik blok yapmaz. */
+    private void donatimGiydir(Vindicator v, String rol) {
+        boolean lider = "LIDER".equals(rol);
+        EntityEquipment ekip = v.getEquipment();
+        if (ekip == null) return;
+        Material[] parcalar = lider
+                ? new Material[]{Material.DIAMOND_HELMET, Material.DIAMOND_CHESTPLATE, Material.DIAMOND_LEGGINGS, Material.DIAMOND_BOOTS}
+                : new Material[]{Material.IRON_HELMET, Material.IRON_CHESTPLATE, Material.IRON_LEGGINGS, Material.IRON_BOOTS};
+        ItemStack[] zirhlar = new ItemStack[4];
+        for (int i = 0; i < parcalar.length; i++) {
+            ItemStack parca = new ItemStack(parcalar[i]);
+            ItemMeta meta = parca.getItemMeta();
+            if (meta != null) {
+                meta.addEnchant(Enchantment.PROTECTION, lider ? 3 : 2, true);
+                meta.addEnchant(Enchantment.UNBREAKING, 2, true);
+                parca.setItemMeta(meta);
+            }
+            zirhlar[i] = parca;
+        }
+        ekip.setHelmet(zirhlar[0]);
+        ekip.setChestplate(zirhlar[1]);
+        ekip.setLeggings(zirhlar[2]);
+        ekip.setBoots(zirhlar[3]);
+        ekip.setItemInOffHand(new ItemStack(Material.SHIELD));
+        // Ölünce zırh/kalkan düşürmesin - bu görsel/savaş donanımı, gerçek loot zaten sandıklarda.
+        ekip.setHelmetDropChance(0f);
+        ekip.setChestplateDropChance(0f);
+        ekip.setLeggingsDropChance(0f);
+        ekip.setBootsDropChance(0f);
+        ekip.setItemInOffHandDropChance(0f);
     }
 
     /** Sunucu restart'ında LibsDisguises tüm disguise'ları kaybeder; mevcut nöbetçiler PERSİSTE EDİLMİŞ
@@ -480,6 +553,33 @@ public class VahsiKaleYonetici implements Listener {
         }
     }
 
+    /** Bir oyuncu bir kaleye saldırmaya başladığında (ilk girişte) çağrılır: klanına bildirim
+     *  gönderilir ve 30 saniyelik bir "yardıma gel" penceresi açılır - bu pencerede &e/vahsikale yardim
+     *  &7diyen çevrimiçi klan üyeleri ışınlanma kilidinden muaf tutulur; 30 sn sonra hâlâ kabul etmemiş
+     *  ve zaten kuşatmada olmayan çevrimiçi üyeler 5 dakikalık TP kilidine girer (geç gelip "temiz"
+     *  bir kuşatmayı beklemelerini/gerilla taktiğini caydırmak için). */
+    private void kusatmaBasladi(VahsiKale kale, Player p) {
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) return;
+        plugin.klanManager().klanaGonder(klan, "vahsikale-kusatma",
+                "&c{oyuncu} &7bir Vahşi Kaleye (&e{kale}&7) saldırıyor! Yardım etmek istiyorsan &e/vahsikale yardim &7yaz (30 saniyen var - yoksa 5 dakika ışınlanamazsın).",
+                "oyuncu", p.getName(), "kale", kale.isim);
+        Set<UUID> kabulEdenler = yardimKabulEdenler.computeIfAbsent(kale.id, k -> new HashSet<>());
+        kabulEdenler.add(p.getUniqueId()); // saldırıyı başlatan zaten içeride, muaf
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Set<UUID> kabul = yardimKabulEdenler.remove(kale.id);
+            if (kabul == null) kabul = java.util.Collections.emptySet();
+            long simdi2 = System.currentTimeMillis();
+            for (KlanUyesi uye : klan.uyeler.values()) {
+                Player uyeOyuncu = Bukkit.getPlayer(uye.uuid);
+                if (uyeOyuncu == null || !uyeOyuncu.isOnline()) continue;
+                if (kabul.contains(uye.uuid)) continue;
+                if (!kale.fethedildi && kale.kusatmadakiOyuncular.contains(uye.uuid)) continue; // zaten oradaysa muaf
+                tpKilitli.put(uye.uuid, simdi2 + 5 * 60 * 1000L);
+            }
+        }, 600L);
+    }
+
     public void tick() {
         if (++disguiseBekciSayaci >= 15) {
             disguiseBekciSayaci = 0;
@@ -493,13 +593,16 @@ public class VahsiKaleYonetici implements Listener {
                 boolean icerde = mesafe <= kale.saldiriYaricap;
                 if (icerde) {
                     if (kale.kusatmadakiOyuncular.add(p.getUniqueId())) {
-                        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
-                        if (klan != null) plugin.klanManager().klanaGonder(klan, "vahsikale-kusatma",
-                                "&c{oyuncu} &7bir Vahşi Kaleye (&e{kale}&7) saldırıyor!", "oyuncu", p.getName(), "kale", kale.isim);
+                        kusatmaBasladi(kale, p);
                     }
                     saldirTetikle(kale, p);
                 } else {
-                    kale.kusatmadakiOyuncular.remove(p.getUniqueId());
+                    if (kale.kusatmadakiOyuncular.remove(p.getUniqueId())) {
+                        // Kuşatmadan geri çekildi (kaçtı/çıktı) - takviye çağırıp hemen geri ışınlanmasını
+                        // önlemek için 5 dakika TP kilidi.
+                        tpKilitli.put(p.getUniqueId(), simdi + 5 * 60 * 1000L);
+                        p.sendMessage(Mesaj.renk("&c" + kale.isim + " kuşatmasından çekildin - 5 dakika boyunca ışınlanamazsın (takviye çağırmayı önlemek için)."));
+                    }
                     if (mesafe <= kale.tespitYaricap) {
                         Long son = sonUyari.get(p.getUniqueId());
                         if (son == null || simdi - son > 5000L) {
@@ -556,6 +659,21 @@ public class VahsiKaleYonetici implements Listener {
             if (kale.sinirIcindeMi(event.getBlock().getLocation())) {
                 event.setCancelled(true);
                 event.getPlayer().sendMessage(Mesaj.renk("&cBu kale henüz fethedilmedi! Sadece demir kapıyı kırabilirsin."));
+                return;
+            }
+        }
+    }
+
+    /** Fethedilene kadar kale sınırları içine blok KOYMAK da yasak - aksi halde oyuncular merdiven/
+     *  blok döşeyerek duvar/çatı korumasını by-pass edip içeri girebilirdi (ör. köprü kurup çatıya
+     *  çıkmak, ya da demir kapıdan geçmeden duvarın üstünden atlamak için blok yığmak). */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onYapiKorumasiYerlestirme(BlockPlaceEvent event) {
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi) continue;
+            if (kale.sinirIcindeMi(event.getBlock().getLocation())) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Mesaj.renk("&cBu kale henüz fethedilmedi! Buraya blok koyamazsın."));
                 return;
             }
         }
@@ -654,6 +772,16 @@ public class VahsiKaleYonetici implements Listener {
                 p.sendMessage(Mesaj.renk("&cKuşatma altındayken bu komutu kullanamazsın! Önce kale alanından çık."));
                 return;
             }
+        }
+        Long kilitBitis = tpKilitli.get(p.getUniqueId());
+        if (kilitBitis != null) {
+            if (kilitBitis > System.currentTimeMillis()) {
+                event.setCancelled(true);
+                long kalanSn = (kilitBitis - System.currentTimeMillis()) / 1000L;
+                p.sendMessage(Mesaj.renk("&cVahşi Kale ışınlanma kilidin var, &e" + kalanSn + " saniye &csonra tekrar dene."));
+                return;
+            }
+            tpKilitli.remove(p.getUniqueId());
         }
     }
 
