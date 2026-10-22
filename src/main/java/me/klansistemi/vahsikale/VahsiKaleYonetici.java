@@ -10,17 +10,19 @@ import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -36,8 +38,10 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Chest;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.util.RayTraceResult;
 
 import me.klansistemi.KlanSistemi;
 import me.klansistemi.Mesaj;
@@ -48,16 +52,17 @@ import me.klansistemi.savas.ArenaManager;
 /**
  * Vahşi Kaleler / NPC Klanları (Faz 4, Entry #8).
  *
- * KAPSAM (bu ilk sürüm): kale kaydı (SQLite), prosedürel isimlendirme, nöbetçi/lider NPC'leri
- * (Vindicator + LibsDisguises insan görünümü), tespit/uyarı + saldırı yarıçapı, sandık kilidi
- * (idempotent - tüm nöbetçiler+lider öldürülene kadar kırılamaz), loot'un doğrudan klan kasasına
- * aktarımı, fetih prestiji, kuşatma sırasında /home-/back-/tpa engeli, kuşatmada ölümde kale
- * girişine respawn + klan prestij kaybı.
+ * KAPSAM (2. sürüm - tamamen prosedürel): rastgele güvenli konum bulma, Bastion tarzı kapalı
+ * yapının KaleInsaatYardimcisi ile WorldEdit'siz saf Bukkit API'siyle inşası (demir kapı, zincir/
+ * fener, köşe kuleleri), sandıkların LootTablosu ile gerçek item'larla doldurulması, nöbetçi/lider
+ * NPC'leri (Vindicator + LibsDisguises insan görünümü) iç mekana doğurma, tespit/uyarı + saldırı
+ * yarıçapı, sandık kilidi (idempotent - tüm nöbetçiler+lider öldürülene kadar kırılamaz), loot'un
+ * doğrudan klan kasasına aktarımı + sandıktaki gerçek item'ların düşmesi, fetih prestiji, kuşatma
+ * sırasında /home-/back-/tpa engeli, kuşatmada ölümde kale girişine respawn + klan prestij kaybı,
+ * fethedilmemiş kale sayısı asgarinin altına düşerse otomatik yeni kale üretimi (bkz. KlanSistemi
+ * onEnable'daki zamanlayıcı + otomatikUret/otomatikIlkDoldurma).
  *
- * SONRAYA BIRAKILANLAR (changelog'da not edilecek): elçi NPC (ticaret/görev/barış menüsü),
- * fethedilen kalelerin yerine otomatik/periyodik yeni kale üretimi (şimdilik sadece admin
- * /vahsikale kur ile manuel). Fiziksel kale YAPISI (dünya üretimi) bu sınıfın işi değil -
- * admin, yapı zaten inşa edilmiş bir konumda /vahsikale kur çalıştırır.
+ * SONRAYA BIRAKILANLAR (changelog'da not edilecek): elçi NPC (ticaret/görev/barış menüsü).
  */
 public class VahsiKaleYonetici implements Listener {
 
@@ -101,41 +106,166 @@ public class VahsiKaleYonetici implements Listener {
         if (args.length < 1) { kullanim(s); return; }
         String alt = args[0].toLowerCase(Locale.ROOT);
         switch (alt) {
-            case "kur" -> kur(s, args);
+            case "uret" -> uret(s, args);
             case "sil" -> sil(s, args);
             case "liste" -> liste(s);
             case "bilgi" -> bilgi(s);
-            case "sandik" -> sandikEkle(s);
             case "giris" -> girisAyarla(s);
             default -> kullanim(s);
         }
     }
 
     private void kullanim(CommandSender s) {
-        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <kur <seviye 1-5>|sil <isim>|liste|bilgi|sandik|giris>"));
+        s.sendMessage(Mesaj.renk("&cKullanım: &e/vahsikale <uret [seviye 1-5]|sil <isim>|liste|bilgi|giris>"));
     }
 
-    private void kur(CommandSender s, String[] args) {
-        if (!(s instanceof Player p)) { s.sendMessage(Mesaj.renk("&cBu komut sadece oyun içinden kullanılabilir.")); return; }
-        if (args.length < 2) { kullanim(s); return; }
-        int seviye;
-        try {
-            seviye = Integer.parseInt(args[1]);
-        } catch (NumberFormatException e) { kullanim(s); return; }
-        if (seviye < 1 || seviye > 5) { p.sendMessage(Mesaj.renk("&cSeviye 1-5 arasında olmalı.")); return; }
+    /**
+     * Tamamen prosedürel üretim: rastgele güvenli bir konum bulur, Bastion tarzı kapalı yapıyı
+     * inşa eder, sandıkları loot ile doldurur, nöbetçi+lider NPC'lerini içeri doğurur - hepsi
+     * tek adımda. Oyuncu konumuna bağımlı DEĞİLDİR, konsoldan da çalışır (admin istediği yerde
+     * değil, sistemin bulduğu uzak/boş bir noktada kurulur - bu yüzden konum argümanı almaz).
+     */
+    private void uret(CommandSender s, String[] args) {
+        int seviye = 1 + new Random().nextInt(5);
+        if (args.length >= 2) {
+            try {
+                seviye = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) { kullanim(s); return; }
+            if (seviye < 1 || seviye > 5) { s.sendMessage(Mesaj.renk("&cSeviye 1-5 arasında olmalı.")); return; }
+        }
+        VahsiKale kale = otomatikUret(seviye);
+        if (kale == null) {
+            s.sendMessage(Mesaj.renk("&cUygun/güvenli bir konum bulunamadı (deneme limiti doldu). Tekrar dene."));
+            return;
+        }
+        s.sendMessage(Mesaj.renk("&a" + kale.isim + " &7(seviye " + kale.seviye + ") üretildi: &f"
+                + kale.merkez.getWorld().getName() + " " + kale.merkez.getBlockX() + ", " + kale.merkez.getBlockZ()
+                + " &7- " + kale.nobetciRolleri.size() + " nöbetçi/lider, " + kale.sandiklar.size() + " sandık."));
+    }
+
+    /** Dışarıdan (otomatik tetikleyici ya da komut) çağrılır. Başarısızsa null döner. */
+    public VahsiKale otomatikUret(int seviye) {
+        World dunya = Bukkit.getWorlds().get(0);
+        Random rng = new Random();
+        Location konum = rastgeleKonumBul(dunya, rng);
+        if (konum == null) return null;
+
+        KaleInsaatYardimcisi.Sonuc yapi = KaleInsaatYardimcisi.insaEt(konum, seviye, rng);
 
         VahsiKale kale = new VahsiKale(UUID.randomUUID());
         kale.seviye = seviye;
         kale.isim = IsimUretici.uret(seviye);
-        kale.merkez = p.getLocation().getBlock().getLocation().add(0.5, 0, 0.5);
-        kale.giris = kale.merkez.clone();
+        kale.merkez = yapi.girisIci.clone();
+        kale.giris = yapi.girisIci.clone();
         kale.tespitYaricap = varsayilanTespit();
         kale.saldiriYaricap = varsayilanSaldiri();
         kaleler.put(kale.id, kale);
         kaydet(kale);
-        nobetcileriDogur(kale);
-        p.sendMessage(Mesaj.renk("&a" + kale.isim + " kuruldu (seviye " + seviye + "). " + kale.nobetciRolleri.size()
-                + " nöbetçi/lider doğdu. Sandıkları etiketlemek için üzerlerine bakıp &e/vahsikale sandik&a kullan."));
+
+        for (Location sandikKonum : yapi.sandikKonumlari) {
+            BlockState durum = sandikKonum.getBlock().getState();
+            if (durum instanceof Chest sandik) {
+                LootTablosu.doldur(sandik.getInventory(), seviye, rng);
+                sandik.update(true, false);
+            }
+            String konumYazisi = ArenaManager.konumYaz(sandikKonum);
+            kale.sandiklar.put(konumYazisi, false);
+            sandikKaydet(kale.id, konumYazisi, false);
+        }
+
+        nobetcileriDogur(kale, yapi);
+        plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ") @ "
+                + dunya.getName() + " " + konum.getBlockX() + "," + konum.getBlockZ());
+        return kale;
+    }
+
+    private int aktifKaleSayisi() {
+        int sayi = 0;
+        for (VahsiKale k : kaleler.values()) if (!k.fethedildi) sayi++;
+        return sayi;
+    }
+
+    /** Sunucu açılışında bir kere çağrılır: aktif kale sayısı asgarinin altındaysa eksikleri üretir
+     *  (ağır olduğundan hepsini aynı anda değil, aralıklarla - sunucuyu kilitlemesin). */
+    public void otomatikIlkDoldurma() {
+        int hedef = plugin.getConfig().getInt("vahsikale.min-aktif-kale-sayisi", 3);
+        int eksik = hedef - aktifKaleSayisi();
+        for (int i = 0; i < eksik; i++) {
+            final int sira = i;
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                VahsiKale yeni = otomatikUret(1 + new Random().nextInt(5));
+                if (yeni == null) plugin.getLogger().warning("Vahşi Kale otomatik ilk doldurma: uygun konum bulunamadı (deneme " + (sira + 1) + ").");
+            }, 100L + sira * 80L);
+        }
+    }
+
+    /** Periyodik olarak çağrılır (bkz. KlanSistemi onEnable): fethedilen/silinen kalelerin yerine otomatik yeni kale üretir. */
+    public void otomatikKontrolEt() {
+        int hedef = plugin.getConfig().getInt("vahsikale.min-aktif-kale-sayisi", 3);
+        int eksik = hedef - aktifKaleSayisi();
+        for (int i = 0; i < eksik; i++) {
+            final int sira = i;
+            Bukkit.getScheduler().runTaskLater(plugin, () -> otomatikUret(1 + new Random().nextInt(5)), 40L + sira * 60L);
+        }
+    }
+
+    /**
+     * Dünya spawn'ından ve diğer Vahşi Kalelerden uzak, kuru/düzgün zeminli rastgele bir konum arar.
+     * GriefPrevention yüklüyse (opsiyonel, yansıma ile - eksik/uyumsuz olsa sessizce atlanır) arazi
+     * talebiyle çakışmayı da kontrol eder.
+     */
+    private Location rastgeleKonumBul(World dunya, Random rng) {
+        double minUzaklik = plugin.getConfig().getDouble("vahsikale.min-spawn-uzakligi", 1200);
+        double maxUzaklik = plugin.getConfig().getDouble("vahsikale.max-spawn-uzakligi", 6000);
+        double kalelerArasiMin = plugin.getConfig().getDouble("vahsikale.kaleler-arasi-min-uzaklik", 300);
+        Location spawn = dunya.getSpawnLocation();
+
+        for (int deneme = 0; deneme < 60; deneme++) {
+            double aci = rng.nextDouble() * Math.PI * 2;
+            double uzaklik = minUzaklik + rng.nextDouble() * (maxUzaklik - minUzaklik);
+            int x = spawn.getBlockX() + (int) Math.round(Math.cos(aci) * uzaklik);
+            int z = spawn.getBlockZ() + (int) Math.round(Math.sin(aci) * uzaklik);
+
+            boolean baskaKaleyeCokYakin = false;
+            for (VahsiKale k : kaleler.values()) {
+                if (k.merkez == null || !dunya.equals(k.merkez.getWorld())) continue;
+                if (k.merkez.distance(new Location(dunya, x, k.merkez.getY(), z)) < kalelerArasiMin) {
+                    baskaKaleyeCokYakin = true;
+                    break;
+                }
+            }
+            if (baskaKaleyeCokYakin) continue;
+
+            dunya.getChunkAt(x >> 4, z >> 4).load();
+            int yuksekBlok = dunya.getHighestBlockYAt(x, z);
+            if (yuksekBlok < 55 || yuksekBlok > 180) continue; // okyanus tabanı/çok yüksek dağ zirvesi gibi uç durumları ele
+
+            org.bukkit.block.Block ustBlok = dunya.getBlockAt(x, yuksekBlok, z);
+            Material ustTur = ustBlok.getType();
+            if (ustTur == Material.WATER || ustTur == Material.LAVA || ustTur == Material.ICE
+                    || ustTur == Material.PACKED_ICE || ustTur == Material.FROSTED_ICE) continue;
+
+            Location aday = new Location(dunya, x + 0.5, yuksekBlok + 1, z + 0.5);
+            if (ariziClaimdeMi(aday)) continue;
+            return aday;
+        }
+        return null;
+    }
+
+    /** GriefPrevention yüklüyse claim kontrolü yapar; plugin yoksa/API uyumsuzsa sessizce false döner. */
+    private boolean ariziClaimdeMi(Location konum) {
+        if (!Bukkit.getPluginManager().isPluginEnabled("GriefPrevention")) return false;
+        try {
+            Class<?> gpSinifi = Class.forName("me.ryanhamshire.GriefPrevention.GriefPrevention");
+            Object instance = gpSinifi.getField("instance").get(null);
+            Object dataStore = gpSinifi.getMethod("getDataStore").invoke(instance);
+            Object claim = dataStore.getClass()
+                    .getMethod("getClaimAt", Location.class, boolean.class, Object.class)
+                    .invoke(dataStore, konum, false, null);
+            return claim != null;
+        } catch (Throwable t) {
+            return false; // API uyumsuz/beklenmedik - güvenlik için engellemiyoruz, mesafe kontrolü zaten var
+        }
     }
 
     private void sil(CommandSender s, String[] args) {
@@ -153,7 +283,7 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void liste(CommandSender s) {
-        if (kaleler.isEmpty()) { s.sendMessage(Mesaj.renk("&7Hiç Vahşi Kale yok. &e/vahsikale kur <seviye>")); return; }
+        if (kaleler.isEmpty()) { s.sendMessage(Mesaj.renk("&7Hiç Vahşi Kale yok. &e/vahsikale uret")); return; }
         s.sendMessage(Mesaj.renk("&6&l--- VAHŞİ KALELER ---"));
         for (VahsiKale k : kaleler.values()) {
             String durum = k.fethedildi ? "&cFethedildi" : "&a" + k.oluNobetciler.size() + "/" + k.nobetciRolleri.size() + " nöbetçi öldü";
@@ -168,19 +298,6 @@ public class VahsiKaleYonetici implements Listener {
         p.sendMessage(Mesaj.renk("&6" + en.isim + " &7| Seviye: &f" + en.seviye + " &7| Durum: "
                 + (en.fethedildi ? "&cFethedildi" : "&a" + en.oluNobetciler.size() + "/" + en.nobetciRolleri.size() + " öldü")
                 + " &7| Sandık: &f" + en.sandiklar.values().stream().filter(b -> !b).count() + " kilitli / " + en.sandiklar.size() + " toplam"));
-    }
-
-    private void sandikEkle(CommandSender s) {
-        if (!(s instanceof Player p)) { s.sendMessage(Mesaj.renk("&cBu komut sadece oyun içinden kullanılabilir.")); return; }
-        VahsiKale en = enYakin(p.getLocation());
-        if (en == null) { p.sendMessage(Mesaj.renk("&cYakında kayıtlı bir Vahşi Kale yok, önce /vahsikale kur.")); return; }
-        RayTraceResult r = p.rayTraceBlocks(6);
-        if (r == null || r.getHitBlock() == null) { p.sendMessage(Mesaj.renk("&cBaktığın yerde bir blok yok.")); return; }
-        Block hedef = r.getHitBlock();
-        String konum = ArenaManager.konumYaz(hedef.getLocation());
-        en.sandiklar.put(konum, false);
-        sandikKaydet(en.id, konum, false);
-        p.sendMessage(Mesaj.renk("&a" + en.isim + " kalesine sandık eklendi. Toplam: " + en.sandiklar.size()));
     }
 
     private void girisAyarla(CommandSender s) {
@@ -210,28 +327,14 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     // ------------------------------------------------------------------ NÖBETÇİ/LİDER DOĞURMA
-    private void nobetcileriDogur(VahsiKale kale) {
-        int sayi = nobetciSayisi(kale.seviye);
-        java.util.Random rng = new java.util.Random();
-        for (int i = 0; i < sayi; i++) {
-            double aci = rng.nextDouble() * Math.PI * 2;
-            double yaricap = 2 + rng.nextDouble() * 4;
-            Location konum = kale.merkez.clone().add(Math.cos(aci) * yaricap, 0, Math.sin(aci) * yaricap);
-            konum.setY(enYakinYerZemin(konum));
+    /** Yapı zaten inşa edilmişken (KaleInsaatYardimcisi.insaEt) döndürdüğü iç mekan noktalarına doğurur. */
+    private void nobetcileriDogur(VahsiKale kale, KaleInsaatYardimcisi.Sonuc yapi) {
+        for (Location konum : yapi.nobetciKonumlari) {
             dogurBir(kale, konum, "NOBETCI", nobetciCan(kale.seviye), nobetciHasar(kale.seviye),
                     kale.isim + " Nöbetçisi", "MHF_Zombie");
         }
-        // Lider: merkezde, daha güçlü
-        Location liderKonum = kale.merkez.clone();
-        liderKonum.setY(enYakinYerZemin(liderKonum));
-        dogurBir(kale, liderKonum, "LIDER", liderCan(kale.seviye), nobetciHasar(kale.seviye) * 1.5,
+        dogurBir(kale, yapi.liderKonumu, "LIDER", liderCan(kale.seviye), nobetciHasar(kale.seviye) * 1.5,
                 kale.isim + " Lideri", "MHF_Herobrine");
-    }
-
-    private double enYakinYerZemin(Location konum) {
-        // Basit güvenlik: çok derinde/havada doğmasın diye highest block + 1 kullan
-        if (konum.getWorld() == null) return konum.getY();
-        return konum.getWorld().getHighestBlockYAt(konum) + 1.0;
     }
 
     private void dogurBir(VahsiKale kale, Location konum, String rol, double can, double hasar, String goruntuAdi, String skinAdi) {
@@ -350,7 +453,8 @@ public class VahsiKaleYonetici implements Listener {
         // İdempotent kilit açma: iki oyuncu aynı anda kırarsa bile sadece bir kez ödül verilir
         kale.sandiklar.put(konum, true);
         sandikKaydet(kale.id, konum, true);
-        event.setDropItems(false);
+        // event.setDropItems(false) KASITLI OLARAK çağrılmıyor: sandık LootTablosu ile gerçek item'larla
+        // dolduruldu, kırılınca o item'lar normal şekilde yere dökülsün (önceki sürümde sandık hep boştu).
 
         Klan klan = plugin.klanManager().oyuncununKlani(event.getPlayer().getUniqueId());
         if (klan == null) {

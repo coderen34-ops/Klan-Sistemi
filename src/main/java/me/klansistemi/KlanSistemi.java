@@ -138,6 +138,11 @@ public class KlanSistemi extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimer(this, savasManager::tick, 20L, 20L);
         // Vahşi Kale tespit/uyarı/saldırı taraması saniyede bir işlenir
         Bukkit.getScheduler().runTaskTimer(this, vahsiKaleYonetici::tick, 20L, 20L);
+        // Açılışta aktif (fethedilmemiş) kale sayısı asgarinin altındaysa eksikleri otomatik üretir
+        vahsiKaleYonetici.otomatikIlkDoldurma();
+        // Periyodik kontrol: fethedilen/silinen kalelerin yerine otomatik yenisi üretilsin
+        long vahsiKaleKontrol = Math.max(1200L, getConfig().getLong("vahsikale.otomatik-kontrol-dakika", 45) * 1200L);
+        Bukkit.getScheduler().runTaskTimer(this, vahsiKaleYonetici::otomatikKontrolEt, vahsiKaleKontrol, vahsiKaleKontrol);
         // Kasa-bağlı büyülü eşyalar düzenli denetlenir (kopya / geçersiz / klandan ayrılmış oyuncu)
         long buyuKontrol = Math.max(20L, getConfig().getLong("buyu.kasa-bagli.kontrol-saniye", 60) * 20L);
         Bukkit.getScheduler().runTaskTimer(this, buyuKurallari::periyodikKontrol, buyuKontrol, buyuKontrol);

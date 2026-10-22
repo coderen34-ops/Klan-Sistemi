@@ -9,7 +9,7 @@ import org.bukkit.command.TabCompleter;
 
 import me.klansistemi.KlanSistemi;
 
-/** /vahsikale <kur|sil|liste|bilgi|sandik|giris>: Vahşi Kale (NPC klanı) admin komutları. */
+/** /vahsikale <uret [seviye]|sil|liste|bilgi|giris>: Vahşi Kale (NPC klanı) admin komutları. */
 public class VahsiKaleKomut implements CommandExecutor, TabCompleter {
 
     private final KlanSistemi plugin;
@@ -26,8 +26,8 @@ public class VahsiKaleKomut implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return List.of("kur", "sil", "liste", "bilgi", "sandik", "giris");
-        if (args.length == 2 && args[0].equalsIgnoreCase("kur")) return List.of("1", "2", "3", "4", "5");
+        if (args.length == 1) return List.of("uret", "sil", "liste", "bilgi", "giris");
+        if (args.length == 2 && args[0].equalsIgnoreCase("uret")) return List.of("1", "2", "3", "4", "5");
         return List.of();
     }
 }

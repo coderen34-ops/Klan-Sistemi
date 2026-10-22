@@ -261,6 +261,20 @@ yasakli-kelimeler:
 menu:
   kisayol-shift-f: true
 
+# Vahşi Kaleler (NPC Klanları) - tamamen prosedürel: yapı, loot ve nöbetçiler tek seferde
+# otomatik üretilir, admin tek tek elle inşa etmez. /vahsikale uret [seviye] ile anlık de üretilebilir
+# (konsoldan da çalışır, oyuncu konumuna bağımlı değil).
+vahsikale:
+  min-aktif-kale-sayisi: 3          # Fethedilmemiş kale sayısı bunun altına düşerse otomatik yeni kale üretilir
+  otomatik-kontrol-dakika: 45       # Bu sıklıkla aktif kale sayısı kontrol edilir
+  min-spawn-uzakligi: 1200          # Dünya spawn'ından minimum uzaklık (blok)
+  max-spawn-uzakligi: 6000          # Dünya spawn'ından maksimum uzaklık (blok)
+  kaleler-arasi-min-uzaklik: 300    # İki Vahşi Kale birbirinden en az bu kadar uzak olur
+  tespit-yaricap: 40
+  saldiri-yaricap: 20
+  fetih-prestiji: 10
+  olum-prestij-kaybi: 30
+
 mesajlar:
   admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
   admin-kasa-duzeltildi: '&a{klan} kasası {eski} -> {yeni} olarak düzeltildi.'
