@@ -37,6 +37,25 @@ public class VahsiKale {
         return x >= sinirMinX && x <= sinirMaxX && y >= sinirMinY && y <= sinirMaxY && z >= sinirMinZ && z <= sinirMaxZ;
     }
 
+    /**
+     * Sınır kutusuna (AABB) olan gerçek 3D uzaklık - içerideyse/üzerindeyse 0 döner.
+     * Eski kod sadece merkeze düz çizgi mesafesi (Location#distance) kullanıyordu; büyük/yüksek
+     * kalelerde bu, yapının fiziksel sınırları içindeyken bile "kuşatmadan çekildin"/"yaklaşıyorsun"
+     * gibi hatalı tetiklemelere yol açıyordu (merkeze olan mesafe saldırıYarıçap'ı aşıyor ama oyuncu
+     * hâlâ kale sınırları içinde duruyor). Bu metot, AABB'nin dışındaysa en yakın yüzeye olan gerçek
+     * mesafeyi, içindeyse 0 döndürerek bu sorunu çözer.
+     */
+    public double sinirUzakligi(Location l) {
+        if (merkez == null || merkez.getWorld() == null || l.getWorld() == null || !l.getWorld().equals(merkez.getWorld())) {
+            return Double.MAX_VALUE;
+        }
+        double x = l.getX(), y = l.getY(), z = l.getZ();
+        double dx = Math.max(Math.max(sinirMinX - x, x - (sinirMaxX + 1)), 0);
+        double dy = Math.max(Math.max(sinirMinY - y, y - (sinirMaxY + 1)), 0);
+        double dz = Math.max(Math.max(sinirMinZ - z, z - (sinirMaxZ + 1)), 0);
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
     public boolean fethedildi;
     public UUID fetihedenKlanId;
     public long fetihZamani;

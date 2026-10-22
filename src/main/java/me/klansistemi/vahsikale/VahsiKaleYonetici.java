@@ -120,6 +120,9 @@ public class VahsiKaleYonetici implements Listener {
     private double sandikLootMax(int seviye) { return plugin.getConfig().getDouble("vahsikale.seviye-" + seviye + ".sandik-max", 1000 * seviye); }
     private int fetihPrestiji() { return plugin.getConfig().getInt("vahsikale.fetih-prestiji", 10); }
     private int olumPrestijKaybi() { return plugin.getConfig().getInt("vahsikale.olum-prestij-kaybi", 30); }
+    // 1 Minecraft günü = 24000 tick = 20 gerçek dakika (normal tick hızında) = 1.200.000 ms.
+    // Varsayılan 2 Minecraft günü (40 gerçek dakika) - fethedilen kale bu süre sonunda otomatik silinir.
+    private long fethedilenSilinmeMs() { return plugin.getConfig().getLong("vahsikale.fethedilen-silinme-minecraft-gun", 2) * 1_200_000L; }
 
     // ------------------------------------------------------------------ KOMUT
     public void komut(CommandSender s, String[] args) {
@@ -580,17 +583,47 @@ public class VahsiKaleYonetici implements Listener {
         }, 600L);
     }
 
+    /** Fethedilen Vahşi Kaleler boş durup kalmasın diye, fetihten sonra ayarlanan süre (varsayılan
+     *  2 Minecraft günü) geçince otomatik silinir. Silinen kalenin yerine, mevcut otomatik üretim
+     *  mantığı (otomatikKontrolEt) zaten eksik kalan aktif kale sayısını bir sonraki kontrolünde
+     *  tamamlayacağı için burada ayrıca yeni kale üretmeye gerek yok. tick() her çağrıldığında
+     *  (1 gerçek saniyede bir) çalışır - kaleler.values() üzerinde silme yapılacağı için önce ayrı
+     *  bir listeye toplanır (ConcurrentModificationException'dan kaçınmak için). */
+    private void fethedilenSuresiDolanlariSil() {
+        long simdi = System.currentTimeMillis();
+        long sinirMs = fethedilenSilinmeMs();
+        List<VahsiKale> silinecekler = null;
+        for (VahsiKale kale : kaleler.values()) {
+            if (kale.fethedildi && kale.fetihZamani > 0 && simdi - kale.fetihZamani >= sinirMs) {
+                if (silinecekler == null) silinecekler = new ArrayList<>();
+                silinecekler.add(kale);
+            }
+        }
+        if (silinecekler == null) return;
+        for (VahsiKale kale : silinecekler) {
+            plugin.getLogger().info("Vahşi Kale '" + kale.isim + "' fetihten " + (sinirMs / 1_200_000L)
+                    + " Minecraft günü sonra otomatik silindi (boş kalmasın diye).");
+            silKaleyi(kale);
+        }
+    }
+
     public void tick() {
         if (++disguiseBekciSayaci >= 15) {
             disguiseBekciSayaci = 0;
             disguiseBekcisi();
         }
+        fethedilenSuresiDolanlariSil();
         long simdi = System.currentTimeMillis();
         for (VahsiKale kale : kaleler.values()) {
             if (kale.fethedildi || kale.merkez == null || kale.merkez.getWorld() == null) continue;
             for (Player p : kale.merkez.getWorld().getPlayers()) {
                 double mesafe = p.getLocation().distance(kale.merkez);
-                boolean icerde = mesafe <= kale.saldiriYaricap;
+                // Eskiden sadece merkeze düz mesafe bakılıyordu - büyük/yüksek kalelerde yapının
+                // fiziksel sınırları (sinirMinX/MaxX/...) merkeze olan daire yarıçapından taşabiliyordu,
+                // bu da kale İÇİNDEYKEN "kuşatmadan çekildin"/"yaklaşıyorsun, uzak dur" gibi hatalı
+                // mesajlara yol açıyordu. sinirIcindeMi ile yapı sınırları da kontrol edilerek, kalenin
+                // fiziksel olarak HER yeri "içeride" sayılıyor artık (merkeze olan mesafe fark etmeksizin).
+                boolean icerde = mesafe <= kale.saldiriYaricap || kale.sinirIcindeMi(p.getLocation());
                 if (icerde) {
                     if (kale.kusatmadakiOyuncular.add(p.getUniqueId())) {
                         kusatmaBasladi(kale, p);
