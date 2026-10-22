@@ -248,15 +248,39 @@ public class VahsiKaleYonetici implements Listener {
         kaydet(kale);
 
         for (Location sandikKonum : yapi.sandikKonumlari) {
-            BlockState durum = sandikKonum.getBlock().getState();
-            if (durum instanceof Chest sandik) {
-                LootTablosu.doldur(sandik.getInventory(), seviye, rng);
-                sandik.update(true, false);
-            }
             String konumYazisi = ArenaManager.konumYaz(sandikKonum);
             kale.sandiklar.put(konumYazisi, false);
             sandikKaydet(kale.id, konumYazisi, false);
         }
+        // DİKKAT: Sandık doldurma, blok setType() ile aynı tick'te DEĞİL, 1 tick sonra yapılıyor.
+        // Aynı senkron çağrı içinde yeni yerleştirilmiş bir chest'in BlockState'ini almak bazen
+        // (tile entity henüz tam "yerleşmeden") update(true,false)'un gerçek dünyaya yazmasını
+        // engelliyor - sandık dünyada chest olarak görünüyor ama Items hep boş kalıyor (geriye dönük
+        // migration'ın ÇOK sonradan - restart'lar arası - eski sandıklarda çalışmasının, ama yeni
+        // üretimde çalışmamasının sebebi büyük ihtimalle bu). 1 tick beklemek tile entity'nin
+        // tamamen oluşmasına yetiyor.
+        Random dolgurRng = rng;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            int dolduruldu = 0;
+            for (Location sandikKonum : yapi.sandikKonumlari) {
+                BlockState durum = sandikKonum.getBlock().getState();
+                if (durum instanceof Chest sandik) {
+                    LootTablosu.doldur(sandik.getInventory(), seviye, dolgurRng);
+                    sandik.update(true, false);
+                    int itemSayisi = 0;
+                    for (ItemStack it : sandik.getInventory().getContents()) if (it != null) itemSayisi++;
+                    if (itemSayisi > 0) dolduruldu++;
+                    plugin.getLogger().info("[VahsiKale] Sandık dolduruldu: " + sandikKonum.getBlockX() + ","
+                            + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ() + " -> " + itemSayisi
+                            + " item (envanter boyutu " + sandik.getInventory().getSize() + ")");
+                } else {
+                    plugin.getLogger().warning("[VahsiKale] Sandık konumunda CHEST bulunamadı! tür=" + durum.getType()
+                            + " @ " + sandikKonum.getBlockX() + "," + sandikKonum.getBlockY() + "," + sandikKonum.getBlockZ());
+                }
+            }
+            plugin.getLogger().info("[VahsiKale] " + kale.isim + ": " + dolduruldu + "/" + yapi.sandikKonumlari.size()
+                    + " sandık başarıyla loot ile dolduruldu.");
+        });
 
         nobetcileriDogur(kale, yapi, rng);
         plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ", klan türü: "
