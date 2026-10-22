@@ -660,7 +660,10 @@ public class VahsiKaleYonetici implements Listener {
      *  PazarManager'daki stand NPC'leriyle AYNI kalıp: AI kapalı, vurulamaz, NITWIT (vanilla ticaret
      *  ekranı açılmasın), PDC ile etiketlenir. kale.elciId persist edilir (bkz. kaydet()/yukle()),
      *  entity kaybolursa elciBekcisi() (tick() içinde, 15 sn'de bir) fark edip yeniden doğurur. */
+    private boolean elciAktifMi() { return plugin.getConfig().getBoolean("vahsikale.elci-aktif", false); }
+
     private void elciDogur(VahsiKale kale) {
+        if (!elciAktifMi()) return; // kullanıcı isteğiyle şimdilik devre dışı - bkz. elciBekcisi() (var olanları da temizler)
         Location konum = (kale.giris != null && kale.giris.getWorld() != null) ? kale.giris : kale.merkez;
         if (konum == null || konum.getWorld() == null) return;
         Villager v = (Villager) konum.getWorld().spawnEntity(konum, EntityType.VILLAGER);
@@ -682,6 +685,15 @@ public class VahsiKaleYonetici implements Listener {
     /** disguiseBekciSayaci ile aynı 15 sn'lik döngüde (tick() içinden) çağrılır: elçisi kaybolmuş
      *  (chunk unload sonrası despawn, manuel /kill, vs.) henüz fethedilmemiş kaleler için yeniden doğurur. */
     private void elciBekcisi() {
+        if (!elciAktifMi()) {
+            // Devre dışı bırakılınca daha önce doğmuş elçiler kalıcı olarak ortalıkta kalmasın diye temizlenir.
+            for (VahsiKale kale : kaleler.values()) {
+                if (kale.elciId == null) continue;
+                elciSil(kale);
+                kaydet(kale);
+            }
+            return;
+        }
         for (VahsiKale kale : kaleler.values()) {
             if (kale.fethedildi) continue;
             if (kale.elciId != null && Bukkit.getEntity(kale.elciId) != null) continue;
