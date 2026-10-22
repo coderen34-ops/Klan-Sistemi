@@ -50,6 +50,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.persistence.PersistentDataType;
 
 import me.klansistemi.KlanSistemi;
@@ -278,6 +279,7 @@ public class VahsiKaleYonetici implements Listener {
                 + " sandık başarıyla loot ile dolduruldu.");
 
         nobetcileriDogur(kale, yapi, rng);
+        araziYedekKaydet(kale.id, dunya.getName(), yapi);
         plugin.getLogger().info("Vahşi Kale otomatik üretildi: " + kale.isim + " (seviye " + seviye + ", klan türü: "
                 + kale.klanTuru + ") @ " + dunya.getName() + " " + konum.getBlockX() + "," + konum.getBlockZ());
         return kale;
@@ -388,8 +390,80 @@ public class VahsiKaleYonetici implements Listener {
             org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
             if (e != null) e.remove();
         }
+        araziYedekGeriYukle(kale.id);
         kaleler.remove(kale.id);
         silDb(kale.id);
+    }
+
+    private File araziYedekDosyasi(UUID kaleId) {
+        return new File(plugin.getDataFolder(), "kale-yedekleri" + File.separator + kaleId + ".txt.gz");
+    }
+
+    /** Kale inşa edildikten SONRA çağrılır: inşaattan ÖNCEki orijinal arazinin (KaleInsaatYardimcisi'nin
+     *  zaten topladığı) yedeğini diske (gzip, tek satır başlık + blok verisi satırları) yazar. Kale
+     *  silinirken (bkz. araziYedekGeriYukle) bu dosya okunup arazi eski haline döndürülür, sonra silinir. */
+    private void araziYedekKaydet(UUID kaleId, String dunyaAdi, KaleInsaatYardimcisi.Sonuc yapi) {
+        File dosya = araziYedekDosyasi(kaleId);
+        dosya.getParentFile().mkdirs();
+        try (var fos = new java.io.FileOutputStream(dosya);
+             var gzip = new java.util.zip.GZIPOutputStream(fos);
+             var yazici = new java.io.BufferedWriter(new java.io.OutputStreamWriter(gzip, java.nio.charset.StandardCharsets.UTF_8))) {
+            yazici.write(dunyaAdi + ";" + yapi.yedekMinX + ";" + yapi.yedekMaxX + ";" + yapi.yedekMinY + ";"
+                    + yapi.yedekMaxY + ";" + yapi.yedekMinZ + ";" + yapi.yedekMaxZ);
+            yazici.newLine();
+            for (String blok : yapi.ozgunBloklar) {
+                yazici.write(blok);
+                yazici.newLine();
+            }
+        } catch (java.io.IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale arazi yedeği yazılamadı (" + kaleId + ") - bu kale silinirse arazi eski haline DÖNDÜRÜLEMEYECEK!", e);
+        }
+    }
+
+    /** silKaleyi() tarafından çağrılır: yedek dosyası varsa, inşaattan önceki orijinal bloklar aynı
+     *  sırayla (y dış, x orta, z iç - bkz. KaleInsaatYardimcisi) okunup geri yazılır (arazi "undo"su),
+     *  sonra yedek dosyası silinir. Dosya yoksa (çok eski kale / zaten geri yüklenmiş) sessizce çıkar. */
+    private void araziYedekGeriYukle(UUID kaleId) {
+        File dosya = araziYedekDosyasi(kaleId);
+        if (!dosya.exists()) return;
+        try (var fis = new java.io.FileInputStream(dosya);
+             var gzip = new java.util.zip.GZIPInputStream(fis);
+             var okuyucu = new java.io.BufferedReader(new java.io.InputStreamReader(gzip, java.nio.charset.StandardCharsets.UTF_8))) {
+            String baslik = okuyucu.readLine();
+            if (baslik == null) return;
+            String[] p = baslik.split(";");
+            String dunyaAdi = p[0];
+            int minX = Integer.parseInt(p[1]), maxX = Integer.parseInt(p[2]);
+            int minY = Integer.parseInt(p[3]), maxY = Integer.parseInt(p[4]);
+            int minZ = Integer.parseInt(p[5]), maxZ = Integer.parseInt(p[6]);
+            World dunya = Bukkit.getWorld(dunyaAdi);
+            if (dunya == null) {
+                plugin.getLogger().warning("Vahşi Kale arazi geri yükleme: dünya bulunamadı (" + dunyaAdi + "), atlanıyor.");
+                return;
+            }
+            int geriYuklendi = 0;
+            for (int y = minY; y <= maxY; y++) {
+                for (int x = minX; x <= maxX; x++) {
+                    for (int z = minZ; z <= maxZ; z++) {
+                        String satir = okuyucu.readLine();
+                        if (satir == null) break;
+                        try {
+                            BlockData veri = Bukkit.createBlockData(satir);
+                            dunya.getBlockAt(x, y, z).setBlockData(veri, false);
+                            geriYuklendi++;
+                        } catch (IllegalArgumentException ignore) {
+                            // Tanınmayan/bozuk blok verisi - o tek bloğu atla, geri kalanına devam et
+                        }
+                    }
+                }
+            }
+            plugin.getLogger().info("[VahsiKale] Kale (" + kaleId + ") silinirken arazi eski haline döndürüldü ("
+                    + geriYuklendi + " blok).");
+        } catch (java.io.IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Vahşi Kale arazi yedeği okunamadı (" + kaleId + ") - arazi eski haline döndürülemedi.", e);
+        } finally {
+            dosya.delete();
+        }
     }
 
     /** Bir klan silindiğinde/dağıldığında, o klanın fethettiği Vahşi Kale(ler) de silinir -

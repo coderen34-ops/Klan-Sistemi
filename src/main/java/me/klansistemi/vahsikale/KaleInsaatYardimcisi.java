@@ -42,6 +42,14 @@ public final class KaleInsaatYardimcisi {
         // Yapının tam sınırları (blok koordinatları, dahil) - fethedilene kadar blok kırma/koyma
         // koruması için (etrafındaki düzleştirilmiş platform payı da dahil, bkz. kenarPay).
         public int sinirMinX, sinirMaxX, sinirMinY, sinirMaxY, sinirMinZ, sinirMaxZ;
+        // Kullanıcı isteğiyle eklendi: kale silinirken (fethedilip 2 Minecraft günü sonra otomatik
+        // silinme ya da admin /vahsikale sil) inşaattan ÖNCEki orijinal arazi geri getirilsin ("undo").
+        // Bu yüzden inşaata başlamadan ÖNCE, inşaatın dokunacağı TAM bölgedeki (platform payı dahil)
+        // her blok burada saklanıyor - restore sırasında aynı sırayla (y dış, x orta, z iç döngü)
+        // okunup aynı koordinatlara geri yazılacak. Büyük kalelerde (seviye 5) bu liste onbinlerce
+        // satır olabilir, bu yüzden diske YAZARKEN gzip ile sıkıştırılıyor (bkz. VahsiKaleYonetici).
+        public final List<String> ozgunBloklar = new ArrayList<>();
+        public int yedekMinX, yedekMaxX, yedekMinY, yedekMaxY, yedekMinZ, yedekMaxZ;
     }
 
     /**
@@ -77,6 +85,20 @@ public final class KaleInsaatYardimcisi {
             }
         }
         int y0 = tabanY + 1; // yapının oturduğu kat
+
+        // 1.5) UNDO için: inşaatın dokunacağı TAM bölgenin (platform payı dahil) orijinal halini,
+        // herhangi bir blok değiştirilmeden ÖNCE kaydet - kale silinince eski araziye dönülebilsin.
+        int yedekMinX = xMin - kenarPay, yedekMaxX = xMax + kenarPay;
+        int yedekMinY = y0 - 6, yedekMaxY = y0 + yukseklik + 10;
+        int yedekMinZ = zMin - kenarPay, yedekMaxZ = zMax + kenarPay;
+        List<String> ozgunBloklarLocal = new ArrayList<>();
+        for (int y = yedekMinY; y <= yedekMaxY; y++) {
+            for (int x = yedekMinX; x <= yedekMaxX; x++) {
+                for (int z = yedekMinZ; z <= yedekMaxZ; z++) {
+                    ozgunBloklarLocal.add(dunya.getBlockAt(x, y, z).getBlockData().getAsString());
+                }
+            }
+        }
 
         // 2) Üstünü (ağaç/tepe) temizle, altını (çukur varsa) doldur -> düz bir platform garantile
         for (int x = xMin - kenarPay; x <= xMax + kenarPay; x++) {
@@ -180,6 +202,10 @@ public final class KaleInsaatYardimcisi {
         int tahtCx = uzakHucre[0], tahtCz = uzakHucre[1];
 
         Sonuc sonuc = new Sonuc();
+        sonuc.ozgunBloklar.addAll(ozgunBloklarLocal);
+        sonuc.yedekMinX = yedekMinX; sonuc.yedekMaxX = yedekMaxX;
+        sonuc.yedekMinY = yedekMinY; sonuc.yedekMaxY = yedekMaxY;
+        sonuc.yedekMinZ = yedekMinZ; sonuc.yedekMaxZ = yedekMaxZ;
         int ustKat = katSayisi - 1;
         int[] tahtXAralik = icAralik(sinirlarX, tahtCx);
         int[] tahtZAralik = icAralik(sinirlarZ, tahtCz);
