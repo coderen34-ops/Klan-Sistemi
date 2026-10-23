@@ -1,0 +1,71 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------< me.mesleksistemi:MeslekSistemi >-------------------
+[INFO] Building MeslekSistemi 1.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ MeslekSistemi ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ MeslekSistemi ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 24 source files with javac [debug release 25] to target/classes
+[INFO] /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/src/main/java/me/mesleksistemi/Commands.java: Some input files use or override a deprecated API.
+[INFO] /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/src/main/java/me/mesleksistemi/Commands.java: Recompile with -Xlint:deprecation for details.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ MeslekSistemi ---
+[INFO] skip non existing resourceDirectory /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ MeslekSistemi ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ MeslekSistemi ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ MeslekSistemi ---
+[INFO] Building jar: /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/target/MeslekSistemi-1.0.jar
+[INFO] 
+[INFO] --- install:3.1.4:install (default-install) @ MeslekSistemi ---
+[INFO] Installing /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/pom.xml to /home/runner/.m2/repository/me/mesleksistemi/MeslekSistemi/1.0/MeslekSistemi-1.0.pom
+[INFO] Installing /home/runner/work/Klan-Sistemi/Klan-Sistemi/meslek-sistemi/target/MeslekSistemi-1.0.jar to /home/runner/.m2/repository/me/mesleksistemi/MeslekSistemi/1.0/MeslekSistemi-1.0.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  6.801 s
+[INFO] Finished at: 2026-10-23T16:41:50Z
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< me.klansistemi:KlanSistemi >---------------------
+[INFO] Building KlanSistemi 1.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ KlanSistemi ---
+[INFO] Copying 2 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ KlanSistemi ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 47 source files with javac [debug release 25] to target/classes
+[WARNING] /home/runner/work/Klan-Sistemi/Klan-Sistemi/src/main/java/me/klansistemi/buyu/KasaBagliKurallar.java:[362,124] HOTBAR_MOVE_AND_READD in org.bukkit.event.inventory.InventoryAction has been deprecated and marked for removal
+[INFO] /home/runner/work/Klan-Sistemi/Klan-Sistemi/src/main/java/me/klansistemi/AidatManager.java: Some input files use or override a deprecated API.
+[INFO] /home/runner/work/Klan-Sistemi/Klan-Sistemi/src/main/java/me/klansistemi/AidatManager.java: Recompile with -Xlint:deprecation for details.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ KlanSistemi ---
+[INFO] skip non existing resourceDirectory /home/runner/work/Klan-Sistemi/Klan-Sistemi/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ KlanSistemi ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.4:test (default-test) @ KlanSistemi ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ KlanSistemi ---
+[INFO] Building jar: /home/runner/work/Klan-Sistemi/Klan-Sistemi/target/KlanSistemi-1.0.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  5.459 s
+[INFO] Finished at: 2026-10-23T16:41:57Z
+[INFO] ------------------------------------------------------------------------
