@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -348,6 +350,25 @@ public class EsyaKasasi implements Listener {
         p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
     }
 
+    /** Sadece depo slotlarını (0..DEPO_SLOT-1) tür/isim/adete göre sıralar; buton satırına dokunmaz. */
+    private static void sirala(Inventory inv) {
+        List<ItemStack> esyalar = new ArrayList<>();
+        for (int i = 0; i < DEPO_SLOT; i++) {
+            ItemStack item = inv.getItem(i);
+            if (item != null && item.getType() != Material.AIR) esyalar.add(item);
+        }
+        esyalar.sort(Comparator
+                .comparing((ItemStack it) -> it.getType().name())
+                .thenComparing(EsyaKasasi::siraDisplayName)
+                .thenComparing(Comparator.comparingInt(ItemStack::getAmount).reversed()));
+        for (int i = 0; i < DEPO_SLOT; i++) inv.setItem(i, null);
+        for (int i = 0; i < esyalar.size() && i < DEPO_SLOT; i++) inv.setItem(i, esyalar.get(i));
+    }
+
+    private static String siraDisplayName(ItemStack item) {
+        return item.hasItemMeta() && item.getItemMeta().hasDisplayName() ? item.getItemMeta().getDisplayName() : "";
+    }
+
     // ------------------------------------------------------------------ YETKİ KONTROLLÜ TIKLAMALAR
     private enum Erisim { KOYABILIR, LIMITLI_ALABILIR, SERBEST }
 
@@ -386,6 +407,17 @@ public class EsyaKasasi implements Listener {
         int ust = event.getView().getTopInventory().getSize();
         int slot = event.getRawSlot();
         InventoryAction aksiyon = event.getAction();
+
+        // F tuşu (SWAP_OFFHAND) ya da orta tık: SADECE depo slotlarını (0-44) kendi içinde sıralar,
+        // buton satırına (45-53) hiç dokunmaz. InventorySorter gibi genel amaçlı eklentilere güvenmek yerine
+        // kasa kendi sıralamasını kendi yapıyor; böylece hem sıralama çalışıyor hem de cam/ok butonları güvende.
+        if ((event.getClick() == ClickType.SWAP_OFFHAND || event.getClick() == ClickType.MIDDLE)
+                && slot >= 0 && slot < DEPO_SLOT) {
+            event.setCancelled(true);
+            sirala(event.getView().getTopInventory());
+            p.playSound(p.getLocation(), Sound.ITEM_BUNDLE_INSERT, 0.5f, 1.2f);
+            return;
+        }
 
         // Çift tıkla "aynı türden topla" (COLLECT_TO_CURSOR): Minecraft'ın kendi istemci mantığı tüm
         // InventoryView'i (üst kasa + alt oyuncu envanteri) tarayıp eşleşen her şeyi imlece topluyor,
