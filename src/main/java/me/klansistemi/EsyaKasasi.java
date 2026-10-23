@@ -387,6 +387,16 @@ public class EsyaKasasi implements Listener {
         int slot = event.getRawSlot();
         InventoryAction aksiyon = event.getAction();
 
+        // Çift tıkla "aynı türden topla" (COLLECT_TO_CURSOR): Minecraft'ın kendi istemci mantığı tüm
+        // InventoryView'i (üst kasa + alt oyuncu envanteri) tarayıp eşleşen her şeyi imlece topluyor,
+        // bizim buton satırı (45-53) korumamızdan habersiz. Bu yüzden nereden başlarsa başlasın
+        // tamamen engelleniyor; aksi halde sayfa butonları (cam/ok) sahte eşya gibi toplanıp
+        // oyuncunun envanterine ya da depo slotlarına sızabiliyor.
+        if (aksiyon == InventoryAction.COLLECT_TO_CURSOR) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Alt satır: sayfa butonları
         if (slot >= DEPO_SLOT && slot < ust) {
             event.setCancelled(true);
