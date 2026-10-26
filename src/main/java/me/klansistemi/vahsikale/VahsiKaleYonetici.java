@@ -269,6 +269,8 @@ public class VahsiKaleYonetici implements Listener {
      * yakın çevresinde aranır; null ise eski davranış (dünya spawn'ından min/max-spawn-uzakligi aralığı).
      */
     public VahsiKale otomatikUret(int seviye, Location merkezNoktasi) {
+        int ustSinir = plugin.getConfig().getInt("vahsikale.max-aktif-kale-sayisi", 30);
+        if (aktifKaleSayisi() >= ustSinir) return null; // uretim ust siniri (config, varsayilan 30)
         World dunya = Bukkit.getWorlds().get(0);
         Random rng = new Random();
         Location konum = rastgeleKonumBul(dunya, rng, merkezNoktasi);
@@ -1070,6 +1072,7 @@ public class VahsiKaleYonetici implements Listener {
     private void kusatmaBasladi(VahsiKale kale, Player p) {
         Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (klan == null) return;
+        plugin.npcDunya().saldiriBildir(klan, kale);
         plugin.klanManager().klanaGonder(klan, "vahsikale-kusatma",
                 "&c{oyuncu} &7bir Vahşi Kaleye (&e{kale}&7) saldırıyor! Yardım etmek istiyorsan &e/vahsikale yardim &7yaz (30 saniyen var - yoksa 5 dakika ışınlanamazsın).",
                 "oyuncu", p.getName(), "kale", kale.isim);
@@ -1652,6 +1655,9 @@ public class VahsiKaleYonetici implements Listener {
             kaydet(kale);
         }
     }
+
+    public java.util.Collection<VahsiKale> tumKaleler() { return new java.util.ArrayList<>(kaleler.values()); }
+    public VahsiKale kaleBul(UUID id) { return kaleler.get(id); }
 
     public void kapat() {
         if (baglanti != null) {

@@ -18,6 +18,7 @@ import me.klansistemi.savas.GuvenliBolgeManager;
 import me.klansistemi.savas.PrestijManager;
 import me.klansistemi.bolge.BolgeManager;
 import me.klansistemi.vahsikale.VahsiKaleYonetici;
+import me.klansistemi.vahsikale.NpcDunyaYonetici;
 import me.klansistemi.komut.KcKomut;
 import me.klansistemi.komut.KlanKomut;
 import me.klansistemi.komut.VahsiKaleKomut;
@@ -55,6 +56,7 @@ public class KlanSistemi extends JavaPlugin {
     private PrestijManager prestijManager;
     private BolgeManager bolgeManager;
     private VahsiKaleYonetici vahsiKaleYonetici;
+    private NpcDunyaYonetici npcDunyaYonetici;
 
     @Override
     public void onEnable() {
@@ -103,6 +105,7 @@ public class KlanSistemi extends JavaPlugin {
         menu = new KlanMenu(this);
         panel = new DiplomasiPanel(this);
         vahsiKaleYonetici = new VahsiKaleYonetici(this);
+        npcDunyaYonetici = new NpcDunyaYonetici(this);
 
         KlanKomut klanKomut = new KlanKomut(this);
         PluginCommand klan = getCommand("klan");
@@ -131,6 +134,14 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(buyuUstasi, this);
         getServer().getPluginManager().registerEvents(bolgeManager, this);
         getServer().getPluginManager().registerEvents(vahsiKaleYonetici, this);
+        getServer().getPluginManager().registerEvents(npcDunyaYonetici, this);
+        org.bukkit.command.PluginCommand npcCmd = getCommand("npcklan");
+        if (npcCmd != null) npcCmd.setExecutor((snd, cmd, lbl, arg) -> { npcDunyaYonetici.komut(snd, arg); return true; });
+        long otonomTik = Math.max(1200L, getConfig().getLong("npc.otonom-dakika", 30) * 1200L);
+        Bukkit.getScheduler().runTaskTimer(this, npcDunyaYonetici::otonomTick, otonomTik, otonomTik);
+        long kervanTik = Math.max(1200L, getConfig().getLong("npc.kervan-dakika", 10) * 1200L);
+        Bukkit.getScheduler().runTaskTimer(this, npcDunyaYonetici::kervanTick, kervanTik, kervanTik);
+        Bukkit.getScheduler().runTaskTimer(this, npcDunyaYonetici::enkazKontrol, 100L, 60L);
 
         // Aidat dönemleri, ek süreler ve hatırlatmalar dakikada bir kontrol edilir
         Bukkit.getScheduler().runTaskTimer(this, aidatManager::kontrol, 200L, 1200L);
@@ -175,6 +186,7 @@ public class KlanSistemi extends JavaPlugin {
         if (veri != null && klanManager != null) veri.hemenKaydet();
         if (defter != null) defter.hemenKaydet();
         if (vahsiKaleYonetici != null) vahsiKaleYonetici.kapat();
+        if (npcDunyaYonetici != null) npcDunyaYonetici.kapat();
     }
 
     /**
@@ -255,6 +267,7 @@ public class KlanSistemi extends JavaPlugin {
     public PrestijManager prestij() { return prestijManager; }
     public BolgeManager bolgeler() { return bolgeManager; }
     public VahsiKaleYonetici vahsiKale() { return vahsiKaleYonetici; }
+    public NpcDunyaYonetici npcDunya() { return npcDunyaYonetici; }
 
     /** Savaş kabul edildiği andan bitene kadar klanın kasası kilitlidir. */
     public boolean kasaKilitliMi(Klan klan) {

@@ -19,6 +19,10 @@ commands:
     description: Klan sohbetine mesaj gönderir
     usage: /kc <mesaj>
     permission: klan.kullan
+  npcklan:
+    description: NPC Diplomasi Paneli ve kervan dedikodusu
+    usage: /npcklan [panel|dedikodu]
+    permission: klan.kullan
   vahsikale:
     description: Vahşi Kale (NPC klanı) yönetim komutları
     usage: /vahsikale <uret [seviye]|sil|hepsinisil|liste|bilgi|giris|yardim|git [isim]>

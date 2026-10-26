@@ -265,6 +265,7 @@ menu:
 # otomatik üretilir, admin tek tek elle inşa etmez. /vahsikale uret [seviye] ile anlık de üretilebilir
 # (konsoldan da çalışır, oyuncu konumuna bağımlı değil).
 vahsikale:
+  max-aktif-kale-sayisi: 30         # Aynı anda en fazla bu kadar fethedilmemiş kale (üst sınır)
   min-aktif-kale-sayisi: 3          # Fethedilmemiş kale sayısı bunun altına düşerse otomatik yeni kale üretilir
   otomatik-kontrol-dakika: 45       # Bu sıklıkla aktif kale sayısı kontrol edilir
   min-spawn-uzakligi: 1200          # Dünya spawn'ından minimum uzaklık (blok)
@@ -279,6 +280,17 @@ vahsikale:
   saldiri-yaricap: 20
   fetih-prestiji: 10
   olum-prestij-kaybi: 30
+
+# NPC dünyası (Faz 5): periyodik/soyut simülasyon. Tüm değerler canlıda /klan reload ile değil restart ile geçerli.
+npc:
+  aktif: true
+  otonom-dakika: 30            # NPC-NPC savaş/ittifak/ticaret rulosu sıklığı
+  kervan-dakika: 10            # Soyut kervan "yolda olay" rulosu sıklığı
+  enkaz-omur-dakika: 40        # Enkaz, yakında oyuncu yokken bu kadar dakika sonra silinir (yaklaşınca süre sıfırlanır)
+  dedikodu-bahsis: 200
+  dedikodu-cooldown-dakika: 12
+  takviye-gunluk-limit: 2
+  takviye-cooldown-dakika: 30
 
 mesajlar:
   admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
