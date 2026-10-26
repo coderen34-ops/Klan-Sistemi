@@ -482,7 +482,7 @@ public class KasaBagliKurallar implements Listener {
     public void onAnvil(PrepareAnvilEvent event) {
         ItemStack ilk = event.getInventory().getItem(0), ikinci = event.getInventory().getItem(1);
         boolean ilkBuyulu = esya().buyuluMu(ilk), ikinciBuyulu = esya().buyuluMu(ikinci);
-        if (!ilkBuyulu && !ikinciBuyulu) return;
+        if (!ilkBuyulu && !ikinciBuyulu) { kitapSeviyeKoru(event, ilk, ikinci); return; }
         // İkinci slot: sadece boş (isim verme) ya da tamir malzemesi olabilir; kitap/alet/büyülü eşya olamaz
         if (ikinciBuyulu || (ikinci != null && (ikinci.getType() == Material.ENCHANTED_BOOK || ikinci.getType() == ilk.getType()
                 || !ikinci.getEnchantments().isEmpty()))) {
@@ -503,6 +503,30 @@ public class KasaBagliKurallar implements Listener {
         sonuc.setItemMeta(sMeta);
         esya().loreYenile(sonuc);
         event.setResult(sonuc);
+    }
+
+    /**
+     * Vanilla örs, kitaptaki max seviyeyi aşan büyüleri (örn. zindan/vahşi kale kitabındaki Protection 6) max seviyeye (4) kırpar.
+     * Normal (özel büyüsüz) eşya + büyülü kitap birleşiminde kitaptaki yüksek seviye sonuçta korunur.
+     */
+    private static void kitapSeviyeKoru(PrepareAnvilEvent event, ItemStack ilk, ItemStack ikinci) {
+        if (ilk == null || ikinci == null || ikinci.getType() != Material.ENCHANTED_BOOK) return;
+        ItemStack sonuc = event.getResult();
+        if (sonuc == null || sonuc.getType() == Material.AIR) return;
+        if (!(ikinci.getItemMeta() instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta kitap)) return;
+        ItemMeta sMeta = sonuc.getItemMeta();
+        if (sMeta == null) return;
+        boolean degisti = false;
+        for (Map.Entry<Enchantment, Integer> e : kitap.getStoredEnchants().entrySet()) {
+            Enchantment b = e.getKey();
+            int kitapSeviye = e.getValue();
+            if (kitapSeviye <= b.getMaxLevel()) continue;
+            int sonucSeviye = sMeta.getEnchantLevel(b);
+            if (sonucSeviye == 0) continue; // vanilla uygulamadı (uyumsuz/çakışan): dokunma
+            int hedef = Math.max(kitapSeviye, ilk.getEnchantmentLevel(b));
+            if (sonucSeviye < hedef) { sMeta.addEnchant(b, hedef, true); degisti = true; }
+        }
+        if (degisti) { sonuc.setItemMeta(sMeta); event.setResult(sonuc); }
     }
 
     private static void copyPdc(ItemMeta kaynak, ItemMeta hedef, org.bukkit.NamespacedKey key) {
