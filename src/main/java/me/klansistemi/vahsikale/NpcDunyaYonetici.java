@@ -788,9 +788,11 @@ public class NpcDunyaYonetici implements Listener {
         kv.sonX = kv.x; kv.sonZ = kv.z; kv.takilma = 0;
         Location b = new Location(w, x + 0.5, y, z + 0.5);
         int n = Math.max(1, Math.min(6, muhafizSayisi(k, kv)));
+        List<org.bukkit.entity.Vindicator> muhafizlar = new ArrayList<>();
         for (int i = 0; i < n; i++) {
             org.bukkit.entity.Vindicator g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
             kv.varliklar.add(g.getUniqueId());
+            muhafizlar.add(g);
         }
         org.bukkit.entity.EntityType[] t = {org.bukkit.entity.EntityType.MULE, org.bukkit.entity.EntityType.DONKEY, org.bukkit.entity.EntityType.LLAMA};
         for (int i = 0; i < 2; i++) {
@@ -799,6 +801,10 @@ public class NpcDunyaYonetici implements Listener {
             h.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
             h.setCustomName(ChatColor.GOLD + k.isim + " Kervanı");
             if (h instanceof org.bukkit.entity.ChestedHorse ch) ch.setCarryingChest(true);
+            // Yük hayvanı bir muhafıza İPLE bağlı: muhafız yürüyünce hayvan geride kalmaz, kervan birlikte ilerler
+            if (!muhafizlar.isEmpty() && h instanceof org.bukkit.entity.LivingEntity hl) {
+                try { hl.setLeashHolder(muhafizlar.get(i % muhafizlar.size())); } catch (Exception ignored) { }
+            }
             kv.varliklar.add(h.getUniqueId());
         }
         // Tüccar: sağ tıkla kervanın GERÇEK stokuyla (kv.esya) sunucu ekonomisinde ticaret
