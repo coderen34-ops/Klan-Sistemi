@@ -269,6 +269,7 @@ vahsikale:
   otomatik-kontrol-dakika: 45       # Bu sıklıkla aktif kale sayısı kontrol edilir
   min-spawn-uzakligi: 1200          # Dünya spawn'ından minimum uzaklık (blok)
   max-spawn-uzakligi: 6000          # Dünya spawn'ından maksimum uzaklık (blok)
+  yasak-alan-yaricap: 80            # Köy bölgesi ve claim'lere en az bu kadar (yapı yarıçapı + tampon) blok uzakta üretilir
   kaleler-arasi-min-uzaklik: 300    # İki Vahşi Kale birbirinden en az bu kadar uzak olur
   yakinlik-esigi: 2800              # Bir oyuncunun en yakın kaleye uzaklığı bunu aşarsa (keşifte "boş bölge") yeni kale üretilir
   yakinlik-spawn-uzakligi: 1000     # Yukarıdaki durumda yeni kale, oyuncunun bu kadar (rastgele yönde) ötesine üretilir

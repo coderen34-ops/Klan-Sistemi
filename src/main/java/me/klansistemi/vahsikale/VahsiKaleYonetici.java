@@ -442,6 +442,8 @@ public class VahsiKaleYonetici implements Listener {
 
             Location aday = new Location(dunya, x + 0.5, yuksekBlok + 1, z + 0.5);
             if (ariziClaimdeMi(aday)) continue;
+            // Köy bölgesi ve tüm claim'ler (yapı yarıçapı + tampon) yasak: config vahsikale.yasak-alan-yaricap
+            if (YasakAlan.engelliMi(dunya, x, z, plugin.getConfig().getInt("vahsikale.yasak-alan-yaricap", 80))) continue;
             return aday;
         }
         return null;
