@@ -1199,6 +1199,7 @@ public class VahsiKaleYonetici implements Listener {
         if (kale == null) return;
         kale.oluNobetciler.add(event.getEntity().getUniqueId());
         nobetciOldu(kale.id, event.getEntity().getUniqueId());
+        plugin.npcDunya().nobetciOlduLoot(kale, event.getEntity().getLocation());
         if (kale.tumuOldu()) {
             Bukkit.getOnlinePlayers().forEach(pl -> {
                 if (pl.getLocation().getWorld().equals(kale.merkez.getWorld()) && pl.getLocation().distance(kale.merkez) <= kale.tespitYaricap * 2) {
@@ -1284,6 +1285,7 @@ public class VahsiKaleYonetici implements Listener {
                 klan.prestij += fetihPrestiji();
                 me.klansistemi.BasarimKopru.sayac(event.getPlayer(), "klan_kale");
                 plugin.veri().kaydet();
+                plugin.npcDunya().fetihDagit(kale); // kervan hazine odasi (gercek esya) sandiklara
                 elciSil(kale); // fethedilince elçiyle diplomasi/ticaret anlamsızlaşıyor
                 kaydet(kale);
                 plugin.klanManager().klanaGonder(klan, "vahsikale-fetih",

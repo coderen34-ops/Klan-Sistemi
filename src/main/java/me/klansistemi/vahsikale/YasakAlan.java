@@ -32,6 +32,10 @@ public final class YasakAlan {
         return claimeDegiyor(dunya, x, z, yaricap);
     }
 
+    /** {minX,maxX,minZ,maxZ} + dunya adi; yoksa null (Meslek koy.yml). */
+    public static double[] koyDikdortgeniGetir() { koyuOku(); return koyDikdortgeni; }
+    public static String koyDunyasiGetir() { koyuOku(); return koyDunyasi; }
+
     private static void koyuOku() {
         long simdi = System.currentTimeMillis();
         if (simdi - koyOkumaZamani < 30_000L) return;
@@ -50,14 +54,14 @@ public final class YasakAlan {
         koyDikdortgeni = new double[]{Math.min(x1, x2), Math.max(x1, x2), Math.min(z1, z2), Math.max(z1, z2)};
     }
 
-    private static boolean koyaDegiyor(World dunya, int x, int z, int yaricap) {
+    public static boolean koyaDegiyor(World dunya, int x, int z, int yaricap) {
         koyuOku();
         double[] k = koyDikdortgeni;
         if (k == null || koyDunyasi == null || !koyDunyasi.equals(dunya.getName())) return false;
         return x + yaricap >= k[0] && x - yaricap <= k[1] && z + yaricap >= k[2] && z - yaricap <= k[3];
     }
 
-    private static boolean claimeDegiyor(World dunya, int x, int z, int yaricap) {
+    public static boolean claimeDegiyor(World dunya, int x, int z, int yaricap) {
         if (!Bukkit.getPluginManager().isPluginEnabled("GriefPrevention")) return false;
         try {
             if (getClaimAt == null) {

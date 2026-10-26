@@ -19,9 +19,13 @@ commands:
     description: Klan sohbetine mesaj gönderir
     usage: /kc <mesaj>
     permission: klan.kullan
+  npczindan:
+    description: (konsol) Arena-Ligi zindan boss'u dusunce NPC klan gorevini tamamlar
+    usage: /npczindan <oyuncu> <zindanId>
+    permission: klan.admin
   npcklan:
     description: NPC Diplomasi Paneli ve kervan dedikodusu
-    usage: /npcklan [panel|dedikodu]
+    usage: /npcklan [panel|dedikodu|hanci kur|hanci sil]
     permission: klan.kullan
   vahsikale:
     description: Vahşi Kale (NPC klanı) yönetim komutları

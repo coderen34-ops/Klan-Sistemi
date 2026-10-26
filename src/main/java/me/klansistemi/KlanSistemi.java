@@ -19,6 +19,7 @@ import me.klansistemi.savas.PrestijManager;
 import me.klansistemi.bolge.BolgeManager;
 import me.klansistemi.vahsikale.VahsiKaleYonetici;
 import me.klansistemi.vahsikale.NpcDunyaYonetici;
+import me.klansistemi.vahsikale.HanciYonetici;
 import me.klansistemi.komut.KcKomut;
 import me.klansistemi.komut.KlanKomut;
 import me.klansistemi.komut.VahsiKaleKomut;
@@ -57,6 +58,7 @@ public class KlanSistemi extends JavaPlugin {
     private BolgeManager bolgeManager;
     private VahsiKaleYonetici vahsiKaleYonetici;
     private NpcDunyaYonetici npcDunyaYonetici;
+    private HanciYonetici hanciYonetici;
 
     @Override
     public void onEnable() {
@@ -106,6 +108,7 @@ public class KlanSistemi extends JavaPlugin {
         panel = new DiplomasiPanel(this);
         vahsiKaleYonetici = new VahsiKaleYonetici(this);
         npcDunyaYonetici = new NpcDunyaYonetici(this);
+        hanciYonetici = new HanciYonetici(this, npcDunyaYonetici);
 
         KlanKomut klanKomut = new KlanKomut(this);
         PluginCommand klan = getCommand("klan");
@@ -135,6 +138,13 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(bolgeManager, this);
         getServer().getPluginManager().registerEvents(vahsiKaleYonetici, this);
         getServer().getPluginManager().registerEvents(npcDunyaYonetici, this);
+        getServer().getPluginManager().registerEvents(hanciYonetici, this);
+        Bukkit.getScheduler().runTaskTimer(this, hanciYonetici::kontrol, 600L, 6000L);
+        org.bukkit.command.PluginCommand npcZ = getCommand("npczindan");
+        if (npcZ != null) npcZ.setExecutor((snd, cmd, lbl, arg) -> {
+            if (snd instanceof org.bukkit.command.ConsoleCommandSender && arg.length == 2) npcDunyaYonetici.zindanTamamlandi(arg[0], arg[1]);
+            return true;
+        });
         org.bukkit.command.PluginCommand npcCmd = getCommand("npcklan");
         if (npcCmd != null) npcCmd.setExecutor((snd, cmd, lbl, arg) -> { npcDunyaYonetici.komut(snd, arg); return true; });
         long otonomTik = Math.max(1200L, getConfig().getLong("npc.otonom-dakika", 30) * 1200L);
@@ -268,6 +278,7 @@ public class KlanSistemi extends JavaPlugin {
     public BolgeManager bolgeler() { return bolgeManager; }
     public VahsiKaleYonetici vahsiKale() { return vahsiKaleYonetici; }
     public NpcDunyaYonetici npcDunya() { return npcDunyaYonetici; }
+    public HanciYonetici hanci() { return hanciYonetici; }
 
     /** Savaş kabul edildiği andan bitene kadar klanın kasası kilitlidir. */
     public boolean kasaKilitliMi(Klan klan) {

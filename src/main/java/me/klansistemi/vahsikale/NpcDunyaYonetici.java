@@ -58,7 +58,9 @@ public class NpcDunyaYonetici implements Listener {
     private boolean veriYuklendi = false;
 
     private final Map<UUID, Integer> guc = new LinkedHashMap<>();
-    private final Map<UUID, Double> hazine = new LinkedHashMap<>();
+    private final Map<UUID, Double> hazine = new LinkedHashMap<>(); // soyut PARA (haraç/ticaret)
+    private final Map<UUID, List<ItemStack>> hazineEsya = new LinkedHashMap<>(); // GERÇEK eşyalar (kervan yağması)
+    private final Map<UUID, String[]> zindanGorev = new LinkedHashMap<>(); // klan -> {kaleId, zindanId, zindanIsim, dunya, x, y, z}
     private final Map<String, String> iliski = new LinkedHashMap<>(); // "a|b" (sıralı) -> ITTIFAK | SAVAS
     private final Map<UUID, Map<UUID, Integer>> saygi = new LinkedHashMap<>(); // klan -> kale -> saygı (anahtar var = tanışıldı)
     private final Map<UUID, long[]> takviye = new LinkedHashMap<>(); // klan -> {gunNo, sayi, sonZaman}
@@ -67,11 +69,11 @@ public class NpcDunyaYonetici implements Listener {
     private final Map<UUID, Enkaz> enkazlar = new LinkedHashMap<>();
 
     private static class Kervan {
-        double x, z; double yuk; boolean enkaz;
+        double x, z; boolean enkaz; final List<ItemStack> esya = new ArrayList<>();
     }
 
     private static class Enkaz {
-        UUID kaleId; String dunya; double x, z; double yuk;
+        UUID kaleId; String dunya; double x, z; final List<ItemStack> esya = new ArrayList<>();
         long sonYakinlik; boolean sandikAcildi; boolean sandikYerlesti;
         int sx, sy, sz;
     }
@@ -138,6 +140,8 @@ public class NpcDunyaYonetici implements Listener {
             double ganimet = Math.floor(hazinesi(kaybeden) * 0.25);
             hazine.put(kaybeden.id, hazinesi(kaybeden) - ganimet);
             hazine.put(kazanan.id, hazinesi(kazanan) + ganimet);
+            List<ItemStack> alinan = hazineAl(kaybeden.id, 0.25); // gerçek eşya ganimeti: önce kaybedenden ÇIKAR, sonra kazanana EKLE
+            hazineyeEkle(kazanan.id, alinan);
             guc.put(kazanan.id, gucu(kazanan) + 3);
             guc.put(kaybeden.id, Math.max(1, gucu(kaybeden) - 2));
             iliski.remove(key);
@@ -145,14 +149,111 @@ public class NpcDunyaYonetici implements Listener {
         }
     }
 
-    /** Hazineyle gelişim: periyodik, hazinenin küçük bir kısmı güce dönüşür (üst sınır yok - karar gereği). */
+    private static int deger(Material m) {
+        return switch (m) {
+            case IRON_INGOT -> 1; case GOLD_INGOT -> 2; case EMERALD -> 4; case DIAMOND -> 5; case NETHERITE_SCRAP -> 8; case NETHERITE_INGOT -> 30;
+            default -> 0;
+        };
+    }
+
+    /** Hazinedeki GERÇEK değerli eşyalar tüketilerek güç artar (silah/zırh yapımı soyutlaması). Üst sınır yok (karar). */
     private void gelisim(VahsiKale k) {
-        double h = hazinesi(k);
-        double esik = 150.0 * k.seviye;
-        if (h >= esik) {
-            hazine.put(k.id, h - esik * 0.5);
-            guc.put(k.id, gucu(k) + 1);
+        List<ItemStack> l = hazineEsya.get(k.id);
+        if (l == null) return;
+        int esik = 20 * k.seviye, toplam = 0;
+        for (ItemStack it : l) toplam += deger(it.getType()) * it.getAmount();
+        if (toplam < esik) return;
+        int harca = esik;
+        for (java.util.Iterator<ItemStack> i = l.iterator(); i.hasNext() && harca > 0; ) {
+            ItemStack it = i.next();
+            int d = deger(it.getType());
+            if (d == 0) continue;
+            int adet = Math.min(it.getAmount(), (int) Math.ceil(harca / (double) d));
+            harca -= adet * d;
+            if (adet >= it.getAmount()) i.remove(); else it.setAmount(it.getAmount() - adet);
         }
+        guc.put(k.id, gucu(k) + 1);
+    }
+
+    private static final int HAZINE_STACK_SINIRI = 300;
+
+    private synchronized void hazineyeEkle(UUID kale, List<ItemStack> eklenecek) {
+        List<ItemStack> l = hazineEsya.computeIfAbsent(kale, i -> new ArrayList<>());
+        for (ItemStack e : eklenecek) {
+            if (e == null || e.getType().isAir()) continue;
+            ItemStack kalan = e.clone();
+            for (ItemStack mevcut : l) {
+                if (kalan.getAmount() <= 0) break;
+                if (mevcut.isSimilar(kalan) && mevcut.getAmount() < mevcut.getMaxStackSize()) {
+                    int tasi = Math.min(kalan.getAmount(), mevcut.getMaxStackSize() - mevcut.getAmount());
+                    mevcut.setAmount(mevcut.getAmount() + tasi);
+                    kalan.setAmount(kalan.getAmount() - tasi);
+                }
+            }
+            if (kalan.getAmount() > 0 && l.size() < HAZINE_STACK_SINIRI) l.add(kalan);
+        }
+    }
+
+    /** Hazineden yaklaşık oran kadar stack'i ÇIKARIR ve döndürür (çıkarma tek senkron blokta - çift kullanım olmaz). */
+    private synchronized List<ItemStack> hazineAl(UUID kale, double oran) {
+        List<ItemStack> l = hazineEsya.get(kale);
+        List<ItemStack> cikan = new ArrayList<>();
+        if (l == null || l.isEmpty()) return cikan;
+        int n = (int) Math.max(1, Math.floor(l.size() * oran));
+        for (int i = 0; i < n && !l.isEmpty(); i++) cikan.add(l.remove(rng.nextInt(l.size())));
+        return cikan;
+    }
+
+    private List<ItemStack> lootUret(boolean hayvan, int seviye) {
+        List<ItemStack> l = new ArrayList<>();
+        if (hayvan) {
+            Material[] h = {Material.LEATHER, Material.BEEF, Material.PORKCHOP, Material.BONE, Material.STRING, Material.FEATHER};
+            for (int i = 0; i < 2 + rng.nextInt(3); i++) l.add(new ItemStack(h[rng.nextInt(h.length)], 2 + rng.nextInt(5)));
+        } else {
+            Material[] t = {Material.WHEAT, Material.BREAD, Material.COAL, Material.ARROW, Material.PAPER, Material.IRON_INGOT, Material.EMERALD};
+            for (int i = 0; i < 2 + rng.nextInt(3); i++) l.add(new ItemStack(t[rng.nextInt(t.length)], 1 + rng.nextInt(5)));
+            if (seviye >= 2 && rng.nextDouble() < 0.4) l.add(new ItemStack(Material.GOLD_INGOT, 1 + rng.nextInt(3)));
+            if (seviye >= 3 && rng.nextDouble() < 0.25) l.add(new ItemStack(Material.DIAMOND, 1 + rng.nextInt(2)));
+            if (seviye >= 5 && rng.nextDouble() < 0.10) l.add(new ItemStack(Material.NETHERITE_SCRAP, 1));
+        }
+        return l;
+    }
+
+    /** Fetihte: kalenin hazine eşyaları kalenin yanındaki sandık(lar)a konur - oyuncu yağmalar. Önce hazineden ÇIKARILIR ve kaydedilir. */
+    public void fetihDagit(VahsiKale kale) {
+        if (!veriYuklendi) return;
+        List<ItemStack> l;
+        synchronized (this) { l = hazineEsya.remove(kale.id); }
+        if (l == null || l.isEmpty() || kale.merkez == null || kale.merkez.getWorld() == null) return;
+        kaydet();
+        World w = kale.merkez.getWorld();
+        int[][] ofs = {{3, 0}, {3, 2}, {3, -2}, {5, 0}, {-3, 0}, {-3, 2}};
+        int idx = 0, yerlesen = 0;
+        List<ItemStack> kalan = new ArrayList<>(l);
+        for (int[] o : ofs) {
+            if (kalan.isEmpty()) break;
+            int x = kale.merkez.getBlockX() + o[0], z = kale.merkez.getBlockZ() + o[1];
+            Block b = w.getBlockAt(x, w.getHighestBlockYAt(x, z) + 1, z);
+            if (!b.getType().isAir()) continue;
+            b.setType(Material.CHEST);
+            if (b.getState(false) instanceof Chest c) {
+                java.util.Iterator<ItemStack> it = kalan.iterator();
+                int n = 0;
+                while (it.hasNext() && n < 27) { c.getInventory().addItem(it.next()); it.remove(); n++; }
+                c.update(true, false);
+                yerlesen++;
+            }
+        }
+        for (ItemStack k : kalan) w.dropItemNaturally(kale.merkez, k); // yer bulunamadıysa yere dök (kayıp yok)
+        plugin.getLogger().info("[NPC] " + kale.isim + " hazine odası yağmaya açıldı: " + l.size() + " stack, " + yerlesen + " sandık.");
+    }
+
+    /** Nöbetçi ölünce hazineden 1 stack yere düşer (loot yere düşer, otomatik kimseye gitmez - karar). */
+    public void nobetciOlduLoot(VahsiKale kale, Location konum) {
+        if (!veriYuklendi || konum.getWorld() == null || rng.nextDouble() > 0.35) return;
+        List<ItemStack> al = hazineAl(kale.id, 0.02);
+        for (ItemStack it : al) konum.getWorld().dropItemNaturally(konum, it);
+        if (!al.isEmpty()) kaydet();
     }
 
     // ------------------------------------------------------------------ KERVAN
@@ -167,8 +268,10 @@ public class NpcDunyaYonetici implements Listener {
             if (kv.enkaz) continue;
             double zar = rng.nextDouble();
             if (zar < 0.20) { // eve dön, yükü hazine odasına bırak
-                hazine.put(k.id, hazinesi(k) + kv.yuk);
-                kv.yuk = 0; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
+                List<ItemStack> getirilen;
+                synchronized (this) { getirilen = new ArrayList<>(kv.esya); kv.esya.clear(); }
+                hazineyeEkle(k.id, getirilen); // yük önce kervandan ÇIKAR, sonra hazineye eklenir
+                kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
                 continue;
             }
             // 150-400 blokluk rastgele adım
@@ -176,30 +279,24 @@ public class NpcDunyaYonetici implements Listener {
             kv.x += Math.cos(aci) * mesafe; kv.z += Math.sin(aci) * mesafe;
             double olay = rng.nextDouble();
             if (olay < 0.35) {          // hayvan/yaratık saldırısı: nöbetçi gücüne göre loot
-                if (rng.nextDouble() < Math.min(0.9, 0.5 + gucu(k) / 200.0)) kv.yuk += 20 + rng.nextInt(60);
+                if (rng.nextDouble() < Math.min(0.9, 0.5 + gucu(k) / 200.0)) kv.esya.addAll(lootUret(true, k.seviye));
             } else if (olay < 0.75) {   // köy ticareti
-                kv.yuk += 40 + rng.nextInt(120) * (1 + k.seviye * 0.1);
+                kv.esya.addAll(lootUret(false, k.seviye));
             } else if (olay < 0.78) {   // pusu: kervan yok oldu -> ENKAZ
                 kv.enkaz = true;
                 Enkaz e = new Enkaz();
                 e.kaleId = k.id; e.dunya = k.merkez.getWorld().getName(); e.x = kv.x; e.z = kv.z;
-                e.yuk = Math.floor(kv.yuk * 0.5) + 30; e.sonYakinlik = System.currentTimeMillis();
+                e.sonYakinlik = System.currentTimeMillis();
+                // yükün yarısı enkaza kalır (sandığa gerçek eşya olarak), yarısı kaybolur
+                for (int i = 0; i < kv.esya.size(); i++) if (i % 2 == 0) e.esya.add(kv.esya.get(i));
                 enkazlar.put(UUID.randomUUID(), e);
-                kv.yuk = 0;
+                kv.esya.clear();
                 // kervan ertesi dönemde yeniden kurulur
                 Bukkit.getScheduler().runTaskLater(plugin, () -> { kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ(); }, 20L * 60 * 30);
                 plugin.getLogger().info("[NPC] " + k.isim + " kervanı pusuya düştü -> ENKAZ (" + Math.round(e.x) + "," + Math.round(e.z) + ")");
             }
         }
         kaydet();
-    }
-
-    private ItemStack[] enkazYuku(double yuk) {
-        int n = (int) Math.max(1, Math.min(27, yuk / 15));
-        List<ItemStack> l = new ArrayList<>();
-        Material[] havuz = {Material.BREAD, Material.LEATHER, Material.IRON_INGOT, Material.COAL, Material.ARROW, Material.WHEAT, Material.GOLD_NUGGET, Material.BONE};
-        for (int i = 0; i < Math.min(n, 12); i++) l.add(new ItemStack(havuz[rng.nextInt(havuz.length)], 1 + rng.nextInt(4)));
-        return l.toArray(new ItemStack[0]);
     }
 
     /** ~3 sn'de bir: oyuncu yakınlığı (lazy spawn + süre sıfırlama + süre dolumu). */
@@ -236,7 +333,8 @@ public class NpcDunyaYonetici implements Listener {
         if (!b.getType().isAir()) return;
         b.setType(Material.CHEST);
         if (b.getState(false) instanceof Chest c) {
-            c.getInventory().addItem(enkazYuku(e.yuk)); // tek seferlik, yerleşirken doldurulur
+            for (ItemStack it : e.esya) c.getInventory().addItem(it); // GERÇEK kervan yükü, tek seferlik
+            e.esya.clear(); // artık sandıkta; tekrar yerleşirse boş
             c.update(true, false);
         }
         e.sx = x; e.sy = y; e.sz = z; e.sandikYerlesti = true;
@@ -356,6 +454,7 @@ public class NpcDunyaYonetici implements Listener {
             lore.add(ChatColor.YELLOW + "Sağ tık: Eşya görevi (" + gorevMiktar(k) + " " + gorevEsya(k).name() + ", +25 saygı)");
             lore.add(ChatColor.YELLOW + "Shift+Sol: Takviye çağır (saygı ≥ 50, " + Para.yaz(takviyeUcreti(k)) + ")");
             lore.add(ChatColor.YELLOW + "Shift+Sağ: İttifak (saygı ≥ 100)");
+            lore.add(ChatColor.YELLOW + "Q (eşyayı at tuşu): Zindan temizleme görevi (+40 saygı)");
             m.setLore(lore);
             it.setItemMeta(m);
             env.setItem(slot, it);
@@ -386,6 +485,8 @@ public class NpcDunyaYonetici implements Listener {
         if (ev.getClick().isShiftClick()) {
             if (!yetkili) { p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); return; }
             if (ev.getClick().isLeftClick()) takviyeCagir(p, klan, k); else ittifakKur(p, klan, k);
+        } else if (ev.getClick() == org.bukkit.event.inventory.ClickType.DROP || ev.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
+            zindanGorevi(p, klan, k);
         } else if (ev.getClick().isLeftClick()) {
             if (!yetkili) { p.sendMessage(ChatColor.RED + "Haraç için lider/yardımcı olmalısın (kasadan ödenir)."); return; }
             harac(p, klan, k);
@@ -393,6 +494,69 @@ public class NpcDunyaYonetici implements Listener {
             esyaGorevi(p, klan, k);
         }
         panelAc(p);
+    }
+
+    // ------------------------------------------------------------------ ZİNDAN GÖREVİ (Arena-Ligi bağlantısı)
+    /** Arena-Ligi'nin zindanlar.yml'sini (salt-okunur) okuyup temizlenmemiş zindanlardan birini görev verir. */
+    private List<String[]> aktifZindanlar() {
+        List<String[]> l = new ArrayList<>(); // {id, isim, dunya, x, y, z}
+        org.bukkit.plugin.Plugin al = Bukkit.getPluginManager().getPlugin("ArenaLigi");
+        if (al == null) return l;
+        File f = new File(al.getDataFolder(), "zindanlar.yml");
+        if (!f.exists()) return l;
+        ConfigurationSection zs = YamlConfiguration.loadConfiguration(f).getConfigurationSection("zindanlar");
+        if (zs == null) return l;
+        for (String id : zs.getKeys(false)) {
+            ConfigurationSection c = zs.getConfigurationSection(id);
+            if (c == null || c.getBoolean("temizlendi", false)) continue;
+            String[] m = String.valueOf(c.getString("merkez", "")).split(";");
+            if (m.length < 4) continue;
+            try { l.add(new String[]{id, c.getString("isim", "Zindan"), m[0], String.valueOf(Math.round(Double.parseDouble(m[1]))), String.valueOf(Math.round(Double.parseDouble(m[2]))), String.valueOf(Math.round(Double.parseDouble(m[3])))}); }
+            catch (NumberFormatException ignored) { }
+        }
+        return l;
+    }
+
+    private void zindanGorevi(Player p, Klan klan, VahsiKale k) {
+        if (saygilar(klan).getOrDefault(k.id, 0) < 0) { p.sendMessage(ChatColor.RED + k.isim + " seninle görev paylaşmıyor (saygı negatif)."); return; }
+        List<String[]> aktif = aktifZindanlar();
+        String[] mevcut = zindanGorev.get(klan.id);
+        if (mevcut != null) {
+            boolean hala = false;
+            for (String[] z : aktif) if (z[0].equals(mevcut[1])) { hala = true; break; }
+            if (hala) {
+                p.sendMessage(ChatColor.GOLD + "Aktif zindan göreviniz: " + ChatColor.YELLOW + mevcut[2] + ChatColor.GRAY + " @ " + mevcut[3] + " " + mevcut[4] + ", " + mevcut[5] + ", " + mevcut[6]
+                        + ChatColor.GRAY + " - boss'u düşürün.");
+                return;
+            }
+            zindanGorev.remove(klan.id); // temizlendi/silindi: görev iptal
+        }
+        if (aktif.isEmpty()) { p.sendMessage(ChatColor.RED + "Şu an temizlenmemiş zindan yok, sonra tekrar dene."); return; }
+        String[] z = aktif.get(rng.nextInt(aktif.size()));
+        zindanGorev.put(klan.id, new String[]{k.id.toString(), z[0], z[1], z[2], z[3], z[4], z[5]});
+        kaydet();
+        p.sendMessage(ChatColor.GOLD + k.isim + " senden " + ChatColor.YELLOW + z[1] + ChatColor.GOLD + " zindanının temizlenmesini istiyor: "
+                + ChatColor.WHITE + z[2] + " " + z[3] + ", " + z[4] + ", " + z[5] + ChatColor.GRAY + " (klanından biri boss'a hasar verip düşürürse görev tamamlanır).");
+    }
+
+    /** npczindan konsol komutu (Arena-Ligi boss ölünce gönderir): oyuncunun klanının görevi bu zindansa tamamlanır. */
+    public void zindanTamamlandi(String oyuncuAdi, String zindanId) {
+        if (!veriYuklendi) return;
+        Player p = Bukkit.getPlayerExact(oyuncuAdi);
+        if (p == null) return;
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) return;
+        String[] g;
+        synchronized (this) {
+            g = zindanGorev.get(klan.id);
+            if (g == null || !g[1].equals(zindanId)) return;
+            zindanGorev.remove(klan.id); // önce kaldır -> aynı görev ikinci kez ödül vermez (birden çok katılımcı komutu)
+        }
+        VahsiKale k = plugin.vahsiKale().kaleBul(UUID.fromString(g[0]));
+        if (k != null) { saygilar(klan).merge(k.id, 40, Integer::sum); guc.put(k.id, gucu(k) + 1); }
+        kaydet();
+        plugin.klanManager().klanaGonder(klan, "npc-zindan-gorev", "&a{kale} &7zindan görevi tamamlandı (&e{zindan}&7): &e+40 saygı&7.",
+                "kale", k != null ? k.isim : "NPC klanı", "zindan", g[2]);
     }
 
     private void harac(Player p, Klan klan, VahsiKale k) {
@@ -458,6 +622,13 @@ public class NpcDunyaYonetici implements Listener {
         String alt = a.length > 0 ? a[0].toLowerCase(Locale.ROOT) : "panel";
         switch (alt) {
             case "dedikodu" -> dedikodu(p);
+            case "hanci" -> {
+                if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
+                String a2 = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "";
+                if (a2.equals("kur")) plugin.hanci().kur(p);
+                else if (a2.equals("sil")) plugin.hanci().sil(p);
+                else p.sendMessage(ChatColor.YELLOW + "/npcklan hanci <kur|sil>");
+            }
             default -> panelAc(p);
         }
     }
@@ -471,6 +642,17 @@ public class NpcDunyaYonetici implements Listener {
                 if (g != null) for (String k : g.getKeys(false)) guc.put(UUID.fromString(k), g.getInt(k));
                 ConfigurationSection h = y.getConfigurationSection("hazine");
                 if (h != null) for (String k : h.getKeys(false)) hazine.put(UUID.fromString(k), h.getDouble(k));
+                ConfigurationSection he = y.getConfigurationSection("hazine-esya");
+                if (he != null) for (String k : he.getKeys(false)) {
+                    List<ItemStack> li = new ArrayList<>();
+                    for (Object o : he.getList(k, new ArrayList<>())) if (o instanceof ItemStack is) li.add(is);
+                    hazineEsya.put(UUID.fromString(k), li);
+                }
+                ConfigurationSection zg = y.getConfigurationSection("zindan-gorev");
+                if (zg != null) for (String k : zg.getKeys(false)) {
+                    List<String> v = zg.getStringList(k);
+                    if (v.size() == 7) zindanGorev.put(UUID.fromString(k), v.toArray(new String[0]));
+                }
                 ConfigurationSection i = y.getConfigurationSection("iliski");
                 if (i != null) for (String k : i.getKeys(false)) iliski.put(k.replace('_', '|'), i.getString(k));
                 ConfigurationSection sg = y.getConfigurationSection("saygi");
@@ -483,14 +665,16 @@ public class NpcDunyaYonetici implements Listener {
                 }
                 ConfigurationSection kv = y.getConfigurationSection("kervan");
                 if (kv != null) for (String k : kv.getKeys(false)) {
-                    Kervan n = new Kervan(); n.x = kv.getDouble(k + ".x"); n.z = kv.getDouble(k + ".z"); n.yuk = kv.getDouble(k + ".yuk"); n.enkaz = kv.getBoolean(k + ".enkaz");
+                    Kervan n = new Kervan();
+                    for (Object o : kv.getList(k + ".esya", new ArrayList<>())) if (o instanceof ItemStack is) n.esya.add(is); n.x = kv.getDouble(k + ".x"); n.z = kv.getDouble(k + ".z"); n.enkaz = kv.getBoolean(k + ".enkaz");
                     kervanlar.put(UUID.fromString(k), n);
                 }
                 ConfigurationSection en = y.getConfigurationSection("enkaz");
                 if (en != null) for (String k : en.getKeys(false)) {
                     Enkaz e = new Enkaz();
                     e.kaleId = UUID.fromString(en.getString(k + ".kale"));
-                    e.dunya = en.getString(k + ".dunya"); e.x = en.getDouble(k + ".x"); e.z = en.getDouble(k + ".z"); e.yuk = en.getDouble(k + ".yuk");
+                    e.dunya = en.getString(k + ".dunya"); e.x = en.getDouble(k + ".x"); e.z = en.getDouble(k + ".z");
+                    for (Object o : en.getList(k + ".esya", new ArrayList<>())) if (o instanceof ItemStack is) e.esya.add(is);
                     e.sonYakinlik = en.getLong(k + ".son"); e.sandikAcildi = en.getBoolean(k + ".acildi"); e.sandikYerlesti = en.getBoolean(k + ".yerlesti");
                     e.sx = en.getInt(k + ".sx"); e.sy = en.getInt(k + ".sy"); e.sz = en.getInt(k + ".sz");
                     enkazlar.put(UUID.fromString(k), e);
@@ -508,12 +692,14 @@ public class NpcDunyaYonetici implements Listener {
             YamlConfiguration y = new YamlConfiguration();
             guc.forEach((k, v) -> y.set("guc." + k, v));
             hazine.forEach((k, v) -> y.set("hazine." + k, v));
+            hazineEsya.forEach((k, v) -> y.set("hazine-esya." + k, v));
+            zindanGorev.forEach((k, v) -> y.set("zindan-gorev." + k, java.util.Arrays.asList(v)));
             iliski.forEach((k, v) -> y.set("iliski." + k.replace('|', '_'), v));
             saygi.forEach((kl, m) -> m.forEach((ka, v) -> y.set("saygi." + kl + "." + ka, v)));
-            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".yuk", v.yuk); y.set("kervan." + k + ".enkaz", v.enkaz); });
+            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); });
             enkazlar.forEach((k, e) -> {
                 String p = "enkaz." + k;
-                y.set(p + ".kale", e.kaleId.toString()); y.set(p + ".dunya", e.dunya); y.set(p + ".x", e.x); y.set(p + ".z", e.z); y.set(p + ".yuk", e.yuk);
+                y.set(p + ".kale", e.kaleId.toString()); y.set(p + ".dunya", e.dunya); y.set(p + ".x", e.x); y.set(p + ".z", e.z); y.set(p + ".esya", e.esya);
                 y.set(p + ".son", e.sonYakinlik); y.set(p + ".acildi", e.sandikAcildi); y.set(p + ".yerlesti", e.sandikYerlesti);
                 y.set(p + ".sx", e.sx); y.set(p + ".sy", e.sy); y.set(p + ".sz", e.sz);
             });
