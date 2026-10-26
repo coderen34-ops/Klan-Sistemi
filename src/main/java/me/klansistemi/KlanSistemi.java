@@ -20,6 +20,7 @@ import me.klansistemi.bolge.BolgeManager;
 import me.klansistemi.vahsikale.VahsiKaleYonetici;
 import me.klansistemi.vahsikale.NpcDunyaYonetici;
 import me.klansistemi.vahsikale.HanciYonetici;
+import me.klansistemi.vahsikale.PatikaYonetici;
 import me.klansistemi.komut.KcKomut;
 import me.klansistemi.komut.KlanKomut;
 import me.klansistemi.komut.VahsiKaleKomut;
@@ -59,6 +60,7 @@ public class KlanSistemi extends JavaPlugin {
     private VahsiKaleYonetici vahsiKaleYonetici;
     private NpcDunyaYonetici npcDunyaYonetici;
     private HanciYonetici hanciYonetici;
+    private PatikaYonetici patikaYonetici;
 
     @Override
     public void onEnable() {
@@ -109,6 +111,7 @@ public class KlanSistemi extends JavaPlugin {
         vahsiKaleYonetici = new VahsiKaleYonetici(this);
         npcDunyaYonetici = new NpcDunyaYonetici(this);
         hanciYonetici = new HanciYonetici(this, npcDunyaYonetici);
+        patikaYonetici = new PatikaYonetici(this);
 
         KlanKomut klanKomut = new KlanKomut(this);
         PluginCommand klan = getCommand("klan");
@@ -139,6 +142,9 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(vahsiKaleYonetici, this);
         getServer().getPluginManager().registerEvents(npcDunyaYonetici, this);
         getServer().getPluginManager().registerEvents(hanciYonetici, this);
+        getServer().getPluginManager().registerEvents(patikaYonetici, this);
+        Bukkit.getScheduler().runTaskTimer(this, patikaYonetici::bakim, 12000L, 12000L);
+        Bukkit.getScheduler().runTaskTimer(this, patikaYonetici::periyodikKaydet, 2400L, 2400L);
         Bukkit.getScheduler().runTaskTimer(this, hanciYonetici::kontrol, 600L, 6000L);
         org.bukkit.command.PluginCommand npcZ = getCommand("npczindan");
         if (npcZ != null) npcZ.setExecutor((snd, cmd, lbl, arg) -> {
@@ -197,6 +203,7 @@ public class KlanSistemi extends JavaPlugin {
         if (defter != null) defter.hemenKaydet();
         if (vahsiKaleYonetici != null) vahsiKaleYonetici.kapat();
         if (npcDunyaYonetici != null) npcDunyaYonetici.kapat();
+        if (patikaYonetici != null) patikaYonetici.kapat();
     }
 
     /**
@@ -279,6 +286,7 @@ public class KlanSistemi extends JavaPlugin {
     public VahsiKaleYonetici vahsiKale() { return vahsiKaleYonetici; }
     public NpcDunyaYonetici npcDunya() { return npcDunyaYonetici; }
     public HanciYonetici hanci() { return hanciYonetici; }
+    public PatikaYonetici patika() { return patikaYonetici; }
 
     /** Savaş kabul edildiği andan bitene kadar klanın kasası kilitlidir. */
     public boolean kasaKilitliMi(Klan klan) {

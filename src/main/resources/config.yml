@@ -287,6 +287,14 @@ npc:
   otonom-dakika: 30            # NPC-NPC savaş/ittifak/ticaret rulosu sıklığı
   kervan-dakika: 10            # Soyut kervan "yolda olay" rulosu sıklığı
   enkaz-omur-dakika: 40        # Enkaz, yakında oyuncu yokken bu kadar dakika sonra silinir (yaklaşınca süre sıfırlanır)
+  patika:
+    aktif: true
+    asama1: 25                 # GRASS -> COARSE_DIRT icin gecis sayisi
+    asama2: 80                 # -> DIRT_PATH (Speed II bonusu bu kademeden itibaren)
+    asama3: 250                # -> serpistirilmis GRAVEL
+    decay-dakika: 240          # Kullanilmayan patika her bu kadar dakikada bir kademe geri doner (~12 Minecraft gunu)
+    kopru-esik: 15             # Kervan bu kadar gectikten sonra 3-8 bloklu su gecisine kopru kurulur
+    kopru-decay-dakika: 720    # Kopru bu kadar dakika kullanilmazsa kaldirilir
   hanci-aktif: true            # Koy disinda otomatik han + hanci kurulumu (arazi yedeklenir, /npcklan hanci sil ile geri alinir)
   dedikodu-bahsis: 200
   dedikodu-cooldown-dakika: 12

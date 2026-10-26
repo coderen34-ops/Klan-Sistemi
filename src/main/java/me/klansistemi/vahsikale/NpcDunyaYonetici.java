@@ -266,6 +266,7 @@ public class NpcDunyaYonetici implements Listener {
                 Kervan n = new Kervan(); n.x = k.merkez.getX(); n.z = k.merkez.getZ(); return n;
             });
             if (kv.enkaz) continue;
+            final double ox = kv.x, oz = kv.z;
             double zar = rng.nextDouble();
             if (zar < 0.20) { // eve dön, yükü hazine odasına bırak
                 List<ItemStack> getirilen;
@@ -277,6 +278,7 @@ public class NpcDunyaYonetici implements Listener {
             // 150-400 blokluk rastgele adım
             double aci = rng.nextDouble() * Math.PI * 2, mesafe = 150 + rng.nextDouble() * 250;
             kv.x += Math.cos(aci) * mesafe; kv.z += Math.sin(aci) * mesafe;
+            plugin.patika().kervanGecisi(k.merkez.getWorld(), ox, oz, kv.x, kv.z); // patika/kopru sayaci
             double olay = rng.nextDouble();
             if (olay < 0.35) {          // hayvan/yaratık saldırısı: nöbetçi gücüne göre loot
                 if (rng.nextDouble() < Math.min(0.9, 0.5 + gucu(k) / 200.0)) kv.esya.addAll(lootUret(true, k.seviye));
@@ -622,6 +624,11 @@ public class NpcDunyaYonetici implements Listener {
         String alt = a.length > 0 ? a[0].toLowerCase(Locale.ROOT) : "panel";
         switch (alt) {
             case "dedikodu" -> dedikodu(p);
+            case "patika" -> {
+                if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
+                String a2 = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "";
+                if (a2.equals("sifirla")) plugin.patika().hepsiniGeriAl(p); else plugin.patika().bilgi(p);
+            }
             case "hanci" -> {
                 if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
                 String a2 = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "";
