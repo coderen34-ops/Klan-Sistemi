@@ -61,7 +61,7 @@ public class KlanMenu implements Listener {
     }
 
     private static final int SLOT_BILGI = 4, SLOT_UYELER = 10, SLOT_KASA = 12, SLOT_AIDAT = 14, SLOT_SOHBET = 16, SLOT_YARDIM = 22;
-    private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_ESYA = 31, SLOT_SAVAS = 18;
+    private static final int SLOT_ILISKILER = 20, SLOT_DIPLOMASI = 24, SLOT_NPC = 25, SLOT_ESYA = 31, SLOT_SAVAS = 18;
     private static final int SLOT_GERI = 49, SLOT_DAVET = 47;
     private static final int SLOT_ONAY = 11, SLOT_VAZGEC = 15, SLOT_HEDEF = 13;
 
@@ -188,6 +188,11 @@ public class KlanMenu implements Listener {
                             ChatColor.GRAY + "ittifak kur ya da husumet ilan et.",
                             "", ChatColor.YELLOW + "► Açmak için tıkla")));
         }
+
+        inv.setItem(SLOT_NPC, esya(Material.IRON_SWORD, ChatColor.GOLD + "" + ChatColor.BOLD + "NPC Diplomasi Paneli",
+                List.of(ChatColor.GRAY + "Vahşi Kale (NPC) klanlarıyla ilişkilerin:",
+                        ChatColor.GRAY + "görev, haraç, takviye, ittifak.",
+                        "", ChatColor.YELLOW + "► Açmak için tıkla")));
 
         inv.setItem(SLOT_YARDIM, esya(Material.KNOWLEDGE_BOOK, ChatColor.GREEN + "" + ChatColor.BOLD + "Komutlar",
                 List.of(ChatColor.GRAY + "Tüm klan komutlarını gör.", "", ChatColor.YELLOW + "► Tıkla")));
@@ -357,6 +362,7 @@ public class KlanMenu implements Listener {
                 else if (slot == SLOT_SOHBET) { plugin.klanManager().sohbetDegistir(p); anaMenu(p); }
                 else if (slot == SLOT_YARDIM) { p.closeInventory(); p.performCommand("klan yardim"); }
                 else if (slot == SLOT_SAVAS && plugin.savas().hazirliktaMi(a.id)) { plugin.savas().katil(p); anaMenu(p); }
+                else if (slot == SLOT_NPC) plugin.npcDunya().panelAc(p);
                 else if (slot == SLOT_DIPLOMASI) plugin.panel().ac(p, me.klansistemi.gui.DiplomasiPanel.Sekme.KLANLAR, 0);
             }
             case UYELER -> {

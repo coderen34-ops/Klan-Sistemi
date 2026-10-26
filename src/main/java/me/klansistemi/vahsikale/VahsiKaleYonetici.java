@@ -33,6 +33,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.Vindicator;
@@ -42,7 +43,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -89,6 +92,7 @@ public class VahsiKaleYonetici implements Listener {
     private Connection baglanti;
 
     private final NamespacedKey kaleIdKey;
+    private final NamespacedKey muhafizKey;
     private final NamespacedKey rolKey; // "NOBETCI" ya da "LIDER"
     private final NamespacedKey elciKey; // elçi NPC'sini nöbetçi/liderden ayırt etmek için (byte=1)
 
@@ -113,6 +117,7 @@ public class VahsiKaleYonetici implements Listener {
         this.dbFile = new File(plugin.getDataFolder(), "vahsikaleler.db");
         this.kaleIdKey = new NamespacedKey(plugin, "vahsikale-id");
         this.rolKey = new NamespacedKey(plugin, "vahsikale-rol");
+        this.muhafizKey = new NamespacedKey(plugin, "npc-muhafiz");
         this.elciKey = new NamespacedKey(plugin, "vahsikale-elci");
         baglan();
         tablolariOlustur();
@@ -875,7 +880,7 @@ public class VahsiKaleYonetici implements Listener {
     private void elciBarisTeklifEt(Player p, VahsiKale kale) {
         Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (klan == null) { p.sendMessage(Mesaj.renk("&cBir klanda değilsin, barış teklif edemezsin.")); p.closeInventory(); return; }
-        if (kale.barisVarMi(klan.id)) {
+        if (dostMu(kale, klan.id)) {
             p.sendMessage(Mesaj.renk("&eKlanın zaten bu kaleyle barış içinde."));
             p.closeInventory();
             return;
@@ -1149,6 +1154,13 @@ public class VahsiKaleYonetici implements Listener {
                     // mesajlara yol açıyordu. sinirIcindeMi ile yapı sınırları da kontrol edilerek, kalenin
                     // fiziksel olarak HER yeri "içeride" sayılıyor artık (merkeze olan mesafe fark etmeksizin).
                     boolean icerde = mesafe <= kale.saldiriYaricap || kale.sinirIcindeMi(p.getLocation());
+                    Klan oKlan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+                    if (oKlan != null && dostMu(kale, oKlan.id)) {
+                        // İttifaklı klan: kuşatma yok, uyarı yok, nöbetçiler hedef almaz
+                        kale.kusatmadakiOyuncular.remove(p.getUniqueId());
+                        if (icerde) dostHedefTemizle(kale, p);
+                        continue;
+                    }
                     if (icerde) {
                         if (kale.kusatmadakiOyuncular.add(p.getUniqueId())) {
                             kusatmaBasladi(kale, p);
@@ -1164,7 +1176,8 @@ public class VahsiKaleYonetici implements Listener {
                         if (mesafe <= kale.tespitYaricap) {
                             Long son = sonUyari.get(p.getUniqueId());
                             if (son == null || simdi - son > 5000L) {
-                                p.sendActionBar(Mesaj.renk("&c" + kale.isim + " Klanı'nın Kalesi - Buradan uzak dur!"));
+                                if (oKlan == null) p.sendActionBar(Mesaj.renk("&c" + kale.isim + " Klanı'nın Kalesi - Buradan uzak dur!"));
+                                else p.sendActionBar(Mesaj.renk("&6Bu bir NPC klanıdır (" + kale.isim + ") - dikkatli olun."));
                                 sonUyari.put(p.getUniqueId(), simdi);
                             }
                         }
@@ -1176,11 +1189,126 @@ public class VahsiKaleYonetici implements Listener {
         }
     }
 
-    private void saldirTetikle(VahsiKale kale, Player p) {
-        if (!kale.barisAnlasmalari.isEmpty()) {
-            Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
-            if (klan != null && kale.barisVarMi(klan.id)) return; // elçiyle barış yapılmış, nöbetçiler saldırmaz
+    /** Elçiyle yapılan geçici barış YA DA NPC panelinden kurulan (kalıcı) ittifak. */
+    public boolean dostMu(VahsiKale kale, UUID klanId) {
+        if (klanId == null) return false;
+        return kale.barisVarMi(klanId) || plugin.npcDunya().ittifakVarMi(klanId, kale.id);
+    }
+
+    private boolean dostOyuncuMu(VahsiKale kale, Player p) {
+        Klan k = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        return k != null && dostMu(kale, k.id);
+    }
+
+    private void dostHedefTemizle(VahsiKale kale, Player p) {
+        for (UUID npcId : kale.nobetciRolleri.keySet()) {
+            org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
+            if (e instanceof Mob mob && mob.isValid() && p.equals(mob.getTarget())) mob.setTarget(null);
         }
+    }
+
+    /** Vanilla Vindicator AI oyuncuları kendiliğinden hedefler: ittifaklı oyunculara (ve takviye muhafızlarının
+     *  oyunculara/Monster olmayanlara) hedef kilitlenmesi iptal edilir. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHedefSec(EntityTargetLivingEntityEvent ev) {
+        LivingEntity hedef = ev.getTarget();
+        if (hedef == null) return;
+        var pdc = ev.getEntity().getPersistentDataContainer();
+        if (pdc.has(muhafizKey, PersistentDataType.BYTE)) {
+            if (!(hedef instanceof Monster) || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
+                    || hedef.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) ev.setCancelled(true);
+            return;
+        }
+        String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
+        if (kid == null || !(hedef instanceof Player pl)) return;
+        VahsiKale kale = kaleler.get(UUID.fromString(kid));
+        if (kale != null && dostOyuncuMu(kale, pl)) ev.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onNobetciVurus(EntityDamageByEntityEvent ev) {
+        if (!(ev.getEntity() instanceof Player pl)) return;
+        var pdc = ev.getDamager().getPersistentDataContainer();
+        if (pdc.has(muhafizKey, PersistentDataType.BYTE)) { ev.setCancelled(true); return; }
+        String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
+        if (kid == null) return;
+        VahsiKale kale = kaleler.get(UUID.fromString(kid));
+        if (kale != null && dostOyuncuMu(kale, pl)) ev.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onMuhafizOlum(EntityDeathEvent ev) {
+        if (ev.getEntity().getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)) {
+            ev.getDrops().clear();
+            ev.setDroppedExp(0);
+        }
+    }
+
+    /** Takviye: NPC klanının kendi insan (giydirilmiş) muhafızları oyuncunun yanında belirir, onu takip eder,
+     *  çevredeki canavarlara saldırır ve süre bitince çekilir. Oyunculara asla saldırmazlar. */
+    public int takviyeMuhafizlariCagir(VahsiKale kale, Player sahip, int adet, int saniye) {
+        List<Vindicator> liste = new ArrayList<>();
+        String skin = null;
+        for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
+        final String skinF = skin;
+        for (int i = 0; i < adet; i++) {
+            Location l = sahip.getLocation().add(Math.random() * 4 - 2, 0, Math.random() * 4 - 2);
+            Vindicator v = l.getWorld().spawn(l, Vindicator.class);
+            v.setPersistent(false);
+            v.setRemoveWhenFarAway(false);
+            v.getPersistentDataContainer().set(muhafizKey, PersistentDataType.BYTE, (byte) 1);
+            String ad = kale.isim + " Muhafızı";
+            v.setCustomName(ChatColor.GREEN + ad);
+            v.setCustomNameVisible(true);
+            AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
+            if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
+            v.setHealth(nobetciCan(kale.seviye));
+            AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
+            if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye));
+            donatimGiydir(v, "NOBETCI");
+            if (v.getEquipment() != null) v.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
+            if (skinF != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    try { NobetciDisguiseYardimcisi.giydir(v, skinF, ad); } catch (Throwable t) { /* görünüm bozulur, işlev kalır */ }
+                });
+            }
+            liste.add(v);
+        }
+        final long bitis = System.currentTimeMillis() + saniye * 1000L;
+        Bukkit.getScheduler().runTaskTimer(plugin, gorev -> {
+            boolean bitti = !sahip.isOnline() || System.currentTimeMillis() >= bitis;
+            boolean hayatta = false;
+            for (Vindicator v : liste) {
+                if (!v.isValid()) continue;
+                if (bitti) { v.remove(); continue; }
+                hayatta = true;
+                try {
+                    if (v.getWorld() != sahip.getWorld() || v.getLocation().distanceSquared(sahip.getLocation()) > 40 * 40) {
+                        v.teleport(sahip.getLocation());
+                        continue;
+                    }
+                    LivingEntity t = v.getTarget();
+                    if (t == null || !t.isValid()) {
+                        LivingEntity en = null; double enMes = 18 * 18;
+                        for (org.bukkit.entity.Entity e : sahip.getNearbyEntities(14, 8, 14)) {
+                            if (!(e instanceof Monster m) || !m.isValid()) continue;
+                            if (m.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
+                                    || m.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) continue;
+                            double d = m.getLocation().distanceSquared(sahip.getLocation());
+                            if (d < enMes) { enMes = d; en = m; }
+                        }
+                        if (en != null) v.setTarget(en);
+                        else if (v.getLocation().distanceSquared(sahip.getLocation()) > 36) v.getPathfinder().moveTo(sahip.getLocation(), 1.2);
+                    }
+                } catch (Exception ignored) { }
+            }
+            if (bitti || !hayatta) gorev.cancel();
+        }, 20L, 20L);
+        return liste.size();
+    }
+
+    private void saldirTetikle(VahsiKale kale, Player p) {
+        if (dostOyuncuMu(kale, p)) return; // barış/ittifak: nöbetçiler saldırmaz
         for (UUID npcId : kale.nobetciRolleri.keySet()) {
             if (kale.oluNobetciler.contains(npcId)) continue;
             org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);

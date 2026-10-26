@@ -20,7 +20,6 @@ import org.bukkit.block.Chest;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.IronGolem;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -64,6 +63,7 @@ public class NpcDunyaYonetici implements Listener {
     private final Map<String, String> iliski = new LinkedHashMap<>(); // "a|b" (sıralı) -> ITTIFAK | SAVAS
     private final Map<UUID, Map<UUID, Integer>> saygi = new LinkedHashMap<>(); // klan -> kale -> saygı (anahtar var = tanışıldı)
     private final Map<UUID, long[]> takviye = new LinkedHashMap<>(); // klan -> {gunNo, sayi, sonZaman}
+    private final Map<UUID, Map<UUID, Long>> ittifaklar = new LinkedHashMap<>(); // klan -> kale -> bitiş (KALICI)
     private final Map<UUID, Long> dedikoduSon = new LinkedHashMap<>();
     private final Map<UUID, Kervan> kervanlar = new LinkedHashMap<>();
     private final Map<UUID, Enkaz> enkazlar = new LinkedHashMap<>();
@@ -77,6 +77,8 @@ public class NpcDunyaYonetici implements Listener {
         UUID kaleId; String dunya; double x, z; final List<ItemStack> esya = new ArrayList<>();
         long sonYakinlik; boolean sandikAcildi; boolean sandikYerlesti;
         int sx, sy, sz;
+        final List<String> sahne = new ArrayList<>(); // "x;y;z;konulanMalzeme;ilkBlokVerisi"
+        boolean sahneHazir;
     }
 
     public NpcDunyaYonetici(KlanSistemi plugin) {
@@ -342,6 +344,7 @@ public class NpcDunyaYonetici implements Listener {
                 e.sonYakinlik = System.currentTimeMillis();
                 // yükün yarısı enkaza kalır (sandığa gerçek eşya olarak), yarısı kaybolur
                 for (int i = 0; i < kv.esya.size(); i++) if (i % 2 == 0) e.esya.add(kv.esya.get(i));
+                if (e.esya.size() < 3) e.esya.addAll(lootUret(false, k.seviye)); // yük azsa bile sandık boş kalmasın
                 enkazlar.put(UUID.randomUUID(), e);
                 kv.esya.clear();
                 // kervan ertesi dönemde yeniden kurulur
@@ -387,6 +390,10 @@ public class NpcDunyaYonetici implements Listener {
         int y = w.getHighestBlockYAt(x, z) + 1;
         Block b = w.getBlockAt(x, y, z);
         if (!b.getType().isAir()) return;
+        if (e.esya.isEmpty()) { // eski kayıtlardan kalan boş enkaz: yine de ganimet olsun
+            VahsiKale kk = plugin.vahsiKale().kaleBul(e.kaleId);
+            e.esya.addAll(lootUret(false, kk != null ? kk.seviye : 1));
+        }
         b.setType(Material.CHEST);
         if (b.getState(false) instanceof Chest c) {
             for (ItemStack it : e.esya) c.getInventory().addItem(it); // GERÇEK kervan yükü, tek seferlik
@@ -394,13 +401,73 @@ public class NpcDunyaYonetici implements Listener {
             c.update(true, false);
         }
         e.sx = x; e.sy = y; e.sz = z; e.sandikYerlesti = true;
+        try { sahneKur(e, w, x, y, z); } catch (Exception ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "[NPC] enkaz sahnesi kurulamadı", ex); }
         kaydet();
+    }
+
+    private final org.bukkit.NamespacedKey enkazHayvanKey() { return new org.bukkit.NamespacedKey(plugin, "npc-enkaz-hayvan"); }
+
+    /** "Savaş döndü" görünümü: etrafa kırık çitler, devrilmiş yük parçaları, yırtık bez ve yaralı yük hayvanları.
+     *  Konan her bloğun önceki hali kaydedilir; enkaz silinince geri yüklenir. */
+    private void sahneKur(Enkaz e, World w, int cx, int cy, int cz) {
+        if (e.sahneHazir) return;
+        e.sahneHazir = true;
+        Material[] parca = {Material.OAK_FENCE, Material.OAK_FENCE, Material.OAK_FENCE, Material.OAK_FENCE, Material.OAK_FENCE,
+                Material.OAK_SLAB, Material.OAK_SLAB, Material.OAK_TRAPDOOR, Material.BROWN_CARPET, Material.WHITE_CARPET, Material.COBWEB};
+        int hedef = 8 + rng.nextInt(4), konan = 0, deneme = 0;
+        while (konan < hedef && deneme++ < 60) {
+            int x = cx + rng.nextInt(11) - 5, z = cz + rng.nextInt(11) - 5;
+            if ((x == cx && z == cz) || !w.isChunkLoaded(x >> 4, z >> 4)) continue;
+            int y = w.getHighestBlockYAt(x, z);
+            Block zemin = w.getBlockAt(x, y, z);
+            if (!zemin.getType().isSolid() || zemin.isLiquid()) continue;
+            Block ust = w.getBlockAt(x, y + 1, z);
+            if (!(ust.getType().isAir() || ust.getType() == Material.SHORT_GRASS)) continue;
+            Material m = parca[rng.nextInt(parca.length)];
+            String ilk = ust.getBlockData().getAsString();
+            ust.setType(m, false);
+            if (m == Material.OAK_SLAB || m == Material.OAK_TRAPDOOR) { /* varsayılan veri yeterli: devrilmiş parça */ }
+            e.sahne.add(x + ";" + (y + 1) + ";" + z + ";" + m.name() + ";" + ilk);
+            konan++;
+        }
+        // yaralı yük hayvanları (ceset yok; sağ ve ayakta ama zayıf)
+        org.bukkit.entity.EntityType[] hayvan = {org.bukkit.entity.EntityType.DONKEY, org.bukkit.entity.EntityType.MULE, org.bukkit.entity.EntityType.LLAMA};
+        int adet = 1 + rng.nextInt(2);
+        for (int i = 0; i < adet; i++) {
+            Location l = new Location(w, cx + 0.5 + rng.nextInt(5) - 2, cy, cz + 0.5 + rng.nextInt(5) - 2);
+            if (!w.getBlockAt(l).getType().isAir()) l = new Location(w, cx + 0.5, cy + 1, cz + 3.5);
+            org.bukkit.entity.Entity h = w.spawnEntity(l, hayvan[rng.nextInt(hayvan.length)]);
+            h.setPersistent(false); // chunk boşalınca kendiliğinden gider
+            h.getPersistentDataContainer().set(enkazHayvanKey(), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+            if (h instanceof org.bukkit.entity.LivingEntity le) {
+                var mx = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                double max = mx != null ? mx.getValue() : 20;
+                le.setHealth(Math.max(1, max * 0.35));
+                le.setCustomName(ChatColor.GRAY + "Yaralı yük hayvanı");
+            }
+        }
+    }
+
+    private void sahneTemizle(Enkaz e, World w) {
+        for (String kayit : e.sahne) {
+            try {
+                String[] a = kayit.split(";", 5);
+                int x = Integer.parseInt(a[0]), y = Integer.parseInt(a[1]), z = Integer.parseInt(a[2]);
+                if (!w.isChunkLoaded(x >> 4, z >> 4)) continue; // yüklü değil: kalıntı zararsız, atlanır
+                Block b = w.getBlockAt(x, y, z);
+                if (b.getType().name().equals(a[3])) b.setBlockData(Bukkit.createBlockData(a[4]), false);
+            } catch (Exception ignored) { }
+        }
+        e.sahne.clear();
+        for (org.bukkit.entity.Entity en : w.getNearbyEntities(new Location(w, e.x, e.sy, e.z), 20, 20, 20))
+            if (en.getPersistentDataContainer().has(enkazHayvanKey(), org.bukkit.persistence.PersistentDataType.BYTE)) en.remove();
     }
 
     private void sandikTemizle(Enkaz e) {
         if (e == null || !e.sandikYerlesti) return;
         World w = Bukkit.getWorld(e.dunya);
         if (w == null) return;
+        sahneTemizle(e, w);
         Block b = w.getBlockAt(e.sx, e.sy, e.sz);
         if (b.getType() == Material.CHEST) {
             if (b.getState(false) instanceof Chest c) c.getInventory().clear(); // eşya yere dökülmez - dupe/çöp yok
@@ -478,14 +545,43 @@ public class NpcDunyaYonetici implements Listener {
         kaydet();
     }
 
+    // ------------------------------------------------------------------ İTTİFAK (kalıcı)
+    public boolean ittifakVarMi(UUID klanId, UUID kaleId) {
+        Map<UUID, Long> m;
+        synchronized (this) { m = ittifaklar.get(klanId); }
+        if (m == null) return false;
+        Long b = m.get(kaleId);
+        return b != null && b > System.currentTimeMillis();
+    }
+
     private int seviyeOf(int saygiPuan) { return Math.max(0, saygiPuan / 50); }
 
     private static class Sahip implements InventoryHolder {
-        final UUID klanId; final Map<Integer, UUID> slotKale = new LinkedHashMap<>(); Inventory env;
+        final UUID klanId; UUID kaleId; // kaleId null = üst menü (klan listesi)
+        final Map<Integer, UUID> slotKale = new LinkedHashMap<>();
+        final Map<Integer, String> slotEylem = new LinkedHashMap<>();
+        Inventory env;
         Sahip(UUID k) { klanId = k; }
         @Override public Inventory getInventory() { return env; }
     }
 
+    private ItemStack oge(Material m, String ad, List<String> lore) {
+        ItemStack it = new ItemStack(m);
+        ItemMeta meta = it.getItemMeta();
+        meta.setDisplayName(ad);
+        meta.setLore(lore);
+        it.setItemMeta(meta);
+        return it;
+    }
+
+    private void cerceve(Inventory env) {
+        ItemStack cam = oge(Material.BLACK_STAINED_GLASS_PANE, " ", new ArrayList<>());
+        for (int i = 0; i < env.getSize(); i++) if (env.getItem(i) == null) env.setItem(i, cam);
+    }
+
+    private boolean dostMu(VahsiKale k, UUID klanId) { return plugin.vahsiKale().dostMu(k, klanId); }
+
+    /** ÜST MENÜ: tanışılan NPC klanları (kılıç simgesi + isim). Tıklayınca o klanın alt menüsü açılır. */
     public void panelAc(Player p) {
         Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (klan == null) { p.sendMessage(ChatColor.RED + "Bir klanda değilsiniz."); return; }
@@ -496,28 +592,71 @@ public class NpcDunyaYonetici implements Listener {
         for (Map.Entry<UUID, Integer> en : saygilar(klan).entrySet()) {
             VahsiKale k = plugin.vahsiKale().kaleBul(en.getKey());
             if (k == null || k.fethedildi || slot >= 45) continue;
-            ItemStack it = new ItemStack(Material.IRON_SWORD);
-            ItemMeta m = it.getItemMeta();
-            m.setDisplayName(ChatColor.GOLD + k.isim + ChatColor.GRAY + " (Sv " + k.seviye + ")");
-            List<String> lore = new ArrayList<>();
             int sp = en.getValue();
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Seviye: " + ChatColor.WHITE + k.seviye + ChatColor.GRAY + "  Güç: " + ChatColor.WHITE + gucu(k));
             lore.add(ChatColor.GRAY + "Saygı: " + ChatColor.YELLOW + sp + ChatColor.GRAY + " (seviye " + seviyeOf(sp) + ")");
-            lore.add(ChatColor.GRAY + "Güç: " + ChatColor.WHITE + gucu(k));
-            boolean ittifak = k.barisVarMi(klan.id);
-            lore.add(ChatColor.GRAY + "Durum: " + (ittifak ? ChatColor.GREEN + "İttifak" : ChatColor.RED + "Gergin"));
+            lore.add(ChatColor.GRAY + "Durum: " + (dostMu(k, klan.id) ? ChatColor.GREEN + "İttifak" : ChatColor.RED + "Gergin"));
             lore.add("");
-            lore.add(ChatColor.YELLOW + "Sol tık: Haraç öde (" + Para.yaz(haracUcreti(k)) + ", +15 saygı)");
-            lore.add(ChatColor.YELLOW + "Sağ tık: Eşya görevi (" + gorevMiktar(k) + " " + gorevEsya(k).name() + ", +25 saygı)");
-            lore.add(ChatColor.YELLOW + "Shift+Sol: Takviye çağır (saygı ≥ 50, " + Para.yaz(takviyeUcreti(k)) + ")");
-            lore.add(ChatColor.YELLOW + "Shift+Sağ: İttifak (saygı ≥ 100)");
-            lore.add(ChatColor.YELLOW + "Q (eşyayı at tuşu): Zindan temizleme görevi (+40 saygı)");
-            m.setLore(lore);
-            it.setItemMeta(m);
-            env.setItem(slot, it);
+            lore.add(ChatColor.YELLOW + "► Görev, haraç, takviye ve ittifak için tıkla");
+            env.setItem(slot, oge(Material.IRON_SWORD, ChatColor.GOLD + k.isim + ChatColor.GRAY + " (Sv " + k.seviye + ")", lore));
             s.slotKale.put(slot, k.id);
             slot++;
         }
-        if (slot == 0) p.sendMessage(ChatColor.GRAY + "Henüz tanıştığınız bir NPC klanı yok (bir kaleyle temas edince listelenir).");
+        if (slot == 0) env.setItem(22, oge(Material.BARRIER, ChatColor.GRAY + "Henüz tanıştığınız NPC klanı yok",
+                List.of(ChatColor.GRAY + "Bir Vahşi Kale'ye yaklaşınca", ChatColor.GRAY + "o klanla tanışırsınız.")));
+        env.setItem(49, oge(Material.ARROW, ChatColor.YELLOW + "Klan Menüsüne Dön", List.of()));
+        s.slotEylem.put(49, "ana");
+        cerceve(env);
+        p.openInventory(env);
+    }
+
+    /** ALT MENÜ: seçilen NPC klanıyla yapılabilecekler (hepsi fareyle). */
+    private void altMenuAc(Player p, Klan klan, VahsiKale k) {
+        Sahip s = new Sahip(klan.id);
+        s.kaleId = k.id;
+        Inventory env = Bukkit.createInventory(s, 27, ChatColor.DARK_RED + k.isim + " ► NPC Klanı");
+        s.env = env;
+        int sp = saygilar(klan).getOrDefault(k.id, 0);
+        boolean dost = dostMu(k, klan.id);
+        env.setItem(4, oge(Material.IRON_SWORD, ChatColor.GOLD + "" + ChatColor.BOLD + k.isim,
+                List.of(ChatColor.GRAY + "Saygı: " + ChatColor.YELLOW + sp + ChatColor.GRAY + " (seviye " + seviyeOf(sp) + ")",
+                        ChatColor.GRAY + "Güç: " + ChatColor.WHITE + gucu(k) + ChatColor.GRAY + "  Seviye: " + ChatColor.WHITE + k.seviye,
+                        ChatColor.GRAY + "Durum: " + (dost ? ChatColor.GREEN + "İttifak" : ChatColor.RED + "Gergin"))));
+        env.setItem(10, oge(Material.GOLD_INGOT, ChatColor.GOLD + "" + ChatColor.BOLD + "Haraç Öde",
+                List.of(ChatColor.GRAY + "Klan kasasından " + ChatColor.GREEN + Para.yaz(haracUcreti(k)) + ChatColor.GRAY + " ödenir.",
+                        ChatColor.GRAY + "Kazanç: " + ChatColor.YELLOW + "+15 saygı", ChatColor.DARK_GRAY + "(Lider/yardımcı)",
+                        "", ChatColor.YELLOW + "► Tıkla")));
+        s.slotEylem.put(10, "harac");
+        env.setItem(11, oge(gorevEsya(k), ChatColor.AQUA + "" + ChatColor.BOLD + "Eşya Görevi",
+                List.of(ChatColor.GRAY + "Teslim: " + ChatColor.WHITE + gorevMiktar(k) + " " + gorevEsya(k).name(),
+                        ChatColor.GRAY + "Kazanç: " + ChatColor.YELLOW + "+25 saygı", "", ChatColor.YELLOW + "► Envanterinden teslim et")));
+        s.slotEylem.put(11, "esya");
+        String[] g = zindanGorev.get(klan.id);
+        List<String> zl = new ArrayList<>();
+        zl.add(ChatColor.GRAY + "Bir zindanın boss'unu düşürün.");
+        zl.add(ChatColor.GRAY + "Kazanç: " + ChatColor.YELLOW + "+40 saygı");
+        if (g != null) zl.add(ChatColor.GREEN + "Aktif: " + g[2] + " @ " + g[4] + ", " + g[5] + ", " + g[6]);
+        zl.add(""); zl.add(ChatColor.YELLOW + "► " + (g != null ? "Görevi göster" : "Görev al"));
+        env.setItem(12, oge(Material.WITHER_SKELETON_SKULL, ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "Zindan Görevi", zl));
+        s.slotEylem.put(12, "zindan");
+        boolean tak = sp >= 50;
+        env.setItem(14, oge(Material.IRON_HELMET, ChatColor.GREEN + "" + ChatColor.BOLD + "Takviye Çağır",
+                List.of(ChatColor.GRAY + "5 dk boyunca " + ChatColor.WHITE + dk("takviye-muhafiz-sayisi", 5) + ChatColor.GRAY + " muhafız yanında savaşır.",
+                        ChatColor.GRAY + "Ücret: " + ChatColor.GREEN + Para.yaz(takviyeUcreti(k)) + ChatColor.GRAY + " (kasa)",
+                        ChatColor.GRAY + "Gerek: saygı ≥ 50 " + (tak ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
+                        ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
+        s.slotEylem.put(14, "takviye");
+        boolean itf = sp >= 100;
+        env.setItem(15, oge(dost ? Material.LIME_BANNER : Material.WHITE_BANNER, ChatColor.WHITE + "" + ChatColor.BOLD + "İttifak Kur",
+                List.of(ChatColor.GRAY + "7 gün: nöbetçiler saldırmaz, uyarı gelmez.",
+                        ChatColor.GRAY + "Gerek: saygı ≥ 100 " + (itf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
+                        dost ? ChatColor.GREEN + "Şu an ittifak var (yenilemek için tıkla)." : "",
+                        ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
+        s.slotEylem.put(15, "ittifak");
+        env.setItem(22, oge(Material.ARROW, ChatColor.YELLOW + "Geri", List.of()));
+        s.slotEylem.put(22, "geri");
+        cerceve(env);
         p.openInventory(env);
     }
 
@@ -531,25 +670,34 @@ public class NpcDunyaYonetici implements Listener {
         if (!(ev.getInventory().getHolder() instanceof Sahip s)) return;
         ev.setCancelled(true);
         if (!(ev.getWhoClicked() instanceof Player p)) return;
-        UUID kaleId = s.slotKale.get(ev.getRawSlot());
-        if (kaleId == null) return;
-        VahsiKale k = plugin.vahsiKale().kaleBul(kaleId);
+        if (ev.getClickedInventory() == null || ev.getClickedInventory() != ev.getInventory()) return;
+        if (ev.getClick() != org.bukkit.event.inventory.ClickType.LEFT && ev.getClick() != org.bukkit.event.inventory.ClickType.RIGHT) return;
         Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
-        if (k == null || klan == null || !klan.id.equals(s.klanId)) { p.closeInventory(); return; }
+        if (klan == null || !klan.id.equals(s.klanId)) { p.closeInventory(); return; }
+        int slot = ev.getRawSlot();
+        if (s.kaleId == null) { // üst menü
+            if ("ana".equals(s.slotEylem.get(slot))) { plugin.menu().anaMenu(p); return; }
+            UUID kaleId = s.slotKale.get(slot);
+            VahsiKale k = kaleId == null ? null : plugin.vahsiKale().kaleBul(kaleId);
+            if (k != null && !k.fethedildi) altMenuAc(p, klan, k);
+            return;
+        }
+        String eylem = s.slotEylem.get(slot);
+        if (eylem == null) return;
+        if ("geri".equals(eylem)) { panelAc(p); return; }
+        VahsiKale k = plugin.vahsiKale().kaleBul(s.kaleId);
+        if (k == null || k.fethedildi) { panelAc(p); return; }
         KlanUyesi ben = klan.uyeler.get(p.getUniqueId());
         boolean yetkili = ben != null && ben.rol != Rol.UYE;
-        if (ev.getClick().isShiftClick()) {
-            if (!yetkili) { p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); return; }
-            if (ev.getClick().isLeftClick()) takviyeCagir(p, klan, k); else ittifakKur(p, klan, k);
-        } else if (ev.getClick() == org.bukkit.event.inventory.ClickType.DROP || ev.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
-            zindanGorevi(p, klan, k);
-        } else if (ev.getClick().isLeftClick()) {
-            if (!yetkili) { p.sendMessage(ChatColor.RED + "Haraç için lider/yardımcı olmalısın (kasadan ödenir)."); return; }
-            harac(p, klan, k);
-        } else if (ev.getClick().isRightClick()) {
-            esyaGorevi(p, klan, k);
+        switch (eylem) {
+            case "harac" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Haraç için lider/yardımcı olmalısın (kasadan ödenir)."); else harac(p, klan, k); }
+            case "esya" -> esyaGorevi(p, klan, k);
+            case "zindan" -> zindanGorevi(p, klan, k);
+            case "takviye" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); else takviyeCagir(p, klan, k); }
+            case "ittifak" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); else ittifakKur(p, klan, k); }
+            default -> { }
         }
-        panelAc(p);
+        if (p.getOpenInventory().getTopInventory().getHolder() == s) altMenuAc(p, klan, k); // güncel değerlerle yenile
     }
 
     // ------------------------------------------------------------------ ZİNDAN GÖREVİ (Arena-Ligi bağlantısı)
@@ -640,8 +788,11 @@ public class NpcDunyaYonetici implements Listener {
 
     private void ittifakKur(Player p, Klan klan, VahsiKale k) {
         if (saygilar(klan).getOrDefault(k.id, 0) < 100) { p.sendMessage(ChatColor.RED + "İttifak için en az 100 saygı gerekir."); return; }
-        k.barisAnlasmalari.put(klan.id, System.currentTimeMillis() + 7L * 24 * 3_600_000L); // mevcut barış mekanizması: 7 gün
-        p.sendMessage(ChatColor.GREEN + k.isim + " ile 7 günlük ittifak kuruldu (nöbetçiler saldırmaz).");
+        long bitis = System.currentTimeMillis() + 7L * 24 * 3_600_000L;
+        k.barisAnlasmalari.put(klan.id, bitis);
+        synchronized (this) { ittifaklar.computeIfAbsent(klan.id, i -> new LinkedHashMap<>()).put(k.id, bitis); }
+        kaydet(); // yeniden başlatmada kaybolmasın
+        p.sendMessage(ChatColor.GREEN + k.isim + " ile 7 günlük ittifak kuruldu (nöbetçiler saldırmaz, uyarı gelmez).");
     }
 
     private void takviyeCagir(Player p, Klan klan, VahsiKale k) {
@@ -658,17 +809,10 @@ public class NpcDunyaYonetici implements Listener {
         plugin.veri().kaydet();
         plugin.log().yaz(klan, p.getName(), "NPC TAKVIYE", Para.yaz(u) + " -> " + k.isim + " (kasa: " + Para.yaz(klan.kasa) + ")");
         t[1]++; t[2] = simdi;
-        int adet = Math.min(4, 1 + k.seviye / 2);
-        for (int i = 0; i < adet; i++) {
-            Location l = p.getLocation().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2);
-            IronGolem g = p.getWorld().spawn(l, IronGolem.class);
-            g.setPlayerCreated(true); // oyunculara saldırmaz
-            g.setCustomName(ChatColor.GREEN + k.isim + " Takviyesi");
-            Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!g.isDead()) g.remove(); }, 20L * 60 * 5);
-        }
+        int adet = plugin.vahsiKale().takviyeMuhafizlariCagir(k, p, dk("takviye-muhafiz-sayisi", 5), 300);
         hazine.put(k.id, hazinesi(k) + u);
         kaydet();
-        p.sendMessage(ChatColor.GREEN + k.isim + " " + adet + " savaşçı gönderdi (5 dk).");
+        p.sendMessage(ChatColor.GREEN + k.isim + " " + adet + " muhafız gönderdi (5 dk).");
         p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 1f, 1f);
     }
 
@@ -714,6 +858,14 @@ public class NpcDunyaYonetici implements Listener {
                     List<String> v = zg.getStringList(k);
                     if (v.size() == 7) zindanGorev.put(UUID.fromString(k), v.toArray(new String[0]));
                 }
+                ConfigurationSection it = y.getConfigurationSection("ittifak");
+                if (it != null) for (String kl : it.getKeys(false)) {
+                    ConfigurationSection m = it.getConfigurationSection(kl);
+                    if (m == null) continue;
+                    Map<UUID, Long> mm = new LinkedHashMap<>();
+                    for (String ka : m.getKeys(false)) mm.put(UUID.fromString(ka), m.getLong(ka));
+                    ittifaklar.put(UUID.fromString(kl), mm);
+                }
                 ConfigurationSection i = y.getConfigurationSection("iliski");
                 if (i != null) for (String k : i.getKeys(false)) iliski.put(k.replace('_', '|'), i.getString(k));
                 ConfigurationSection sg = y.getConfigurationSection("saygi");
@@ -739,6 +891,7 @@ public class NpcDunyaYonetici implements Listener {
                     for (Object o : en.getList(k + ".esya", new ArrayList<>())) if (o instanceof ItemStack is) e.esya.add(is);
                     e.sonYakinlik = en.getLong(k + ".son"); e.sandikAcildi = en.getBoolean(k + ".acildi"); e.sandikYerlesti = en.getBoolean(k + ".yerlesti");
                     e.sx = en.getInt(k + ".sx"); e.sy = en.getInt(k + ".sy"); e.sz = en.getInt(k + ".sz");
+                    e.sahne.addAll(en.getStringList(k + ".sahne")); e.sahneHazir = en.getBoolean(k + ".sahnehazir");
                     enkazlar.put(UUID.fromString(k), e);
                 }
             }
@@ -756,6 +909,7 @@ public class NpcDunyaYonetici implements Listener {
             hazine.forEach((k, v) -> y.set("hazine." + k, v));
             hazineEsya.forEach((k, v) -> y.set("hazine-esya." + k, v));
             zindanGorev.forEach((k, v) -> y.set("zindan-gorev." + k, java.util.Arrays.asList(v)));
+            ittifaklar.forEach((kl, m) -> m.forEach((ka, v) -> y.set("ittifak." + kl + "." + ka, v)));
             iliski.forEach((k, v) -> y.set("iliski." + k.replace('|', '_'), v));
             saygi.forEach((kl, m) -> m.forEach((ka, v) -> y.set("saygi." + kl + "." + ka, v)));
             kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); y.set("kervan." + k + ".kaynak", v.kaynakKey); y.set("kervan." + k + ".hedef", v.hedefKey); y.set("kervan." + k + ".kx", v.kx); y.set("kervan." + k + ".kz", v.kz); y.set("kervan." + k + ".koygordu", v.koyGordu); });
@@ -763,6 +917,7 @@ public class NpcDunyaYonetici implements Listener {
                 String p = "enkaz." + k;
                 y.set(p + ".kale", e.kaleId.toString()); y.set(p + ".dunya", e.dunya); y.set(p + ".x", e.x); y.set(p + ".z", e.z); y.set(p + ".esya", e.esya);
                 y.set(p + ".son", e.sonYakinlik); y.set(p + ".acildi", e.sandikAcildi); y.set(p + ".yerlesti", e.sandikYerlesti);
+                y.set(p + ".sahne", e.sahne); y.set(p + ".sahnehazir", e.sahneHazir);
                 y.set(p + ".sx", e.sx); y.set(p + ".sy", e.sy); y.set(p + ".sz", e.sz);
             });
             File gecici = new File(plugin.getDataFolder(), "npc_dunya.yml.tmp");

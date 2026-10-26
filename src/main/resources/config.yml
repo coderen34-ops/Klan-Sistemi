@@ -300,6 +300,7 @@ npc:
   dedikodu-bahsis: 200
   dedikodu-cooldown-dakika: 12
   takviye-gunluk-limit: 2
+  takviye-muhafiz-sayisi: 5
   takviye-cooldown-dakika: 30
 
 mesajlar:
