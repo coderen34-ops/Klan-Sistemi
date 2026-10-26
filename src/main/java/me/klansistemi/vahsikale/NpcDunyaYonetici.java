@@ -802,16 +802,16 @@ public class NpcDunyaYonetici implements Listener {
             kv.varliklar.add(h.getUniqueId());
         }
         // Tüccar: sağ tıkla kervanın GERÇEK stokuyla (kv.esya) sunucu ekonomisinde ticaret
-        org.bukkit.entity.Villager t = (org.bukkit.entity.Villager) w.spawnEntity(b.clone().add(1, 0, 1), org.bukkit.entity.EntityType.VILLAGER);
-        t.setPersistent(false);
-        t.setRemoveWhenFarAway(false);
-        t.setProfession(org.bukkit.entity.Villager.Profession.NITWIT);
-        t.setRecipes(new ArrayList<>());
-        t.setCustomName(ChatColor.GOLD + k.isim + " Tüccarı");
-        t.setCustomNameVisible(true);
-        t.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
-        t.getPersistentDataContainer().set(tuccarKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
-        kv.varliklar.add(t.getUniqueId());
+        org.bukkit.entity.Villager tc = (org.bukkit.entity.Villager) w.spawnEntity(b.clone().add(1, 0, 1), org.bukkit.entity.EntityType.VILLAGER);
+        tc.setPersistent(false);
+        tc.setRemoveWhenFarAway(false);
+        tc.setProfession(org.bukkit.entity.Villager.Profession.NITWIT);
+        tc.setRecipes(new ArrayList<>());
+        tc.setCustomName(ChatColor.GOLD + k.isim + " Tüccarı");
+        tc.setCustomNameVisible(true);
+        tc.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
+        tc.getPersistentDataContainer().set(tuccarKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        kv.varliklar.add(tc.getUniqueId());
     }
 
     // ------------------------------------------------------------------ KERVAN TÜCCARI (oyuncu-NPC doğrudan ticaret)
