@@ -201,7 +201,7 @@ public class BolgeManager implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         if (korumaIhlali(event.getPlayer(), event.getBlock().getChunk())) {
             event.setCancelled(true);
-            m().gonder(event.getPlayer(), "bolge-korunuyor", "&cBurası başka bir klanın bölgesi! (Sadece aktif savaştaysan bloklara zarar verebilirsin)");
+            m().gonder(event.getPlayer(), "bolge-korunuyor", "&cBurası başka bir klanın bölgesi! Blok kırma/koyma korumalıdır (savaşta bile).");
         }
     }
 
@@ -209,7 +209,7 @@ public class BolgeManager implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         if (korumaIhlali(event.getPlayer(), event.getBlock().getChunk())) {
             event.setCancelled(true);
-            m().gonder(event.getPlayer(), "bolge-korunuyor", "&cBurası başka bir klanın bölgesi! (Sadece aktif savaştaysan bloklara zarar verebilirsin)");
+            m().gonder(event.getPlayer(), "bolge-korunuyor", "&cBurası başka bir klanın bölgesi! Blok kırma/koyma korumalıdır (savaşta bile).");
         }
     }
 
@@ -222,12 +222,29 @@ public class BolgeManager implements Listener {
         Klan oyuncuKlani = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (oyuncuKlani != null && oyuncuKlani.id.equals(sahipId)) return false; // kendi klanının bölgesi
 
-        // Klansız biri ya da farklı klandan biri: sadece sahip klana karşı AKTİF savaşı varsa izinli
-        if (oyuncuKlani == null) return true;
-        for (Savas s : plugin.savas().aktifSavaslar()) {
-            if (s.durum == Savas.Durum.AKTIF && s.taraf(oyuncuKlani.id) && s.taraf(sahipId)) return false;
-        }
+        // Karar (Faz 4): savaşta PvP, eşya çalma ve kasa açma serbest ama blok kırma/koyma korumalı kalır
+        // (yapılara zarar verilemez). Bu yüzden aktif savaş artık blok korumasını KALDIRMAZ.
         return true;
+    }
+
+    /** Claim aleti (özel etiketli Nether Yıldızı) HİÇBİR tarifte (fener dahil) malzeme olarak kullanılamaz; etiketsiz Nether Yıldızı etkilenmez. */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onAletTarifi(org.bukkit.event.inventory.PrepareItemCraftEvent event) {
+        for (ItemStack it : event.getInventory().getMatrix()) {
+            if (aletMi(it)) { event.getInventory().setResult(null); return; }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onAletDemirci(org.bukkit.event.inventory.PrepareSmithingEvent event) {
+        for (ItemStack it : event.getInventory().getContents()) {
+            if (aletMi(it)) { event.setResult(null); return; }
+        }
+    }
+
+    private boolean aletMi(ItemStack it) {
+        return it != null && it.getType() == Material.NETHER_STAR && it.hasItemMeta()
+                && it.getItemMeta().getPersistentDataContainer().has(aletKey, PersistentDataType.BYTE);
     }
 
     // ------------------------------------------------------------------
