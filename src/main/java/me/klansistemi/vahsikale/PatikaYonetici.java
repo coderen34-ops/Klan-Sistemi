@@ -86,20 +86,37 @@ public class PatikaYonetici implements Listener {
         Location f = ev.getFrom(), t = ev.getTo();
         if (t == null || (f.getBlockX() == t.getBlockX() && f.getBlockZ() == t.getBlockZ())) return; // sadece tam blok degisimi
         Player p = ev.getPlayer();
-        if (p.isFlying() || p.isGliding() || p.isSwimming()) return;
+        if (p.isFlying() || p.isGliding() || p.isSwimming() || p.isInsideVehicle()) return;
+        islem(p, p, t);
+    }
+
+    /** Binekte (at, katır, eşek, domuz...) giderken de patika sayılır ve hız bonusu bineğe verilir. */
+    @EventHandler(ignoreCancelled = true)
+    public void onBinekHareket(org.bukkit.event.vehicle.VehicleMoveEvent ev) {
+        if (!aktif() || !yuklendi) return;
+        if (!(ev.getVehicle() instanceof org.bukkit.entity.LivingEntity binek)) return; // tekne/vagon sayılmaz
+        Location f = ev.getFrom(), t = ev.getTo();
+        if (f.getBlockX() == t.getBlockX() && f.getBlockZ() == t.getBlockZ()) return;
+        Player p = null;
+        for (org.bukkit.entity.Entity e : binek.getPassengers()) if (e instanceof Player pl) { p = pl; break; }
+        if (p == null) return;
+        islem(p, binek, t);
+    }
+
+    private void islem(Player p, org.bukkit.entity.LivingEntity hizAlan, Location t) {
         World w = t.getWorld();
         if (w == null || w.getEnvironment() != World.Environment.NORMAL) return;
         Block zemin = t.getBlock().getRelative(BlockFace.DOWN);
         Material m = zemin.getType();
         if (m != Material.GRASS_BLOCK && m != Material.DIRT && m != Material.COARSE_DIRT && m != Material.DIRT_PATH && m != Material.GRAVEL) return;
         Kayit k = sayacArtir(zemin, 1, p.getUniqueId());
-        if (k != null && k.asama >= 2 && !k.yasak) hizBonusu(p);
+        if (k != null && k.asama >= 2 && !k.yasak) hizBonusu(hizAlan);
     }
 
-    private void hizBonusu(Player p) {
-        PotionEffect cur = p.getPotionEffect(PotionEffectType.SPEED);
+    private void hizBonusu(org.bukkit.entity.LivingEntity e) {
+        PotionEffect cur = e.getPotionEffect(PotionEffectType.SPEED);
         if (cur == null || (cur.getAmplifier() == 1 && cur.getDuration() <= 40)) {
-            p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 50, 1, true, false, false)); // Speed II, kisa sureli (hafif)
+            e.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 50, 1, true, false, false)); // Speed II, kisa sureli (hafif)
         }
     }
 

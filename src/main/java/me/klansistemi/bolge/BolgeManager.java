@@ -10,6 +10,7 @@ import me.klansistemi.savas.Savas;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
+import org.bukkit.World;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
@@ -82,6 +83,15 @@ public class BolgeManager implements Listener {
     }
 
     private Mesaj m() { return plugin.mesaj(); }
+
+    /** (x,z) etrafındaki yarıçap içinde herhangi bir klan bölgesi chunk'ı var mı (yol/han/kervan korumaları için). */
+    public synchronized boolean claimVarMi(World w, int x, int z, int yaricap) {
+        if (claimler.isEmpty()) return false;
+        for (int cx = (x - yaricap) >> 4; cx <= (x + yaricap) >> 4; cx++)
+            for (int cz = (z - yaricap) >> 4; cz <= (z + yaricap) >> 4; cz++)
+                if (claimler.containsKey(new ChunkAnahtari(w.getName(), cx, cz))) return true;
+        return false;
+    }
 
     // ------------------------------------------------------------------
     // Komutlar: /klan bolge <alet|bilgi|liste>

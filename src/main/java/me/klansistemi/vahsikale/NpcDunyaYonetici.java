@@ -72,7 +72,18 @@ public class NpcDunyaYonetici implements Listener {
         double x, z; boolean enkaz; final List<ItemStack> esya = new ArrayList<>();
         String kaynakKey, hedefKey; double kx, kz; boolean koyGordu;
         final List<UUID> varliklar = new ArrayList<>(); // görünür kervan entity'leri (kalıcı DEĞİL)
+        int muhafiz = -1;               // -1 = kale seviyesine göre varsayılan; yolda kayıp verebilir
+        double sonX, sonZ; int takilma; // görünür kervan takılma sayacı (kalıcı değil)
     }
+
+    private static final class DKoy { String dunya; double x, z; }
+    private final List<DKoy> dogalKoyler = new ArrayList<>();            // Minecraft'ın doğal köyleri (keşfedildikçe)
+    private final Map<UUID, Long> koyAramaSon = new LinkedHashMap<>();   // kale -> son köy arama zamanı
+    private final Map<UUID, long[]> kervanIpucu = new LinkedHashMap<>(); // kale -> {adet, pencereBaşı}
+    private final Map<UUID, Long> bilgiSon = new LinkedHashMap<>();      // oyuncu -> hancı bilgi cooldown
+
+    private static final class Takviye { UUID kaleId, sahip; long sonUcret; }
+    private final Map<UUID, Takviye> aktifTakviyeler = new LinkedHashMap<>(); // klan -> aktif takviye (kalıcı DEĞİL)
 
     private static class Enkaz {
         UUID kaleId; String dunya; double x, z; final List<ItemStack> esya = new ArrayList<>();
@@ -268,10 +279,54 @@ public class NpcDunyaYonetici implements Listener {
         for (VahsiKale k : aktifKaleler()) {
             if (k.merkez.getWorld().equals(w)) l.add(new Dugum("kale:" + k.id, k.merkez.getX(), k.merkez.getZ(), false));
         }
-        double[] koy = YasakAlan.koyDikdortgeniGetir();
-        String kd = YasakAlan.koyDunyasiGetir();
-        if (koy != null && kd != null && kd.equals(w.getName())) l.add(new Dugum("koy", (koy[0] + koy[1]) / 2, (koy[2] + koy[3]) / 2, true));
+        // Kervanlar bizim köyümüze/claim'lerimize DEĞİL, Minecraft'ın doğal köylerine gider
+        for (DKoy d : dogalKoyler) if (d.dunya.equals(w.getName())) l.add(new Dugum("v:" + (int) d.x + ":" + (int) d.z, d.x, d.z, true));
         return l;
+    }
+
+    /** Rota boyunca köy/claim/klan bölgesi var mı (kervan oralara uğramasın). */
+    private boolean rotaTemiz(World w, double x1, double z1, double x2, double z2) {
+        double uz = Math.hypot(x2 - x1, z2 - z1);
+        int adim = (int) Math.max(1, uz / 48);
+        for (int i = 0; i <= adim; i++) {
+            int px = (int) (x1 + (x2 - x1) * i / adim), pz = (int) (z1 + (z2 - z1) * i / adim);
+            if (YasakAlan.koyaDegiyor(w, px, pz, 100)) return false;
+            if (YasakAlan.claimeDegiyor(w, px, pz, 32)) return false;
+        }
+        return true;
+    }
+
+    /** Her çağrıda en fazla bir doğal köy araması (locate ağır olabilir); kale başına 6 saatte bir. */
+    private void koyKesfet() {
+        long simdi = System.currentTimeMillis();
+        for (VahsiKale k : aktifKaleler()) {
+            World w = k.merkez.getWorld();
+            Long son = koyAramaSon.get(k.id);
+            if (son != null && simdi - son < 6L * 3_600_000L) continue;
+            koyAramaSon.put(k.id, simdi);
+            int yakin = 0;
+            for (DKoy d : dogalKoyler) if (d.dunya.equals(w.getName()) && Math.hypot(d.x - k.merkez.getX(), d.z - k.merkez.getZ()) < 2500) yakin++;
+            Location kaynak = k.merkez.clone();
+            if (yakin > 0) { // ilk köy biliniyorsa ağı genişletmek için kaleden uzak bir noktadan ara
+                double aci = rng.nextDouble() * Math.PI * 2, d = 1200 + rng.nextDouble() * 800;
+                kaynak.add(Math.cos(aci) * d, 0, Math.sin(aci) * d);
+            }
+            try {
+                var r = w.locateNearestStructure(kaynak, org.bukkit.generator.structure.StructureType.VILLAGE, 64, false);
+                if (r == null) return;
+                Location l = r.getLocation();
+                int x = l.getBlockX(), z = l.getBlockZ();
+                if (YasakAlan.engelliMi(w, x, z, 80)) return; // bizim köy / claim / klan bölgesi: kervan oraya gitmesin
+                for (DKoy d : dogalKoyler) if (d.dunya.equals(w.getName()) && Math.hypot(d.x - x, d.z - z) < 200) return;
+                DKoy n = new DKoy(); n.dunya = w.getName(); n.x = x; n.z = z;
+                dogalKoyler.add(n);
+                plugin.getLogger().info("[NPC] doğal köy keşfedildi: " + w.getName() + " " + x + "," + z);
+                kaydet();
+            } catch (Throwable t) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "[NPC] köy arama hatası (atlandı)", t);
+            }
+            return;
+        }
     }
 
     private static Dugum dugumBul(List<Dugum> l, String key) {
@@ -282,23 +337,77 @@ public class NpcDunyaYonetici implements Listener {
 
     private static String rotaAnahtari(String a, String b) { return a.compareTo(b) < 0 ? a + "~" + b : b + "~" + a; }
 
-    /** Sabit rotalar: en yakin dugumden en yakin dugume (kale/koy). Rotalar tekrar edildikce yol/kopru olusur. */
+    /** Rotalar: en yakın düğüm (doğal köy / kale); köy/claim/klan bölgesinden geçen rotalar elenir. */
     private void hedefSec(Kervan kv, VahsiKale k, List<Dugum> dugumler) {
+        World w = k.merkez.getWorld();
         String home = "kale:" + k.id;
-        if (kv.esya.size() >= 8 && !home.equals(kv.kaynakKey) && dugumBul(dugumler, home) != null) { kv.hedefKey = home; return; }
-        Dugum koy = dugumBul(dugumler, "koy");
-        if (!kv.koyGordu && koy != null && !"koy".equals(kv.kaynakKey)) { kv.hedefKey = "koy"; return; }
-        List<Dugum> aday = new ArrayList<>();
-        for (Dugum d : dugumler) if (!d.key().equals(kv.kaynakKey)) aday.add(d);
-        if (aday.isEmpty()) { kv.hedefKey = null; return; }
+        Dugum ev = dugumBul(dugumler, home);
+        if (kv.esya.size() >= 8 && !home.equals(kv.kaynakKey) && ev != null && rotaTemiz(w, kv.x, kv.z, ev.x(), ev.z())) { kv.hedefKey = home; return; }
         final double cx = kv.x, cz = kv.z;
+        List<Dugum> aday = new ArrayList<>();
+        for (Dugum d : dugumler) {
+            if (d.key().equals(kv.kaynakKey) || Math.hypot(d.x() - cx, d.z() - cz) > 4500) continue;
+            if (rotaTemiz(w, cx, cz, d.x(), d.z())) aday.add(d);
+        }
+        if (aday.isEmpty()) { kv.hedefKey = (ev != null && !home.equals(kv.kaynakKey) && rotaTemiz(w, cx, cz, ev.x(), ev.z())) ? home : null; return; }
         aday.sort(java.util.Comparator.comparingDouble(d -> Math.hypot(d.x() - cx, d.z() - cz)));
-        kv.hedefKey = aday.get(rng.nextInt(Math.min(3, aday.size()))).key();
+        List<Dugum> koyler = new ArrayList<>();
+        for (Dugum d : aday) if (d.koy()) koyler.add(d);
+        List<Dugum> havuz = (!kv.koyGordu && !koyler.isEmpty()) ? koyler : aday;
+        kv.hedefKey = havuz.get(rng.nextInt(Math.min(3, havuz.size()))).key();
+    }
+
+    private int muhafizSayisi(VahsiKale k, Kervan kv) { return kv.muhafiz >= 0 ? kv.muhafiz : Math.min(6, 2 + k.seviye / 2); }
+
+    private void ekonomiLog(String kat, String kim, String detay) {
+        try {
+            org.bukkit.plugin.Plugin m = Bukkit.getPluginManager().getPlugin("MeslekSistemi");
+            if (m != null) m.getClass().getMethod("ekonomiLog", String.class, String.class, String.class).invoke(m, kat, kim, detay);
+        } catch (Throwable t) { plugin.getLogger().info("[NPC-EKONOMI] " + kat + " " + kim + " " + detay); }
+    }
+
+    /** Kervan bir düğüme vardı: rota sayacı (patika/köprü), yük teslimi / ticaret / han. */
+    private void varis(VahsiKale k, Kervan kv, World w, Dugum hedef) {
+        String home = "kale:" + k.id;
+        kv.x = hedef.x(); kv.z = hedef.z();
+        plugin.patika().rotaEkle(w, rotaAnahtari(kv.kaynakKey, hedef.key()), (int) kv.kx, (int) kv.kz, (int) hedef.x(), (int) hedef.z());
+        kv.kaynakKey = hedef.key(); kv.kx = hedef.x(); kv.kz = hedef.z(); kv.hedefKey = null;
+        if (hedef.key().equals(home)) {
+            List<ItemStack> getirilen;
+            synchronized (this) { getirilen = new ArrayList<>(kv.esya); kv.esya.clear(); }
+            hazineyeEkle(k.id, getirilen); // yük önce kervandan ÇIKAR, sonra hazineye eklenir
+            kv.muhafiz = -1;               // kayıplar evde telafi edilir
+        } else {
+            kv.esya.addAll(lootUret(false, k.seviye)); // köy/kale ticareti
+            if (hedef.koy()) {
+                kv.koyGordu = true;
+                plugin.hanci().koyaHanciKur(hedef.key(), w, hedef.x(), hedef.z()); // doğal köye ulaştı: han yoksa kurulur
+            }
+        }
+    }
+
+    /** Pusu/yenilgi: kervan yok olur, yükün bir kısmı ENKAZ olarak kalır; kervan 30 dk sonra yeniden kurulur. */
+    private Enkaz enkazOlustur(VahsiKale k, Kervan kv, double x, double z, boolean yarisi) {
+        World w = k.merkez.getWorld();
+        kv.enkaz = true;
+        Enkaz e = new Enkaz();
+        e.kaleId = k.id; e.dunya = w.getName(); e.x = x; e.z = z; e.sonYakinlik = System.currentTimeMillis();
+        for (int i = 0; i < kv.esya.size(); i++) if (!yarisi || i % 2 == 0) e.esya.add(kv.esya.get(i));
+        if (e.esya.size() < 3) e.esya.addAll(lootUret(false, k.seviye)); // yük azsa bile sandık boş kalmasın
+        enkazlar.put(UUID.randomUUID(), e);
+        kv.esya.clear();
+        String home = "kale:" + k.id;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ(); kv.muhafiz = -1;
+            kv.kaynakKey = home; kv.kx = kv.x; kv.kz = kv.z; kv.hedefKey = null;
+        }, 20L * 60 * 30);
+        return e;
     }
 
     /** Periyodik (npc.kervan-dakika): her aktif kale için soyut yolculuk + olay rulosu. */
     public void kervanTick() {
         if (!aktif() || !veriYuklendi) return;
+        koyKesfet();
         for (VahsiKale k : aktifKaleler()) {
             gelisim(k);
             World w = k.merkez.getWorld();
@@ -306,7 +415,7 @@ public class NpcDunyaYonetici implements Listener {
                 Kervan n = new Kervan(); n.x = k.merkez.getX(); n.z = k.merkez.getZ(); return n;
             });
             if (kv.enkaz) continue;
-            if (gorselAktif(kv)) continue; // görünür kervan kendi yürüyor; varınca soyut tick devralır
+            if (gorselAktif(kv)) continue; // görünür kervan kendi yürüyor
             String home = "kale:" + k.id;
             if (kv.kaynakKey == null) { kv.kaynakKey = home; kv.kx = k.merkez.getX(); kv.kz = k.merkez.getZ(); }
             List<Dugum> dugumler = dugumler(w);
@@ -315,54 +424,64 @@ public class NpcDunyaYonetici implements Listener {
             if (hedef == null) { kv.hedefKey = null; continue; }
             double kalan = Math.hypot(hedef.x() - kv.x, hedef.z() - kv.z);
             double adim = dk("kervan-adim", 350);
-            if (kalan <= adim) {
-                // VARIS: rota sayaci (patika/kopru), yuk teslimi / ticaret / hanci
-                kv.x = hedef.x(); kv.z = hedef.z();
-                plugin.patika().rotaEkle(w, rotaAnahtari(kv.kaynakKey, hedef.key()), (int) kv.kx, (int) kv.kz, (int) hedef.x(), (int) hedef.z());
-                kv.kaynakKey = hedef.key(); kv.kx = hedef.x(); kv.kz = hedef.z(); kv.hedefKey = null;
-                if (hedef.key().equals(home)) {
-                    List<ItemStack> getirilen;
-                    synchronized (this) { getirilen = new ArrayList<>(kv.esya); kv.esya.clear(); }
-                    hazineyeEkle(k.id, getirilen); // yük önce kervandan ÇIKAR, sonra hazineye eklenir
-                } else {
-                    kv.esya.addAll(lootUret(false, k.seviye)); // köy/kale ticareti
-                    if (hedef.koy()) {
-                        kv.koyGordu = true;
-                        plugin.hanci().koyaHanciKur("koy", w); // kervan köye ulaştı: hancı yoksa kurulur
-                    }
-                }
-                continue;
-            }
+            if (kalan <= adim) { varis(k, kv, w, hedef); continue; }
             // yolda ilerle (dogrusal rota)
             kv.x += (hedef.x() - kv.x) / kalan * adim;
             kv.z += (hedef.z() - kv.z) / kalan * adim;
             double olay = rng.nextDouble();
-            if (olay < 0.30) {          // hayvan/yaratık saldırısı: nöbetçi gücüne göre loot
-                if (rng.nextDouble() < Math.min(0.9, 0.5 + gucu(k) / 200.0)) kv.esya.addAll(lootUret(true, k.seviye));
+            if (olay < 0.30) {          // hayvan/yaratık saldırısı: nöbetçi gücüne ve sayısına göre
+                double sans = Math.min(0.92, 0.45 + gucu(k) / 200.0 + muhafizSayisi(k, kv) * 0.03);
+                if (rng.nextDouble() < sans) kv.esya.addAll(lootUret(true, k.seviye));
+                else { // savunma başarısız: nöbetçi kaybı + yükün bir kısmı gider
+                    kv.muhafiz = Math.max(1, muhafizSayisi(k, kv) - 1);
+                    if (!kv.esya.isEmpty()) kv.esya.remove(rng.nextInt(kv.esya.size()));
+                }
             } else if (olay < 0.33) {   // pusu: kervan yok oldu -> ENKAZ
-                kv.enkaz = true;
-                Enkaz e = new Enkaz();
-                e.kaleId = k.id; e.dunya = w.getName(); e.x = kv.x; e.z = kv.z;
-                e.sonYakinlik = System.currentTimeMillis();
-                // yükün yarısı enkaza kalır (sandığa gerçek eşya olarak), yarısı kaybolur
-                for (int i = 0; i < kv.esya.size(); i++) if (i % 2 == 0) e.esya.add(kv.esya.get(i));
-                if (e.esya.size() < 3) e.esya.addAll(lootUret(false, k.seviye)); // yük azsa bile sandık boş kalmasın
-                enkazlar.put(UUID.randomUUID(), e);
-                kv.esya.clear();
-                // kervan ertesi dönemde yeniden kurulur
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
-                    kv.kaynakKey = home; kv.kx = kv.x; kv.kz = kv.z; kv.hedefKey = null;
-                }, 20L * 60 * 30);
+                Enkaz e = enkazOlustur(k, kv, kv.x, kv.z, true);
                 plugin.getLogger().info("[NPC] " + k.isim + " kervanı pusuya düştü -> ENKAZ (" + Math.round(e.x) + "," + Math.round(e.z) + ")");
+            } else if (olay < 0.45) {   // başka klanın kervanıyla karşılaşma
+                kervanKarsilasma(k, kv, w);
             }
         }
         kaydet();
     }
 
+    /** 600 blok içindeki başka klanın kervanıyla karşılaşma: ittifak/ilişkisiz -> ticaret, savaş -> çatışma. */
+    private void kervanKarsilasma(VahsiKale k, Kervan kv, World w) {
+        VahsiKale diger = null; Kervan dv = null; double en = 600;
+        for (VahsiKale o : aktifKaleler()) {
+            if (o == k || !o.merkez.getWorld().equals(w)) continue;
+            Kervan ov = kervanlar.get(o.id);
+            if (ov == null || ov.enkaz || gorselAktif(ov)) continue;
+            double d = Math.hypot(ov.x - kv.x, ov.z - kv.z);
+            if (d < en) { en = d; diger = o; dv = ov; }
+        }
+        if (diger == null) return;
+        String durum = iliski.get(anahtar(k.id, diger.id));
+        if ("SAVAS".equals(durum)) {
+            double pa = (gucu(k) + muhafizSayisi(k, kv) * 2.0) / (double) (gucu(k) + muhafizSayisi(k, kv) * 2.0 + gucu(diger) + muhafizSayisi(diger, dv) * 2.0);
+            boolean aKazandi = rng.nextDouble() < pa;
+            VahsiKale kazanan = aKazandi ? k : diger, kaybeden = aKazandi ? diger : k;
+            Kervan kk = aKazandi ? kv : dv, kb = aKazandi ? dv : kv;
+            if (rng.nextDouble() < 0.5) { // kaybeden kervan yok olur, yükü enkaza kalır
+                enkazOlustur(kaybeden, kb, kb.x, kb.z, false);
+                plugin.getLogger().info("[NPC] " + kazanan.isim + " kervanı " + kaybeden.isim + " kervanını bozguna uğrattı -> ENKAZ");
+            } else {                      // kaybeden zayıflar, yükünün yarısını verir
+                kb.muhafiz = Math.max(1, muhafizSayisi(kaybeden, kb) - 1);
+                List<ItemStack> alinan = new ArrayList<>();
+                for (int i = kb.esya.size() - 1; i >= 0; i -= 2) alinan.add(kb.esya.remove(i));
+                kk.esya.addAll(alinan);
+            }
+        } else if ("ITTIFAK".equals(durum) || rng.nextDouble() < 0.5) { // karşılıklı ticaret
+            kv.esya.addAll(lootUret(false, k.seviye));
+            dv.esya.addAll(lootUret(false, diger.seviye));
+        }
+    }
+
     /** ~3 sn'de bir: oyuncu yakınlığı (lazy spawn + süre sıfırlama + süre dolumu). */
     public void enkazKontrol() {
         if (!aktif() || !veriYuklendi) return;
+        try { takviyeKontrol(); } catch (Exception ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "[NPC] takviye kontrol hatası", ex); }
         try { kervanGorsel(); } catch (Exception ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "[NPC] görünür kervan hatası", ex); }
         if (enkazlar.isEmpty()) return;
         long omur = dk("enkaz-omur-dakika", 40) * 60_000L;
@@ -450,6 +569,30 @@ public class NpcDunyaYonetici implements Listener {
                 le.setCustomName(ChatColor.GRAY + "Yaralı yük hayvanı");
             }
         }
+        // ikinci (yarı dolu) sandık
+        for (int d = 0; d < 20; d++) {
+            int x = cx + rng.nextInt(7) - 3, z = cz + rng.nextInt(7) - 3;
+            if ((x == cx && z == cz) || !w.isChunkLoaded(x >> 4, z >> 4)) continue;
+            int y = w.getHighestBlockYAt(x, z);
+            Block zemin = w.getBlockAt(x, y, z), ust = w.getBlockAt(x, y + 1, z);
+            if (!zemin.getType().isSolid() || zemin.isLiquid() || !ust.getType().isAir()) continue;
+            String ilk = ust.getBlockData().getAsString();
+            ust.setType(Material.CHEST);
+            if (ust.getState(false) instanceof Chest c2) { for (ItemStack it : lootUret(false, 1)) c2.getInventory().addItem(it); c2.update(true, false); }
+            e.sahne.add(x + ";" + (y + 1) + ";" + z + ";CHEST;" + ilk);
+            break;
+        }
+        // 2-3 düşman (sabit sayı, yeniden doğmaz; enkaz silinince kalkar)
+        org.bukkit.entity.EntityType[] dusman = {org.bukkit.entity.EntityType.PILLAGER, org.bukkit.entity.EntityType.VINDICATOR, org.bukkit.entity.EntityType.PILLAGER};
+        int mob = 2 + rng.nextInt(2);
+        for (int i = 0; i < mob; i++) {
+            Location l = new Location(w, cx + 0.5 + rng.nextInt(9) - 4, cy, cz + 0.5 + rng.nextInt(9) - 4);
+            if (!w.getBlockAt(l).getType().isAir()) l = new Location(w, cx + 0.5, cy + 1, cz - 2.5);
+            org.bukkit.entity.Entity m = w.spawnEntity(l, dusman[rng.nextInt(dusman.length)]);
+            if (m instanceof org.bukkit.entity.Mob mm) mm.setRemoveWhenFarAway(true);
+            m.setPersistent(false);
+            m.getPersistentDataContainer().set(enkazHayvanKey(), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        }
     }
 
     private void sahneTemizle(Enkaz e, World w) {
@@ -511,8 +654,20 @@ public class NpcDunyaYonetici implements Listener {
         return false;
     }
 
-    /** ~3 sn'de bir: oyuncu 64 blok yaklaşınca soyut kervan gerçek (hayvan + insan muhafız) olarak belirir,
-     *  rotası boyunca yürür; oyuncu 110 bloktan uzaklaşırsa ya da varışa yaklaşırsa yeniden soyuta döner. */
+    private boolean kirilabilir(World w, Block b) {
+        Material m = b.getType();
+        if (m.isAir() || b.isLiquid() || b.getState(false) instanceof org.bukkit.block.TileState) return false;
+        float sert = m.getHardness();
+        if (sert < 0 || sert > 4) return false;
+        if (YasakAlan.engelliMi(w, b.getX(), b.getZ(), 0)) return false; // köy / claim / klan bölgesi dokunulmaz
+        Location l = b.getLocation();
+        for (VahsiKale k : plugin.vahsiKale().tumKaleler()) if (k.sinirUzakligi(l) < 8) return false;
+        return true;
+    }
+
+    /** ~3 sn'de bir: oyuncu 80 blok yaklaşınca soyut kervan gerçek (hayvan + insan muhafız) olarak belirir,
+     *  rotası boyunca yürür (varışı da görünür halde işler), takılırsa blok kırar / ilerler; oyuncu 130 bloktan
+     *  uzaklaşırsa yeniden soyuta döner. */
     public void kervanGorsel() {
         for (Map.Entry<UUID, Kervan> en : new ArrayList<>(kervanlar.entrySet())) {
             Kervan kv = en.getValue();
@@ -524,10 +679,13 @@ public class NpcDunyaYonetici implements Listener {
             World w = k.merkez.getWorld();
             if (!kv.varliklar.isEmpty() && !gorselAktif(kv)) kv.varliklar.clear(); // chunk boşaldı / hepsi öldü
             if (kv.varliklar.isEmpty()) {
-                if (kv.hedefKey == null || !oyuncuYakin(w, kv.x, kv.z, 64)) continue;
+                if (!oyuncuYakin(w, kv.x, kv.z, 80)) continue;
                 if (!w.isChunkLoaded(((int) kv.x) >> 4, ((int) kv.z) >> 4)) continue;
+                if (kv.hedefKey == null) hedefSec(kv, k, dugumler(w)); // evde bekleyen kervan da yola çıksın
+                if (kv.hedefKey == null) continue;
                 Dugum h = dugumBul(dugumler(w), kv.hedefKey);
-                if (h == null || Math.hypot(h.x() - kv.x, h.z() - kv.z) <= 25) continue; // varışa çok yakın: soyut devralır
+                if (h == null) { kv.hedefKey = null; continue; }
+                if (Math.hypot(h.x() - kv.x, h.z() - kv.z) <= 15) { varis(k, kv, w, h); continue; }
                 gorselKur(k, kv, w);
                 continue;
             }
@@ -537,15 +695,40 @@ public class NpcDunyaYonetici implements Listener {
             if (lider == null) { kv.varliklar.clear(); continue; }
             Location ll = lider.getLocation();
             kv.x = ll.getX(); kv.z = ll.getZ();
-            if (!oyuncuYakin(w, kv.x, kv.z, 110)) { gorselKaldir(kv); continue; }
-            Dugum hedef = dugumBul(dugumler(w), kv.hedefKey);
-            if (hedef == null) continue;
+            if (!oyuncuYakin(w, kv.x, kv.z, 130)) { gorselKaldir(kv); continue; }
+            List<Dugum> dl = dugumler(w);
+            if (kv.hedefKey == null) hedefSec(kv, k, dl);
+            Dugum hedef = dugumBul(dl, kv.hedefKey);
+            if (hedef == null) { kv.hedefKey = null; continue; } // gidecek temiz rota yok: olduğu yerde bekler
             double kalan = Math.hypot(hedef.x() - kv.x, hedef.z() - kv.z);
-            if (kalan <= 15) { gorselKaldir(kv); kv.x = hedef.x(); kv.z = hedef.z(); continue; }
+            if (kalan <= 15) { // VARIŞ: görünür kalmaya devam eder, yeni hedef seçer
+                varis(k, kv, w, hedef);
+                hedefSec(kv, k, dl);
+                continue;
+            }
             double adim = Math.min(24, kalan);
-            int wx = (int) (kv.x + (hedef.x() - kv.x) / kalan * adim), wz = (int) (kv.z + (hedef.z() - kv.z) / kalan * adim);
+            double ax = (hedef.x() - kv.x) / kalan, az = (hedef.z() - kv.z) / kalan;
+            int wx = (int) (kv.x + ax * adim), wz = (int) (kv.z + az * adim);
             if (!w.isChunkLoaded(wx >> 4, wz >> 4)) continue;
             Location wp = new Location(w, wx + 0.5, w.getHighestBlockYAt(wx, wz) + 1, wz + 0.5);
+            // takılma: 3 sn'de 1.5 bloktan az ilerlediyse önce blok kır, sonra (15 sn) ileri ışınla
+            if (Math.hypot(kv.x - kv.sonX, kv.z - kv.sonZ) < 1.5) kv.takilma++; else kv.takilma = 0;
+            kv.sonX = kv.x; kv.sonZ = kv.z;
+            if (kv.takilma >= 2) {
+                int bx = ll.getBlockX(), by = ll.getBlockY(), bz = ll.getBlockZ();
+                for (int i = 1; i <= 2; i++) {
+                    int px = (int) Math.round(bx + ax * i), pz = (int) Math.round(bz + az * i);
+                    for (int dy = 0; dy <= 2; dy++) {
+                        Block b = w.getBlockAt(px, by + dy, pz);
+                        if (kirilabilir(w, b)) b.setType(Material.AIR, true);
+                    }
+                }
+            }
+            if (kv.takilma >= 5) {
+                for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) e.teleport(wp); }
+                kv.takilma = 0;
+                continue;
+            }
             for (UUID id : kv.varliklar) {
                 org.bukkit.entity.Entity e = Bukkit.getEntity(id);
                 if (e instanceof org.bukkit.entity.Mob m && m.isValid() && m.getTarget() == null) {
@@ -558,8 +741,9 @@ public class NpcDunyaYonetici implements Listener {
     private void gorselKur(VahsiKale k, Kervan kv, World w) {
         int x = (int) kv.x, z = (int) kv.z, y = w.getHighestBlockYAt(x, z) + 1;
         if (w.getBlockAt(x, y - 1, z).isLiquid()) return;
+        kv.sonX = kv.x; kv.sonZ = kv.z; kv.takilma = 0;
         Location b = new Location(w, x + 0.5, y, z + 0.5);
-        int n = Math.max(1, dk("kervan-muhafiz", 3));
+        int n = Math.max(1, Math.min(6, muhafizSayisi(k, kv)));
         for (int i = 0; i < n; i++) {
             org.bukkit.entity.Vindicator g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
             kv.varliklar.add(g.getUniqueId());
@@ -672,11 +856,15 @@ public class NpcDunyaYonetici implements Listener {
             if (d < enYakin) { enYakin = d; hedef = kv; hk = k; }
         }
         if (hedef == null) { p.sendMessage(ChatColor.GRAY + "Hancı omuz silkti: \"Bu aralar yoldan kervan geçmiyor.\""); return; }
+        long[] kota = kervanIpucu.computeIfAbsent(hk.id, i -> new long[]{0, simdi});
+        if (simdi - kota[1] > 30 * 60_000L) { kota[0] = 0; kota[1] = simdi; }
+        if (kota[0] >= dk("dedikodu-kervan-kotasi", 4)) { p.sendMessage(ChatColor.GRAY + "Hancı: \"Bu kervan hakkında bu aralar çok konuştum, biraz sonra gel.\""); return; }
         if (!plugin.meslek().bankadanCek(p.getUniqueId(), bahsis)) {
             p.sendMessage(ChatColor.RED + "Bahşiş için bankada yeterli bakiye yok (" + Para.yaz(bahsis) + ")."); return;
         }
+        kota[0]++;
         dedikoduSon.put(p.getUniqueId(), simdi);
-        plugin.getLogger().info("[NPC] Dedikodu bahşişi: " + p.getName() + " " + Para.yaz(bahsis));
+        ekonomiLog("npc-dedikodu", p.getName(), "Hancı bahşişi " + Para.yaz(bahsis) + " (" + hk.isim + " kervanı)");
         double dx = hedef.x - p.getLocation().getX(), dz = hedef.z - p.getLocation().getZ();
         double aci = Math.toDegrees(Math.atan2(dx, -dz)); // kuzey = -Z
         int idx = (int) Math.round(((aci % 360) + 360) % 360 / 45.0) % 8;
@@ -806,16 +994,25 @@ public class NpcDunyaYonetici implements Listener {
         env.setItem(12, oge(Material.WITHER_SKELETON_SKULL, ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "Zindan Görevi", zl));
         s.slotEylem.put(12, "zindan");
         boolean tak = sp >= 50;
+        int pr = prestijOf(klan);
+        int minTak = dk("takviye-min-prestij", 5), minItf = dk("ittifak-min-prestij", 10);
+        boolean aktifT = aktifTakviyeler.containsKey(klan.id);
         env.setItem(14, oge(Material.IRON_HELMET, ChatColor.GREEN + "" + ChatColor.BOLD + "Takviye Çağır",
-                List.of(ChatColor.GRAY + "5 dk boyunca " + ChatColor.WHITE + dk("takviye-muhafiz-sayisi", 5) + ChatColor.GRAY + " muhafız yanında savaşır.",
-                        ChatColor.GRAY + "Ücret: " + ChatColor.GREEN + Para.yaz(takviyeUcreti(k)) + ChatColor.GRAY + " (kasa)",
-                        ChatColor.GRAY + "Gerek: saygı ≥ 50 " + (tak ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
-                        ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
+                List.of(ChatColor.GRAY + "" + (dk("takviye-muhafiz-sayisi", 5) + Math.min(3, pr / 50)) + " muhafız yanında savaşır, sen geri gönderene kadar kalır.",
+                        ChatColor.GRAY + "Ücret: " + ChatColor.GREEN + Para.yaz(takviyeUcretiKlan(k, klan)) + ChatColor.GRAY + " (ilk çağrıda ve her 10 dk'da bir, klan kasasından)",
+                        ChatColor.GRAY + "Prestij indirimi: " + ChatColor.AQUA + "%" + (int) (Math.min(0.40, pr * 0.005) * 100) + ChatColor.GRAY + " (prestij " + pr + ")",
+                        ChatColor.GRAY + "Gerek: saygı ≥ 50 " + (tak ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘") + ChatColor.GRAY + ", prestij ≥ " + minTak + " " + (pr >= minTak ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
+                        ChatColor.DARK_GRAY + "(Lider/yardımcı)", aktifT ? ChatColor.YELLOW + "Şu an aktif bir takviyeniz var." : "", ChatColor.YELLOW + "► Tıkla")));
         s.slotEylem.put(14, "takviye");
+        env.setItem(16, oge(Material.BARRIER, ChatColor.RED + "" + ChatColor.BOLD + "Desteği Geri Gönder",
+                List.of(ChatColor.GRAY + "Aktif takviyeyi gönderir, ücret kesintisi durur.", aktifT ? ChatColor.GREEN + "Aktif takviye var." : ChatColor.DARK_GRAY + "Aktif takviye yok.",
+                        ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
+        s.slotEylem.put(16, "geri-gonder");
         boolean itf = sp >= 100;
+        long gunI = 7L + Math.min(7, pr / 5);
         env.setItem(15, oge(dost ? Material.LIME_BANNER : Material.WHITE_BANNER, ChatColor.WHITE + "" + ChatColor.BOLD + "İttifak Kur",
-                List.of(ChatColor.GRAY + "7 gün: nöbetçiler saldırmaz, uyarı gelmez.",
-                        ChatColor.GRAY + "Gerek: saygı ≥ 100 " + (itf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
+                List.of(ChatColor.GRAY + gunI + " gün: nöbetçiler saldırmaz, uyarı gelmez.", ChatColor.GRAY + "Prestij süreyi uzatır (her 5 prestij +1 gün, en çok 14).",
+                        ChatColor.GRAY + "Gerek: saygı ≥ 100 " + (itf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘") + ChatColor.GRAY + ", prestij ≥ " + minItf + " " + (pr >= minItf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
                         dost ? ChatColor.GREEN + "Şu an ittifak var (yenilemek için tıkla)." : "",
                         ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
         s.slotEylem.put(15, "ittifak");
@@ -859,6 +1056,7 @@ public class NpcDunyaYonetici implements Listener {
             case "esya" -> esyaGorevi(p, klan, k);
             case "zindan" -> zindanGorevi(p, klan, k);
             case "takviye" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); else takviyeCagir(p, klan, k); }
+            case "geri-gonder" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); else takviyeGeriGonder(p, klan); }
             case "ittifak" -> { if (!yetkili) p.sendMessage(ChatColor.RED + "Bu işlem için lider/yardımcı olmalısın."); else ittifakKur(p, klan, k); }
             default -> { }
         }
@@ -953,32 +1151,125 @@ public class NpcDunyaYonetici implements Listener {
 
     private void ittifakKur(Player p, Klan klan, VahsiKale k) {
         if (saygilar(klan).getOrDefault(k.id, 0) < 100) { p.sendMessage(ChatColor.RED + "İttifak için en az 100 saygı gerekir."); return; }
-        long bitis = System.currentTimeMillis() + 7L * 24 * 3_600_000L;
+        int minP = dk("ittifak-min-prestij", 10);
+        if (prestijOf(klan) < minP) { p.sendMessage(ChatColor.RED + "İttifak için klan prestiji en az " + minP + " olmalı (şu an " + prestijOf(klan) + ")."); return; }
+        long gun = 7L + Math.min(7, prestijOf(klan) / 5); // her 5 prestij +1 gün, en fazla 14 gün
+        long bitis = System.currentTimeMillis() + gun * 24 * 3_600_000L;
         k.barisAnlasmalari.put(klan.id, bitis);
         synchronized (this) { ittifaklar.computeIfAbsent(klan.id, i -> new LinkedHashMap<>()).put(k.id, bitis); }
         kaydet(); // yeniden başlatmada kaybolmasın
-        p.sendMessage(ChatColor.GREEN + k.isim + " ile 7 günlük ittifak kuruldu (nöbetçiler saldırmaz, uyarı gelmez).");
+        p.sendMessage(ChatColor.GREEN + k.isim + " ile " + gun + " günlük ittifak kuruldu (nöbetçiler saldırmaz, uyarı gelmez).");
+    }
+
+    private int prestijOf(Klan klan) { return Math.max(0, klan.prestij); }
+    private double takviyeUcretiKlan(VahsiKale k, Klan klan) {
+        double indirim = Math.min(0.40, prestijOf(klan) * 0.005); // her 2 prestij %1, en fazla %40
+        return Math.round(takviyeUcreti(k) * (1 - indirim));
     }
 
     private void takviyeCagir(Player p, Klan klan, VahsiKale k) {
+        if (aktifTakviyeler.containsKey(klan.id)) { p.sendMessage(ChatColor.RED + "Zaten aktif bir takviyeniz var. Önce 'Desteği Geri Gönder' ile gönderin."); return; }
         if (saygilar(klan).getOrDefault(k.id, 0) < 50) { p.sendMessage(ChatColor.RED + "Takviye için en az 50 saygı gerekir."); return; }
+        int minP = dk("takviye-min-prestij", 5);
+        if (prestijOf(klan) < minP) { p.sendMessage(ChatColor.RED + "Takviye için klan prestiji en az " + minP + " olmalı (şu an " + prestijOf(klan) + ")."); return; }
         long gun = System.currentTimeMillis() / 86_400_000L, simdi = System.currentTimeMillis();
         long[] t = takviye.computeIfAbsent(klan.id, i -> new long[]{gun, 0, 0});
         if (t[0] != gun) { t[0] = gun; t[1] = 0; }
         if (t[1] >= dk("takviye-gunluk-limit", 2)) { p.sendMessage(ChatColor.RED + "Bugünkü takviye hakkın doldu."); return; }
         long cd = dk("takviye-cooldown-dakika", 30) * 60_000L;
         if (simdi - t[2] < cd) { p.sendMessage(ChatColor.RED + "Takviye için " + ((cd - (simdi - t[2])) / 60000 + 1) + " dk beklemelisin."); return; }
-        double u = takviyeUcreti(k);
+        double u = takviyeUcretiKlan(k, klan);
         if (plugin.kasaKilitliMi(klan) || klan.kasa < u) { p.sendMessage(ChatColor.RED + "Klan kasası yetersiz/kilitli (" + Para.yaz(u) + ")."); return; }
         klan.kasa = Para.kurus(klan.kasa - u);
         plugin.veri().kaydet();
         plugin.log().yaz(klan, p.getName(), "NPC TAKVIYE", Para.yaz(u) + " -> " + k.isim + " (kasa: " + Para.yaz(klan.kasa) + ")");
         t[1]++; t[2] = simdi;
-        int adet = plugin.vahsiKale().takviyeMuhafizlariCagir(k, p, dk("takviye-muhafiz-sayisi", 5), 300);
+        Takviye tk = new Takviye();
+        tk.kaleId = k.id; tk.sahip = p.getUniqueId(); tk.sonUcret = simdi;
+        aktifTakviyeler.put(klan.id, tk);
+        int adet = dk("takviye-muhafiz-sayisi", 5) + Math.min(3, prestijOf(klan) / 50);
+        int gelen = plugin.vahsiKale().takviyeMuhafizlariCagir(k, p, adet, () -> aktifTakviyeler.get(klan.id) == tk);
         hazine.put(k.id, hazinesi(k) + u);
         kaydet();
-        p.sendMessage(ChatColor.GREEN + k.isim + " " + adet + " muhafız gönderdi (5 dk).");
+        p.sendMessage(ChatColor.GREEN + k.isim + " " + gelen + " muhafız gönderdi. " + ChatColor.GRAY + "Her 10 dakikada " + Para.yaz(u)
+                + " kesilir; geri göndermek için NPC panelinde klanı seçip 'Desteği Geri Gönder'e basın.");
         p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 1f, 1f);
+    }
+
+    private void takviyeGeriGonder(Player p, Klan klan) {
+        Takviye tk = aktifTakviyeler.remove(klan.id);
+        if (tk == null) { p.sendMessage(ChatColor.GRAY + "Aktif takviye yok."); return; }
+        p.sendMessage(ChatColor.YELLOW + "Takviye geri gönderildi (ücret kesintisi durdu).");
+    }
+
+    /** Aktif takviyelerin 10 dakikalık ücret kesimi ve sahibi çevrimdışı kalırsa sonlandırma (~3 sn'de bir çağrılır). */
+    public void takviyeKontrol() {
+        if (aktifTakviyeler.isEmpty()) return;
+        long simdi = System.currentTimeMillis();
+        for (Map.Entry<UUID, Takviye> en : new ArrayList<>(aktifTakviyeler.entrySet())) {
+            Takviye tk = en.getValue();
+            Klan klan = plugin.klanManager().klanGetir(en.getKey());
+            VahsiKale k = plugin.vahsiKale().kaleBul(tk.kaleId);
+            Player sahip = Bukkit.getPlayer(tk.sahip);
+            if (klan == null || k == null || k.fethedildi || sahip == null || !sahip.isOnline()) { aktifTakviyeler.remove(en.getKey()); continue; }
+            if (simdi - tk.sonUcret < 10 * 60_000L) continue;
+            double u = takviyeUcretiKlan(k, klan);
+            if (plugin.kasaKilitliMi(klan) || klan.kasa < u) {
+                aktifTakviyeler.remove(en.getKey());
+                plugin.klanManager().klanaGonder(klan, "npc-takviye-bitti", "&c{kale} takviyesi kasa yetersiz/kilitli olduğu için geri çekildi.", "kale", k.isim);
+                continue;
+            }
+            klan.kasa = Para.kurus(klan.kasa - u);
+            plugin.veri().kaydet();
+            plugin.log().yaz(klan, sahip.getName(), "NPC TAKVIYE", "10 dk ücreti " + Para.yaz(u) + " -> " + k.isim + " (kasa: " + Para.yaz(klan.kasa) + ")");
+            hazine.put(k.id, hazinesi(k) + u);
+            tk.sonUcret = simdi;
+            kaydet();
+            plugin.klanManager().klanaGonder(klan, "npc-takviye-ucret", "&e{kale} takviyesi için 10 dk ücreti kesildi: &a{ucret}", "kale", k.isim, "ucret", Para.yaz(u));
+        }
+    }
+
+    private int yonIdx(double dx, double dz) {
+        double aci = Math.toDegrees(Math.atan2(dx, -dz)); // kuzey = -Z
+        return (int) Math.round(((aci % 360) + 360) % 360 / 45.0) % 8;
+    }
+
+    private boolean bilgiBekle(Player p) {
+        long simdi = System.currentTimeMillis();
+        Long son = bilgiSon.get(p.getUniqueId());
+        if (son != null && simdi - son < 15_000L) { p.sendMessage(ChatColor.GRAY + "Hancı: \"Bir dakika, nefes alayım.\""); return false; }
+        bilgiSon.put(p.getUniqueId(), simdi);
+        return true;
+    }
+
+    /** Hancı menüsü: en yakın NPC klanı (yön + yuvarlak uzaklık, koordinat yok). */
+    public void hanciKaleBilgi(Player p) {
+        if (!bilgiBekle(p)) return;
+        VahsiKale en = null; double mes = Double.MAX_VALUE;
+        for (VahsiKale k : aktifKaleler()) {
+            if (!k.merkez.getWorld().equals(p.getWorld())) continue;
+            double d = Math.hypot(k.merkez.getX() - p.getLocation().getX(), k.merkez.getZ() - p.getLocation().getZ());
+            if (d < mes) { mes = d; en = k; }
+        }
+        if (en == null) { p.sendMessage(ChatColor.GRAY + "Hancı omuz silkti: \"Bu civarda bilinen bir klan kalesi yok.\""); return; }
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        String iliskiS = klan == null ? "" : (dostMu(en, klan.id) ? " İttifakınız var." : saygilar(klan).containsKey(en.id) ? " Onları tanıyorsunuz." : " Henüz tanışmadınız.");
+        int idx = yonIdx(en.merkez.getX() - p.getLocation().getX(), en.merkez.getZ() - p.getLocation().getZ());
+        p.sendMessage(ChatColor.GOLD + "Hancı: " + ChatColor.YELLOW + "\"" + en.isim + " Klanı " + YON[idx] + " tarafında, yaklaşık " + (Math.round(mes / 250.0) * 250) + " blok ötede. (Seviye " + en.seviye + ")" + iliskiS + "\"");
+    }
+
+    /** Hancı menüsü: en yakın temizlenmemiş zindan (yön + yuvarlak uzaklık). */
+    public void hanciZindanBilgi(Player p) {
+        if (!bilgiBekle(p)) return;
+        String[] en = null; double mes = Double.MAX_VALUE;
+        for (String[] z : aktifZindanlar()) {
+            if (!z[2].equals(p.getWorld().getName())) continue;
+            double d = Math.hypot(Double.parseDouble(z[3]) - p.getLocation().getX(), Double.parseDouble(z[5]) - p.getLocation().getZ());
+            if (d < mes) { mes = d; en = z; }
+        }
+        if (en == null) { p.sendMessage(ChatColor.GRAY + "Hancı: \"Şu an bilinen temizlenmemiş bir zindan yok.\""); return; }
+        int idx = yonIdx(Double.parseDouble(en[3]) - p.getLocation().getX(), Double.parseDouble(en[5]) - p.getLocation().getZ());
+        p.sendMessage(ChatColor.GOLD + "Hancı: " + ChatColor.YELLOW + "\"" + en[1] + " zindanı " + YON[idx] + " tarafında, yaklaşık " + (Math.round(mes / 100.0) * 100) + " blok ötede.\"");
     }
 
     // ------------------------------------------------------------------ BİLGİ / KOMUT
@@ -1024,6 +1315,10 @@ public class NpcDunyaYonetici implements Listener {
                     List<String> v = zg.getStringList(k);
                     if (v.size() == 7) zindanGorev.put(UUID.fromString(k), v.toArray(new String[0]));
                 }
+                for (String sv : y.getStringList("dogal-koyler")) {
+                    String[] a = sv.split(";");
+                    if (a.length == 3) { DKoy d = new DKoy(); d.dunya = a[0]; d.x = Double.parseDouble(a[1]); d.z = Double.parseDouble(a[2]); dogalKoyler.add(d); }
+                }
                 ConfigurationSection it = y.getConfigurationSection("ittifak");
                 if (it != null) for (String kl : it.getKeys(false)) {
                     ConfigurationSection m = it.getConfigurationSection(kl);
@@ -1046,7 +1341,7 @@ public class NpcDunyaYonetici implements Listener {
                 if (kv != null) for (String k : kv.getKeys(false)) {
                     Kervan n = new Kervan();
                     for (Object o : kv.getList(k + ".esya", new ArrayList<>())) if (o instanceof ItemStack is) n.esya.add(is); n.x = kv.getDouble(k + ".x"); n.z = kv.getDouble(k + ".z"); n.enkaz = kv.getBoolean(k + ".enkaz");
-                    n.kaynakKey = kv.getString(k + ".kaynak"); n.hedefKey = kv.getString(k + ".hedef"); n.kx = kv.getDouble(k + ".kx"); n.kz = kv.getDouble(k + ".kz"); n.koyGordu = kv.getBoolean(k + ".koygordu");
+                    n.kaynakKey = kv.getString(k + ".kaynak"); n.hedefKey = kv.getString(k + ".hedef"); n.kx = kv.getDouble(k + ".kx"); n.kz = kv.getDouble(k + ".kz"); n.koyGordu = kv.getBoolean(k + ".koygordu"); n.muhafiz = kv.getInt(k + ".muhafiz", -1);
                     kervanlar.put(UUID.fromString(k), n);
                 }
                 ConfigurationSection en = y.getConfigurationSection("enkaz");
@@ -1075,10 +1370,13 @@ public class NpcDunyaYonetici implements Listener {
             hazine.forEach((k, v) -> y.set("hazine." + k, v));
             hazineEsya.forEach((k, v) -> y.set("hazine-esya." + k, v));
             zindanGorev.forEach((k, v) -> y.set("zindan-gorev." + k, java.util.Arrays.asList(v)));
+            List<String> kl2 = new ArrayList<>();
+            for (DKoy d : dogalKoyler) kl2.add(d.dunya + ";" + d.x + ";" + d.z);
+            y.set("dogal-koyler", kl2);
             ittifaklar.forEach((kl, m) -> m.forEach((ka, v) -> y.set("ittifak." + kl + "." + ka, v)));
             iliski.forEach((k, v) -> y.set("iliski." + k.replace('|', '_'), v));
             saygi.forEach((kl, m) -> m.forEach((ka, v) -> y.set("saygi." + kl + "." + ka, v)));
-            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); y.set("kervan." + k + ".kaynak", v.kaynakKey); y.set("kervan." + k + ".hedef", v.hedefKey); y.set("kervan." + k + ".kx", v.kx); y.set("kervan." + k + ".kz", v.kz); y.set("kervan." + k + ".koygordu", v.koyGordu); });
+            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); y.set("kervan." + k + ".kaynak", v.kaynakKey); y.set("kervan." + k + ".hedef", v.hedefKey); y.set("kervan." + k + ".kx", v.kx); y.set("kervan." + k + ".kz", v.kz); y.set("kervan." + k + ".koygordu", v.koyGordu); y.set("kervan." + k + ".muhafiz", v.muhafiz); });
             enkazlar.forEach((k, e) -> {
                 String p = "enkaz." + k;
                 y.set(p + ".kale", e.kaleId.toString()); y.set(p + ".dunya", e.dunya); y.set(p + ".x", e.x); y.set(p + ".z", e.z); y.set(p + ".esya", e.esya);

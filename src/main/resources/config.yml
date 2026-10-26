@@ -302,6 +302,9 @@ npc:
   dedikodu-cooldown-dakika: 12
   takviye-gunluk-limit: 2
   takviye-muhafiz-sayisi: 5
+  takviye-min-prestij: 5        # Takviye çağırmak için klan prestiji
+  ittifak-min-prestij: 10       # NPC klanıyla ittifak için klan prestiji
+  dedikodu-kervan-kotasi: 4     # Bir kervan hakkında 30 dk'da verilebilecek en fazla ip ucu
   takviye-cooldown-dakika: 30
 
 mesajlar:

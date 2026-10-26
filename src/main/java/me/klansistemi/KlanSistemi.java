@@ -104,6 +104,7 @@ public class KlanSistemi extends JavaPlugin {
         guvenliBolgeler = new GuvenliBolgeManager(this);
         prestijManager = new PrestijManager(this);
         bolgeManager = new BolgeManager(this);
+        me.klansistemi.vahsikale.YasakAlan.bolgeKontrol = bolgeManager::claimVarMi;
         veri = new KlanVeri(this);
         veri.yukle();
         menu = new KlanMenu(this);

@@ -20,6 +20,11 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -69,6 +74,7 @@ public class HanciYonetici implements Listener {
                 World w = Bukkit.getWorld(h.dunya);
                 if (w == null || !w.isChunkLoaded(h.vx >> 4, h.vz >> 4)) continue; // yuklu degilse dokunma (cift dogurma riski)
                 Entity e = h.villagerId == null ? null : Bukkit.getEntity(h.villagerId);
+                if (e instanceof Villager ev0 && ev0.getProfession() != Villager.Profession.NITWIT) { ev0.setProfession(Villager.Profession.NITWIT); ev0.setRecipes(new java.util.ArrayList<>()); }
                 if (e != null && !e.isDead()) continue;
                 boolean bulundu = false;
                 for (Entity n : w.getNearbyEntities(new Location(w, h.vx, h.vy, h.vz), 6, 6, 6)) {
@@ -85,7 +91,13 @@ public class HanciYonetici implements Listener {
     /** Kervan koye ulasti: o koyde han yoksa kurar. */
     public void koyaHanciKur(String key, World w) {
         if (!aktif() || !veriYuklendi || hanlar.containsKey(key)) return;
-        kur(key, w, null);
+        kur(key, w, null, null);
+    }
+
+    /** Kervan Minecraft'ın doğal köyüne ulaştı: o köyün çevresinde han yoksa kurar. */
+    public void koyaHanciKur(String key, World w, double cx, double cz) {
+        if (!aktif() || !veriYuklendi || hanlar.containsKey(key)) return;
+        kur(key, w, null, new double[]{cx, cz});
     }
 
     /** Admin komutu: koy.yml'deki koye han kurar. */
@@ -94,18 +106,27 @@ public class HanciYonetici implements Listener {
         String kd = YasakAlan.koyDunyasiGetir();
         World w = kd != null ? Bukkit.getWorld(kd) : null;
         if (koy == null || w == null) { admin.sendMessage(ChatColor.RED + "Koy bolgesi (koy.yml) tanimli degil."); return false; }
-        return kur("koy", w, admin);
+        return kur("koy", w, admin, null);
     }
 
-    private boolean kur(String key, World w, org.bukkit.command.CommandSender admin) {
+    private boolean kur(String key, World w, org.bukkit.command.CommandSender admin, double[] merkez) {
         Han mevcut = hanlar.get(key);
         if (mevcut != null) {
             if (admin != null) admin.sendMessage(ChatColor.RED + (mevcut.yarim ? "Yarim kalmis kurulum var: once /npcklan hanci sil (araziyi geri yukler)." : "Han zaten kurulu. Once /npcklan hanci sil."));
             return false;
         }
         double[] koy = YasakAlan.koyDikdortgeniGetir();
-        if (koy == null) return false;
+        if (koy == null && merkez == null) return false;
         for (int deneme = 0; deneme < 80; deneme++) {
+            if (merkez != null) { // doğal köy: merkezden 30-85 blok uzakta, rastgele yönde
+                double aci = rng.nextDouble() * Math.PI * 2, d = 30 + rng.nextDouble() * 55;
+                int px = (int) (merkez[0] + Math.cos(aci) * d), pz = (int) (merkez[1] + Math.sin(aci) * d);
+                int a0 = px - GEN / 2, b0 = pz - GEN / 2;
+                int zm = uygunMu(w, a0, b0);
+                if (zm == Integer.MIN_VALUE) continue;
+                if (!insa(key, w, a0, b0, zm)) return false;
+                return true;
+            }
             int yon = rng.nextInt(4);
             double mesafe = 10 + rng.nextDouble() * 35; // koy kenarindan 10-45 blok disarida
             double ort = rng.nextDouble();
@@ -245,7 +266,8 @@ public class HanciYonetici implements Listener {
         v.setSilent(true);
         v.setPersistent(true);
         v.setRemoveWhenFarAway(false);
-        v.setProfession(Villager.Profession.LIBRARIAN);
+        v.setProfession(Villager.Profession.NITWIT); // NITWIT ticaret ekranı açamaz
+        v.setRecipes(new java.util.ArrayList<>());
         v.setCustomName(ChatColor.GOLD + "Hanci");
         v.setCustomNameVisible(true);
         v.getPersistentDataContainer().set(hanciKey, PersistentDataType.BYTE, (byte) 1);
@@ -278,14 +300,57 @@ public class HanciYonetici implements Listener {
     }
 
     // ------------------------------------------------------------------ OLAYLAR
-    @EventHandler
+    private static final class MenuSahip implements InventoryHolder {
+        Inventory env;
+        @Override public Inventory getInventory() { return env; }
+    }
+
+    private ItemStack oge(Material m, String ad, List<String> lore) {
+        ItemStack it = new ItemStack(m);
+        ItemMeta meta = it.getItemMeta();
+        meta.setDisplayName(ad);
+        meta.setLore(lore);
+        it.setItemMeta(meta);
+        return it;
+    }
+
+    /** Ticaret ekranı DEĞİL: hancının kendi bilgi menüsü. HIGHEST: başka dinleyici iptali geri alsa bile son söz bizde. */
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onEtkilesim(PlayerInteractEntityEvent ev) {
         if (!(ev.getRightClicked() instanceof Villager v) || !v.getPersistentDataContainer().has(hanciKey, PersistentDataType.BYTE)) return;
         ev.setCancelled(true);
-        Player p = ev.getPlayer();
-        if (p.isSneaking()) { npc.dedikodu(p); return; }
-        p.sendMessage(ChatColor.GOLD + "Hanci: " + ChatColor.YELLOW + "\"Kervanlardan haber mi istiyorsun? Bahsis (" + Para.yaz(plugin.getConfig().getDouble("npc.dedikodu-bahsis", 200))
-                + ") birak, Shift + sag tikla.\"");
+        if (ev.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
+        menuAc(ev.getPlayer());
+    }
+
+    private void menuAc(Player p) {
+        MenuSahip s = new MenuSahip();
+        Inventory env = Bukkit.createInventory(s, 27, ChatColor.GOLD + "Hancı");
+        s.env = env;
+        double bahsis = plugin.getConfig().getDouble("npc.dedikodu-bahsis", 200);
+        env.setItem(11, oge(Material.CHEST_MINECART, ChatColor.GOLD + "" + ChatColor.BOLD + "Kervan Hakkında Bilgi",
+                List.of(ChatColor.GRAY + "En yakın kervanın hangi yönde olduğunu fısıldar.", ChatColor.GRAY + "Bahşiş: " + ChatColor.GREEN + Para.yaz(bahsis),
+                        "", ChatColor.YELLOW + "► Tıkla")));
+        env.setItem(13, oge(Material.IRON_SWORD, ChatColor.RED + "" + ChatColor.BOLD + "En Yakın Kale Hakkında Bilgi",
+                List.of(ChatColor.GRAY + "En yakın NPC klanının yönü, uzaklığı ve", ChatColor.GRAY + "seninle ilişkisi.", "", ChatColor.YELLOW + "► Tıkla")));
+        env.setItem(15, oge(Material.WITHER_SKELETON_SKULL, ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "En Yakın Zindan Hakkında Bilgi",
+                List.of(ChatColor.GRAY + "En yakın temizlenmemiş zindanın yönü ve uzaklığı.", "", ChatColor.YELLOW + "► Tıkla")));
+        ItemStack cam = oge(Material.BLACK_STAINED_GLASS_PANE, " ", new ArrayList<>());
+        for (int i = 0; i < 27; i++) if (env.getItem(i) == null) env.setItem(i, cam);
+        p.openInventory(env);
+    }
+
+    @EventHandler
+    public void onMenuTikla(InventoryClickEvent ev) {
+        if (!(ev.getInventory().getHolder() instanceof MenuSahip)) return;
+        ev.setCancelled(true);
+        if (!(ev.getWhoClicked() instanceof Player p) || ev.getClickedInventory() != ev.getInventory()) return;
+        switch (ev.getRawSlot()) {
+            case 11 -> { p.closeInventory(); npc.dedikodu(p); }
+            case 13 -> { p.closeInventory(); npc.hanciKaleBilgi(p); }
+            case 15 -> { p.closeInventory(); npc.hanciZindanBilgi(p); }
+            default -> { }
+        }
     }
 
     @EventHandler

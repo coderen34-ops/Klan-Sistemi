@@ -24,6 +24,10 @@ public final class YasakAlan {
     private static Method getClaimAt;
     private static Object dataStore;
 
+    /** Klan Bölgesi (chunk claim) kontrolü: KlanSistemi açılışta bağlar. */
+    public interface BolgeKontrol { boolean var(World w, int x, int z, int yaricap); }
+    public static volatile BolgeKontrol bolgeKontrol;
+
     private YasakAlan() {}
 
     /** true: bu merkez + yarıçap yasak alana (köy ya da claim) değiyor, yapı kurulmamalı. */
@@ -62,6 +66,8 @@ public final class YasakAlan {
     }
 
     public static boolean claimeDegiyor(World dunya, int x, int z, int yaricap) {
+        BolgeKontrol bk = bolgeKontrol;
+        if (bk != null) { try { if (bk.var(dunya, x, z, yaricap)) return true; } catch (Throwable ignored) { } }
         if (!Bukkit.getPluginManager().isPluginEnabled("GriefPrevention")) return false;
         try {
             if (getClaimAt == null) {

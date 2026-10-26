@@ -1258,7 +1258,7 @@ public class VahsiKaleYonetici implements Listener {
 
     /** Takviye: NPC klanının kendi insan (giydirilmiş) muhafızları oyuncunun yanında belirir, onu takip eder,
      *  çevredeki canavarlara saldırır ve süre bitince çekilir. Oyunculara asla saldırmazlar. */
-    public int takviyeMuhafizlariCagir(VahsiKale kale, Player sahip, int adet, int saniye) {
+    public int takviyeMuhafizlariCagir(VahsiKale kale, Player sahip, int adet, java.util.function.BooleanSupplier devam) {
         List<Vindicator> liste = new ArrayList<>();
         String skin = null;
         for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
@@ -1286,9 +1286,8 @@ public class VahsiKaleYonetici implements Listener {
             }
             liste.add(v);
         }
-        final long bitis = System.currentTimeMillis() + saniye * 1000L;
         Bukkit.getScheduler().runTaskTimer(plugin, gorev -> {
-            boolean bitti = !sahip.isOnline() || System.currentTimeMillis() >= bitis;
+            boolean bitti = !sahip.isOnline() || !devam.getAsBoolean();
             boolean hayatta = false;
             for (Vindicator v : liste) {
                 if (!v.isValid()) continue;
