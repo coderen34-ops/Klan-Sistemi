@@ -1214,13 +1214,25 @@ public class VahsiKaleYonetici implements Listener {
     /** Vanilla Vindicator AI oyuncuları kendiliğinden hedefler: ittifaklı oyunculara (ve takviye muhafızlarının
      *  oyunculara/Monster olmayanlara) hedef kilitlenmesi iptal edilir. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onKoyluyeVurus(EntityDamageByEntityEvent ev) {
+        if (!(ev.getEntity() instanceof LivingEntity kurban) || kurban instanceof Player || kurban instanceof Monster) return;
+        var pdc = ev.getDamager().getPersistentDataContainer();
+        if (pdc.has(kervanKey, PersistentDataType.STRING) || pdc.has(kaleIdKey, PersistentDataType.STRING) || pdc.has(muhafizKey, PersistentDataType.BYTE)) {
+            // kervan/kale/takviye muhafızı barışçıl varlıklara (köylü, tüccar, golem, hayvan) zarar veremez
+            if (kurban.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING) && ev.getDamager().getPersistentDataContainer().has(kizginKey, PersistentDataType.BYTE)) return;
+            ev.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHedefSec(EntityTargetLivingEntityEvent ev) {
         LivingEntity hedef = ev.getTarget();
         if (hedef == null) return;
         var pdc = ev.getEntity().getPersistentDataContainer();
         if (pdc.has(kervanKey, PersistentDataType.STRING)) {
             if (hedef instanceof Player) { if (!pdc.has(kizginKey, PersistentDataType.BYTE)) ev.setCancelled(true); }
-            else if (hedef.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING)
+            else if (!(hedef instanceof Monster) // köylü, tüccar, golem, hayvan: vanilla Vindicator AI'ı buralara saldırmasın
+                    || hedef.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING)
                     || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
                     || hedef.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) ev.setCancelled(true);
             return;
@@ -1231,6 +1243,7 @@ public class VahsiKaleYonetici implements Listener {
             return;
         }
         String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
+        if (kid != null && !(hedef instanceof Player) && !(hedef instanceof Monster)) { ev.setCancelled(true); return; } // nöbetçi köylüye/golem'e saldırmaz
         if (kid == null || !(hedef instanceof Player pl)) return;
         VahsiKale kale = kaleler.get(UUID.fromString(kid));
         if (kale != null && dostOyuncuMu(kale, pl)) ev.setCancelled(true);

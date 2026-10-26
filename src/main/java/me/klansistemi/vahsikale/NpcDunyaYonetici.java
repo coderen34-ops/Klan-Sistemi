@@ -813,6 +813,13 @@ public class NpcDunyaYonetici implements Listener {
         tc.setRemoveWhenFarAway(false);
         tc.setProfession(org.bukkit.entity.Villager.Profession.NITWIT);
         tc.setRecipes(new ArrayList<>());
+        // Vanilla köylü, Vindicator/İllager gören (kervan muhafızları dahil) kaçar/panikler: bu hedeflerin hepsini çıkar
+        try {
+            for (com.destroystokyo.paper.entity.ai.Goal<org.bukkit.entity.Villager> g : new ArrayList<>(Bukkit.getMobGoals().getAllGoals(tc))) {
+                String ad = g.getKey().getNamespacedKey().getKey().toLowerCase(Locale.ROOT);
+                if (ad.contains("avoid") || ad.contains("panic")) Bukkit.getMobGoals().removeGoal(tc, g);
+            }
+        } catch (Throwable ignored) { }
         tc.setCustomName(ChatColor.GOLD + k.isim + " Tüccarı");
         tc.setCustomNameVisible(true);
         tc.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
