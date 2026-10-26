@@ -312,9 +312,16 @@ public class NpcDunyaYonetici implements Listener {
                 kaynak.add(Math.cos(aci) * d, 0, Math.sin(aci) * d);
             }
             try {
-                var r = w.locateNearestStructure(kaynak, org.bukkit.generator.structure.StructureType.VILLAGE, 64, false);
-                if (r == null) return;
-                Location l = r.getLocation();
+                Location l = null; double enMes = Double.MAX_VALUE;
+                org.bukkit.generator.structure.Structure[] koyTipleri = {org.bukkit.generator.structure.Structure.VILLAGE_PLAINS, org.bukkit.generator.structure.Structure.VILLAGE_DESERT,
+                        org.bukkit.generator.structure.Structure.VILLAGE_SAVANNA, org.bukkit.generator.structure.Structure.VILLAGE_SNOWY, org.bukkit.generator.structure.Structure.VILLAGE_TAIGA};
+                for (org.bukkit.generator.structure.Structure tip : koyTipleri) {
+                    var r = w.locateNearestStructure(kaynak, tip, 40, false);
+                    if (r == null) continue;
+                    double dd = r.getLocation().distanceSquared(kaynak);
+                    if (dd < enMes) { enMes = dd; l = r.getLocation(); }
+                }
+                if (l == null) return;
                 int x = l.getBlockX(), z = l.getBlockZ();
                 if (YasakAlan.engelliMi(w, x, z, 80)) return; // bizim köy / claim / klan bölgesi: kervan oraya gitmesin
                 for (DKoy d : dogalKoyler) if (d.dunya.equals(w.getName()) && Math.hypot(d.x - x, d.z - z) < 200) return;
@@ -1011,7 +1018,7 @@ public class NpcDunyaYonetici implements Listener {
         boolean itf = sp >= 100;
         long gunI = 7L + Math.min(7, pr / 5);
         env.setItem(15, oge(dost ? Material.LIME_BANNER : Material.WHITE_BANNER, ChatColor.WHITE + "" + ChatColor.BOLD + "İttifak Kur",
-                List.of(ChatColor.GRAY + gunI + " gün: nöbetçiler saldırmaz, uyarı gelmez.", ChatColor.GRAY + "Prestij süreyi uzatır (her 5 prestij +1 gün, en çok 14).",
+                List.of(ChatColor.GRAY + "" + gunI + " gün: nöbetçiler saldırmaz, uyarı gelmez.", ChatColor.GRAY + "Prestij süreyi uzatır (her 5 prestij +1 gün, en çok 14).",
                         ChatColor.GRAY + "Gerek: saygı ≥ 100 " + (itf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘") + ChatColor.GRAY + ", prestij ≥ " + minItf + " " + (pr >= minItf ? ChatColor.GREEN + "✔" : ChatColor.RED + "✘"),
                         dost ? ChatColor.GREEN + "Şu an ittifak var (yenilemek için tıkla)." : "",
                         ChatColor.DARK_GRAY + "(Lider/yardımcı)", "", ChatColor.YELLOW + "► Tıkla")));
