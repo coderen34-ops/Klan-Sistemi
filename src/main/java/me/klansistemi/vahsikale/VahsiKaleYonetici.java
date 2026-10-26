@@ -1657,6 +1657,130 @@ public class VahsiKaleYonetici implements Listener {
         });
     }
 
+    // ------------------------------------------------------------------ EKİPMAN GELİŞİMİ (kasadaki değerli eşyalardan -> güç -> görünür ekipman)
+    private NamespacedKey ekipmanKey() { return new NamespacedKey(plugin, "vahsikale-ekipman"); }
+
+    /** NPC klanının gücüne göre yaşayan nöbetçilerin GERÇEK ekipmanını yükseltir (0=demir, 1=demir+kılıç, 2=elmas, 3=netherit).
+     *  Geliştirilmiş (tier>=1) eşyalar nöbetçi ölünce %100 yere düşer (loot; başka klan/oyuncu alabilir). */
+    public void ekipmanSeviyesiUygula(VahsiKale kale, int tier) {
+        if (tier <= 0) return;
+        Material[] zirh, kilic;
+        Material silah;
+        if (tier >= 3) { zirh = new Material[]{Material.NETHERITE_HELMET, Material.NETHERITE_CHESTPLATE, Material.NETHERITE_LEGGINGS, Material.NETHERITE_BOOTS}; silah = Material.NETHERITE_SWORD; }
+        else if (tier == 2) { zirh = new Material[]{Material.DIAMOND_HELMET, Material.DIAMOND_CHESTPLATE, Material.DIAMOND_LEGGINGS, Material.DIAMOND_BOOTS}; silah = Material.DIAMOND_SWORD; }
+        else { zirh = new Material[]{Material.IRON_HELMET, Material.IRON_CHESTPLATE, Material.IRON_LEGGINGS, Material.IRON_BOOTS}; silah = Material.IRON_SWORD; }
+        for (org.bukkit.entity.LivingEntity le : yasayanNobetciler(kale)) {
+            Integer mevcut = le.getPersistentDataContainer().get(ekipmanKey(), PersistentDataType.INTEGER);
+            if (mevcut != null && mevcut >= tier) continue;
+            EntityEquipment ekip = le.getEquipment();
+            if (ekip == null) continue;
+            boolean lider = "LIDER".equals(kale.nobetciRolleri.get(le.getUniqueId()));
+            ItemStack[] yeni = new ItemStack[4];
+            for (int i = 0; i < 4; i++) {
+                ItemStack parca = new ItemStack(zirh[i]);
+                ItemMeta meta = parca.getItemMeta();
+                if (meta != null) {
+                    meta.addEnchant(Enchantment.PROTECTION, Math.min(4, 2 + tier + (lider ? 1 : 0)), true);
+                    meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    parca.setItemMeta(meta);
+                }
+                yeni[i] = parca;
+            }
+            ItemStack kilicItem = new ItemStack(silah);
+            ItemMeta km = kilicItem.getItemMeta();
+            if (km != null) { km.addEnchant(Enchantment.SHARPNESS, Math.min(5, 1 + tier), true); kilicItem.setItemMeta(km); }
+            ekip.setHelmet(yeni[0]); ekip.setChestplate(yeni[1]); ekip.setLeggings(yeni[2]); ekip.setBoots(yeni[3]);
+            ekip.setItemInMainHand(kilicItem);
+            ekip.setHelmetDropChance(1f); ekip.setChestplateDropChance(1f); ekip.setLeggingsDropChance(1f);
+            ekip.setBootsDropChance(1f); ekip.setItemInMainHandDropChance(1f);
+            le.getPersistentDataContainer().set(ekipmanKey(), PersistentDataType.INTEGER, tier);
+        }
+    }
+
+    // ------------------------------------------------------------------ ARDILLIK / ÜYE YENİLENMESİ
+    /** Kalede yaşayan (ölmemiş) lider var mı. */
+    public boolean liderYasiyorMu(VahsiKale kale) {
+        for (Map.Entry<UUID, String> e : kale.nobetciRolleri.entrySet()) {
+            if ("LIDER".equals(e.getValue()) && !kale.oluNobetciler.contains(e.getKey())) return true;
+        }
+        return false;
+    }
+
+    /** Yaşayan (ölmemiş) ve YÜKLÜ nöbetçi entity'leri. */
+    public java.util.List<org.bukkit.entity.LivingEntity> yasayanNobetciler(VahsiKale kale) {
+        java.util.List<org.bukkit.entity.LivingEntity> l = new java.util.ArrayList<>();
+        for (Map.Entry<UUID, String> e : kale.nobetciRolleri.entrySet()) {
+            if (kale.oluNobetciler.contains(e.getKey())) continue;
+            org.bukkit.entity.Entity en = Bukkit.getEntity(e.getKey());
+            if (en instanceof org.bukkit.entity.LivingEntity le && !le.isDead() && le.isValid()) l.add(le);
+        }
+        return l;
+    }
+
+    /** Lider öldüyse ve nöbetçi hayattaysa en sağlıklı nöbetçiyi yeni lider yapar. */
+    public boolean liderTerfiEttir(VahsiKale kale) {
+        if (kale.fethedildi || liderYasiyorMu(kale)) return false;
+        org.bukkit.entity.LivingEntity secilen = null;
+        for (org.bukkit.entity.LivingEntity le : yasayanNobetciler(kale)) {
+            if (!(le instanceof Vindicator)) continue;
+            if (secilen == null || le.getHealth() > secilen.getHealth()) secilen = le;
+        }
+        if (!(secilen instanceof Vindicator v)) return false;
+        UUID id = v.getUniqueId();
+        String skin = kale.nobetciSkinleri.get(id);
+        kale.nobetciRolleri.put(id, "LIDER");
+        v.getPersistentDataContainer().set(rolKey, PersistentDataType.STRING, "LIDER");
+        String ad = kale.isim + " Lideri";
+        v.setCustomName(ChatColor.RED + ad);
+        AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
+        if (can != null) can.setBaseValue(liderCan(kale.seviye));
+        v.setHealth(Math.min(liderCan(kale.seviye), v.getHealth() + 20));
+        AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
+        if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye) * 1.5);
+        donatimGiydir(v, "LIDER");
+        if (skin != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+            try { NobetciDisguiseYardimcisi.giydir(v, skin, ad); } catch (Throwable t) { /* görünüm bozulmasın */ }
+        }
+        nobetciKaydet(kale.id, id, "LIDER", false, skin);
+        return true;
+    }
+
+    /** Ölü nöbetçileri kayıttan düşüp yerlerine yenilerini doğurur (liderin kendisi hariç, ardıllık ayrı). Dönen: doğan sayı. */
+    public int eksikUyeleriTamamla(VahsiKale kale) {
+        if (kale.fethedildi || kale.tumuOldu()) return 0;
+        java.util.List<org.bukkit.entity.LivingEntity> canli = yasayanNobetciler(kale);
+        if (canli.isEmpty()) return 0;
+        java.util.List<UUID> silinecek = new java.util.ArrayList<>();
+        for (UUID id : kale.oluNobetciler) if ("NOBETCI".equals(kale.nobetciRolleri.get(id))) silinecek.add(id);
+        if (silinecek.isEmpty()) return 0;
+        Random rng = new Random();
+        int dogan = 0;
+        for (UUID id : silinecek) {
+            kale.oluNobetciler.remove(id);
+            kale.nobetciRolleri.remove(id);
+            kale.nobetciSkinleri.remove(id);
+            nobetciSil(kale.id, id);
+            Location taban = canli.get(rng.nextInt(canli.size())).getLocation().clone().add(rng.nextInt(3) - 1, 0, rng.nextInt(3) - 1);
+            String skin = KlanSkinHavuzu.nobetciSkin(kale.klanTuru, rng);
+            dogurBir(kale, taban, "NOBETCI", nobetciCan(kale.seviye), nobetciHasar(kale.seviye), kale.isim + " Nöbetçisi", skin);
+            dogan++;
+        }
+        return dogan;
+    }
+
+    private void nobetciSil(UUID kaleId, UUID npcId) {
+        if (baglanti == null) return;
+        plugin.arkaPlanda(() -> {
+            try (PreparedStatement ps = baglanti.prepareStatement("DELETE FROM nobetciler WHERE kale_id=? AND npc_uuid=?")) {
+                ps.setString(1, kaleId.toString());
+                ps.setString(2, npcId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Nöbetçi kaydı silinemedi", e);
+            }
+        });
+    }
+
     private void nobetciOldu(UUID kaleId, UUID npcId) {
         if (baglanti == null) return;
         plugin.arkaPlanda(() -> {
