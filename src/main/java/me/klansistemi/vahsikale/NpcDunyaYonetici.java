@@ -71,6 +71,7 @@ public class NpcDunyaYonetici implements Listener {
     private static class Kervan {
         double x, z; boolean enkaz; final List<ItemStack> esya = new ArrayList<>();
         String kaynakKey, hedefKey; double kx, kz; boolean koyGordu;
+        final List<UUID> varliklar = new ArrayList<>(); // görünür kervan entity'leri (kalıcı DEĞİL)
     }
 
     private static class Enkaz {
@@ -305,6 +306,7 @@ public class NpcDunyaYonetici implements Listener {
                 Kervan n = new Kervan(); n.x = k.merkez.getX(); n.z = k.merkez.getZ(); return n;
             });
             if (kv.enkaz) continue;
+            if (gorselAktif(kv)) continue; // görünür kervan kendi yürüyor; varınca soyut tick devralır
             String home = "kale:" + k.id;
             if (kv.kaynakKey == null) { kv.kaynakKey = home; kv.kx = k.merkez.getX(); kv.kz = k.merkez.getZ(); }
             List<Dugum> dugumler = dugumler(w);
@@ -360,7 +362,9 @@ public class NpcDunyaYonetici implements Listener {
 
     /** ~3 sn'de bir: oyuncu yakınlığı (lazy spawn + süre sıfırlama + süre dolumu). */
     public void enkazKontrol() {
-        if (!aktif() || !veriYuklendi || enkazlar.isEmpty()) return;
+        if (!aktif() || !veriYuklendi) return;
+        try { kervanGorsel(); } catch (Exception ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "[NPC] görünür kervan hatası", ex); }
+        if (enkazlar.isEmpty()) return;
         long omur = dk("enkaz-omur-dakika", 40) * 60_000L;
         long simdi = System.currentTimeMillis();
         List<UUID> silinecek = new ArrayList<>();
@@ -486,6 +490,167 @@ public class NpcDunyaYonetici implements Listener {
                 if (bos) e.sandikAcildi = true; // boşalınca bir sonraki kontrolde temizlenir
             }
         }
+    }
+
+    // ------------------------------------------------------------------ GÖRÜNÜR KERVAN (oyuncu yakınken)
+    private boolean gorselAktif(Kervan kv) {
+        for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) return true; }
+        return false;
+    }
+
+    private void gorselKaldir(Kervan kv) {
+        for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null) e.remove(); }
+        kv.varliklar.clear();
+    }
+
+    private boolean oyuncuYakin(World w, double x, double z, double r) {
+        for (Player p : w.getPlayers()) {
+            double dx = p.getLocation().getX() - x, dz = p.getLocation().getZ() - z;
+            if (dx * dx + dz * dz <= r * r) return true;
+        }
+        return false;
+    }
+
+    /** ~3 sn'de bir: oyuncu 64 blok yaklaşınca soyut kervan gerçek (hayvan + insan muhafız) olarak belirir,
+     *  rotası boyunca yürür; oyuncu 110 bloktan uzaklaşırsa ya da varışa yaklaşırsa yeniden soyuta döner. */
+    public void kervanGorsel() {
+        for (Map.Entry<UUID, Kervan> en : new ArrayList<>(kervanlar.entrySet())) {
+            Kervan kv = en.getValue();
+            VahsiKale k = plugin.vahsiKale().kaleBul(en.getKey());
+            if (k == null || k.fethedildi || k.merkez == null || k.merkez.getWorld() == null || kv.enkaz) {
+                if (!kv.varliklar.isEmpty()) gorselKaldir(kv);
+                continue;
+            }
+            World w = k.merkez.getWorld();
+            if (!kv.varliklar.isEmpty() && !gorselAktif(kv)) kv.varliklar.clear(); // chunk boşaldı / hepsi öldü
+            if (kv.varliklar.isEmpty()) {
+                if (kv.hedefKey == null || !oyuncuYakin(w, kv.x, kv.z, 64)) continue;
+                if (!w.isChunkLoaded(((int) kv.x) >> 4, ((int) kv.z) >> 4)) continue;
+                Dugum h = dugumBul(dugumler(w), kv.hedefKey);
+                if (h == null || Math.hypot(h.x() - kv.x, h.z() - kv.z) <= 25) continue; // varışa çok yakın: soyut devralır
+                gorselKur(k, kv, w);
+                continue;
+            }
+            org.bukkit.entity.Entity lider = null;
+            for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e instanceof org.bukkit.entity.Vindicator && e.isValid()) { lider = e; break; } }
+            if (lider == null) for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) { lider = e; break; } }
+            if (lider == null) { kv.varliklar.clear(); continue; }
+            Location ll = lider.getLocation();
+            kv.x = ll.getX(); kv.z = ll.getZ();
+            if (!oyuncuYakin(w, kv.x, kv.z, 110)) { gorselKaldir(kv); continue; }
+            Dugum hedef = dugumBul(dugumler(w), kv.hedefKey);
+            if (hedef == null) continue;
+            double kalan = Math.hypot(hedef.x() - kv.x, hedef.z() - kv.z);
+            if (kalan <= 15) { gorselKaldir(kv); kv.x = hedef.x(); kv.z = hedef.z(); continue; }
+            double adim = Math.min(24, kalan);
+            int wx = (int) (kv.x + (hedef.x() - kv.x) / kalan * adim), wz = (int) (kv.z + (hedef.z() - kv.z) / kalan * adim);
+            if (!w.isChunkLoaded(wx >> 4, wz >> 4)) continue;
+            Location wp = new Location(w, wx + 0.5, w.getHighestBlockYAt(wx, wz) + 1, wz + 0.5);
+            for (UUID id : kv.varliklar) {
+                org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+                if (e instanceof org.bukkit.entity.Mob m && m.isValid() && m.getTarget() == null) {
+                    try { m.getPathfinder().moveTo(wp, m instanceof org.bukkit.entity.Vindicator ? 0.9 : 1.0); } catch (Exception ignored) { }
+                }
+            }
+        }
+    }
+
+    private void gorselKur(VahsiKale k, Kervan kv, World w) {
+        int x = (int) kv.x, z = (int) kv.z, y = w.getHighestBlockYAt(x, z) + 1;
+        if (w.getBlockAt(x, y - 1, z).isLiquid()) return;
+        Location b = new Location(w, x + 0.5, y, z + 0.5);
+        int n = Math.max(1, dk("kervan-muhafiz", 3));
+        for (int i = 0; i < n; i++) {
+            org.bukkit.entity.Vindicator g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
+            kv.varliklar.add(g.getUniqueId());
+        }
+        org.bukkit.entity.EntityType[] t = {org.bukkit.entity.EntityType.MULE, org.bukkit.entity.EntityType.DONKEY, org.bukkit.entity.EntityType.LLAMA};
+        for (int i = 0; i < 2; i++) {
+            org.bukkit.entity.Entity h = w.spawnEntity(b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2), t[rng.nextInt(t.length)]);
+            h.setPersistent(false);
+            h.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
+            h.setCustomName(ChatColor.GOLD + k.isim + " Kervanı");
+            if (h instanceof org.bukkit.entity.ChestedHorse ch) ch.setCarryingChest(true);
+            kv.varliklar.add(h.getUniqueId());
+        }
+    }
+
+    private org.bukkit.entity.Player saldirgan(org.bukkit.event.entity.EntityDamageByEntityEvent ev) {
+        org.bukkit.entity.Entity d = ev.getDamager();
+        if (d instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof Player sp) return sp;
+        return d instanceof Player pl ? pl : null;
+    }
+
+    @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+    public void onKervanVurus(org.bukkit.event.entity.EntityDamageByEntityEvent ev) {
+        String kid = ev.getEntity().getPersistentDataContainer().get(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING);
+        if (kid == null) return;
+        Player p = saldirgan(ev);
+        Kervan kv = kervanlar.get(UUID.fromString(kid));
+        if (p == null || kv == null) return;
+        for (UUID id : kv.varliklar) {
+            org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+            if (e instanceof org.bukkit.entity.Vindicator v && v.isValid()) {
+                v.getPersistentDataContainer().set(plugin.vahsiKale().kizginKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+                v.setTarget(p);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onKervanOlum(org.bukkit.event.entity.EntityDeathEvent ev) {
+        org.bukkit.entity.LivingEntity ent = ev.getEntity();
+        String kid = ent.getPersistentDataContainer().get(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING);
+        if (kid == null) return;
+        ev.getDrops().clear(); ev.setDroppedExp(0);
+        Kervan kv = kervanlar.get(UUID.fromString(kid));
+        if (kv == null) return;
+        kv.varliklar.remove(ent.getUniqueId());
+        if (!(ent instanceof org.bukkit.entity.Vindicator)) return;
+        for (UUID id : kv.varliklar) {
+            org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+            if (e instanceof org.bukkit.entity.Vindicator && e.isValid() && !e.isDead()) return; // muhafız kaldı
+        }
+        VahsiKale k = plugin.vahsiKale().kaleBul(UUID.fromString(kid));
+        if (k == null) return;
+        Location l = ent.getLocation();
+        gorselKaldir(kv);
+        Enkaz e = new Enkaz();
+        e.kaleId = k.id; e.dunya = l.getWorld().getName(); e.x = l.getX(); e.z = l.getZ(); e.sonYakinlik = System.currentTimeMillis();
+        synchronized (this) { e.esya.addAll(kv.esya); kv.esya.clear(); }
+        if (e.esya.size() < 3) e.esya.addAll(lootUret(false, k.seviye));
+        enkazlar.put(UUID.randomUUID(), e);
+        kv.enkaz = true;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
+            kv.kaynakKey = "kale:" + k.id; kv.kx = kv.x; kv.kz = kv.z; kv.hedefKey = null;
+        }, 20L * 60 * 30);
+        Player katil = ent.getKiller();
+        if (katil != null) {
+            Klan kk = plugin.klanManager().oyuncununKlani(katil.getUniqueId());
+            if (kk != null) saldiriBildir(kk, k);
+            katil.sendMessage(ChatColor.GOLD + k.isim + " kervanı yağmalandı! Enkaz sandığı birazdan belirir.");
+        }
+        kaydet();
+    }
+
+    /** Admin: /npcklan kervan [git] - kervan konumlarını listeler / en yakınına ışınlar. */
+    private void kervanKomut(Player p, String[] a) {
+        if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
+        boolean git = a.length > 1 && a[1].equalsIgnoreCase("git");
+        double en = Double.MAX_VALUE; Location hedef = null; int n = 0;
+        for (Map.Entry<UUID, Kervan> e : kervanlar.entrySet()) {
+            VahsiKale k = plugin.vahsiKale().kaleBul(e.getKey());
+            if (k == null || k.merkez == null || k.merkez.getWorld() == null) continue;
+            Kervan kv = e.getValue();
+            if (!k.merkez.getWorld().equals(p.getWorld())) continue;
+            double d = Math.hypot(kv.x - p.getLocation().getX(), kv.z - p.getLocation().getZ());
+            if (n++ < 12) p.sendMessage(ChatColor.GRAY + k.isim + ": " + Math.round(kv.x) + ", " + Math.round(kv.z) + " (" + Math.round(d) + " blok) "
+                    + (kv.enkaz ? ChatColor.RED + "enkaz" : gorselAktif(kv) ? ChatColor.GREEN + "görünür" : ChatColor.YELLOW + "soyut"));
+            if (!kv.enkaz && d < en) { en = d; hedef = new Location(k.merkez.getWorld(), kv.x, k.merkez.getWorld().getHighestBlockYAt((int) kv.x, (int) kv.z) + 2, kv.z); }
+        }
+        if (git && hedef != null) { p.teleport(hedef); p.sendMessage(ChatColor.GREEN + "En yakın kervana ışınlandın (yaklaşınca belirir)."); }
+        else if (!git) p.sendMessage(ChatColor.YELLOW + "Işınlanmak için: /npcklan kervan git");
     }
 
     // ------------------------------------------------------------------ HANCI DEDİKODUSU
@@ -822,6 +987,7 @@ public class NpcDunyaYonetici implements Listener {
         String alt = a.length > 0 ? a[0].toLowerCase(Locale.ROOT) : "panel";
         switch (alt) {
             case "dedikodu" -> dedikodu(p);
+            case "kervan" -> kervanKomut(p, a);
             case "patika" -> {
                 if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
                 String a2 = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "";
@@ -928,5 +1094,5 @@ public class NpcDunyaYonetici implements Listener {
         }
     }
 
-    public void kapat() { kaydet(); }
+    public void kapat() { for (Kervan kv : kervanlar.values()) gorselKaldir(kv); kaydet(); }
 }

@@ -93,6 +93,8 @@ public class VahsiKaleYonetici implements Listener {
 
     private final NamespacedKey kaleIdKey;
     private final NamespacedKey muhafizKey;
+    public final NamespacedKey kervanKey; // değer: kale UUID (görünür kervan varlıkları)
+    public final NamespacedKey kizginKey; // oyuncu kervana vurdu: muhafızlar artık saldırır
     private final NamespacedKey rolKey; // "NOBETCI" ya da "LIDER"
     private final NamespacedKey elciKey; // elçi NPC'sini nöbetçi/liderden ayırt etmek için (byte=1)
 
@@ -118,6 +120,8 @@ public class VahsiKaleYonetici implements Listener {
         this.kaleIdKey = new NamespacedKey(plugin, "vahsikale-id");
         this.rolKey = new NamespacedKey(plugin, "vahsikale-rol");
         this.muhafizKey = new NamespacedKey(plugin, "npc-muhafiz");
+        this.kervanKey = new NamespacedKey(plugin, "npc-kervan");
+        this.kizginKey = new NamespacedKey(plugin, "npc-kizgin");
         this.elciKey = new NamespacedKey(plugin, "vahsikale-elci");
         baglan();
         tablolariOlustur();
@@ -1214,6 +1218,13 @@ public class VahsiKaleYonetici implements Listener {
         LivingEntity hedef = ev.getTarget();
         if (hedef == null) return;
         var pdc = ev.getEntity().getPersistentDataContainer();
+        if (pdc.has(kervanKey, PersistentDataType.STRING)) {
+            if (hedef instanceof Player) { if (!pdc.has(kizginKey, PersistentDataType.BYTE)) ev.setCancelled(true); }
+            else if (hedef.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING)
+                    || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
+                    || hedef.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) ev.setCancelled(true);
+            return;
+        }
         if (pdc.has(muhafizKey, PersistentDataType.BYTE)) {
             if (!(hedef instanceof Monster) || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
                     || hedef.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) ev.setCancelled(true);
@@ -1230,6 +1241,7 @@ public class VahsiKaleYonetici implements Listener {
         if (!(ev.getEntity() instanceof Player pl)) return;
         var pdc = ev.getDamager().getPersistentDataContainer();
         if (pdc.has(muhafizKey, PersistentDataType.BYTE)) { ev.setCancelled(true); return; }
+        if (pdc.has(kervanKey, PersistentDataType.STRING) && !pdc.has(kizginKey, PersistentDataType.BYTE)) { ev.setCancelled(true); return; }
         String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
         if (kid == null) return;
         VahsiKale kale = kaleler.get(UUID.fromString(kid));
@@ -1305,6 +1317,33 @@ public class VahsiKaleYonetici implements Listener {
             if (bitti || !hayatta) gorev.cancel();
         }, 20L, 20L);
         return liste.size();
+    }
+
+    /** Görünür kervanın insan muhafızı: kalenin skini, nöbetçi donatımı; oyunculara KIZGIN olmadıkça saldırmaz. */
+    public Vindicator kervanMuhafiziUret(VahsiKale kale, Location l) {
+        Vindicator v = l.getWorld().spawn(l, Vindicator.class);
+        v.setPersistent(false);
+        v.setRemoveWhenFarAway(false);
+        v.getPersistentDataContainer().set(kervanKey, PersistentDataType.STRING, kale.id.toString());
+        String ad = kale.isim + " Kervan Muhafızı";
+        v.setCustomName(ChatColor.GOLD + ad);
+        v.setCustomNameVisible(true);
+        AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
+        if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
+        v.setHealth(nobetciCan(kale.seviye));
+        AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
+        if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye));
+        donatimGiydir(v, "NOBETCI");
+        if (v.getEquipment() != null) v.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
+        String skin = null;
+        for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
+        final String skinF = skin;
+        if (skinF != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try { NobetciDisguiseYardimcisi.giydir(v, skinF, ad); } catch (Throwable t) { /* görünüm bozulur, işlev kalır */ }
+            });
+        }
+        return v;
     }
 
     private void saldirTetikle(VahsiKale kale, Player p) {
