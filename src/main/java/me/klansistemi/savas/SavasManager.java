@@ -513,6 +513,8 @@ public class SavasManager implements Listener {
             buyuGanimet = plugin.buyuSavas().ganimetAktar(kaybeden, kazananKlan, fark / (double) Math.max(1, hedefPuan()));
             plugin.uzmanlik().savasKaybi(kaybeden, kazananKlan);
             kaybedenBekleme.put(kaybeden.id, simdi);
+            // Başarım: kazanan klanın çevrimiçi üyeleri klan savaşı sayacını artırır
+            for (UUID uid : kazananKlan.uyeler.keySet()) me.klansistemi.BasarimKopru.sayac(Bukkit.getPlayer(uid), "klan_savas");
             plugin.log().yaz(kazananKlan, "-", "GANIMET", kaybeden.isim + " -> %" + Math.round(oran) + " | " + Para.yaz(para) + " + " + esya + " yığın eşya");
         }
         if (!"IPTAL".equals(sonuc) || s.durum == Savas.Durum.AKTIF) ciftBekleme.put(cift(s.klanA, s.klanB), simdi);

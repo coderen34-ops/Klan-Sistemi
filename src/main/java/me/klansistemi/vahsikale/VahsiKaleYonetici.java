@@ -1279,6 +1279,7 @@ public class VahsiKaleYonetici implements Listener {
                 kale.fetihedenKlanId = klan.id;
                 kale.fetihZamani = System.currentTimeMillis();
                 klan.prestij += fetihPrestiji();
+                me.klansistemi.BasarimKopru.sayac(event.getPlayer(), "klan_kale");
                 plugin.veri().kaydet();
                 elciSil(kale); // fethedilince elçiyle diplomasi/ticaret anlamsızlaşıyor
                 kaydet(kale);

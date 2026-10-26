@@ -168,6 +168,7 @@ public class KlanManager {
                 "klan", isim, "ucret", Para.yaz(ucret));
         Bukkit.broadcastMessage(m().onek() + m().metin("kuruldu-duyuru", "&e{oyuncu} &7yeni bir klan kurdu: &6{klan}", "oyuncu", p.getName(), "klan", isim));
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+        BasarimKopru.sayac(p, "klan_kurucu");
     }
 
     // ------------------------------------------------------------------ DAVET / KATILMA
