@@ -43,11 +43,9 @@ public class HanciYonetici implements Listener {
     private final File dosya;
     private final Random rng = new Random();
 
-    private String dunyaAdi;
-    private UUID villagerId;
-    private int vx, vy, vz;
+    private static final class Han { String key, dunya; UUID villagerId; int vx, vy, vz; boolean yarim; }
+    private final java.util.Map<String, Han> hanlar = new java.util.LinkedHashMap<>();
     private boolean veriYuklendi = false;
-    private boolean yarim = false; // yedek var ama kurulum tamamlanmamis: otomatik yeniden kurulum YOK (yedek ezilmesin)
 
     public HanciYonetici(KlanSistemi plugin, NpcDunyaYonetici npc) {
         this.plugin = plugin;
@@ -59,35 +57,54 @@ public class HanciYonetici implements Listener {
 
     private boolean aktif() { return plugin.getConfig().getBoolean("npc.hanci-aktif", true); }
 
+    private File yedekDosyasi(String key) { return new File(plugin.getDataFolder(), "hanci_yedek_" + key.replaceAll("[^A-Za-z0-9_]", "_") + ".yml"); }
+
     // ------------------------------------------------------------------ DONGU
-    /** Periyodik: han yoksa kur, hanci kaybolduysa yeniden dogur. */
+    /** Periyodik: kayitli hanlarin hancisi kaybolduysa yeniden dogurur (han YOKSA kurmaz: kurulum kervan koye ulasinca). */
     public void kontrol() {
-        if (!aktif() || !veriYuklendi || yarim) return;
-        try {
-            if (dunyaAdi == null) { kur(null); return; }
-            World w = Bukkit.getWorld(dunyaAdi);
-            if (w == null || !w.isChunkLoaded(vx >> 4, vz >> 4)) return; // yuklu degilse dokunma (cift dogurma riski)
-            Entity e = villagerId == null ? null : Bukkit.getEntity(villagerId);
-            if (e != null && !e.isDead()) return;
-            // etiketli baska hanci var mi (UUID degismis olabilir)?
-            for (Entity n : w.getNearbyEntities(new Location(w, vx, vy, vz), 6, 6, 6)) {
-                if (n instanceof Villager v && v.getPersistentDataContainer().has(hanciKey, PersistentDataType.BYTE)) { villagerId = v.getUniqueId(); kaydet(null); return; }
+        if (!aktif() || !veriYuklendi) return;
+        for (Han h : new java.util.ArrayList<>(hanlar.values())) {
+            try {
+                if (h.yarim) continue;
+                World w = Bukkit.getWorld(h.dunya);
+                if (w == null || !w.isChunkLoaded(h.vx >> 4, h.vz >> 4)) continue; // yuklu degilse dokunma (cift dogurma riski)
+                Entity e = h.villagerId == null ? null : Bukkit.getEntity(h.villagerId);
+                if (e != null && !e.isDead()) continue;
+                boolean bulundu = false;
+                for (Entity n : w.getNearbyEntities(new Location(w, h.vx, h.vy, h.vz), 6, 6, 6)) {
+                    if (n instanceof Villager v && v.getPersistentDataContainer().has(hanciKey, PersistentDataType.BYTE)) { h.villagerId = v.getUniqueId(); kaydet(); bulundu = true; break; }
+                }
+                if (!bulundu) dogur(h, w);
+            } catch (Exception ex) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "Hanci kontrolu hatasi", ex);
             }
-            dogur(w);
-        } catch (Exception ex) {
-            plugin.getLogger().log(java.util.logging.Level.WARNING, "Hanci kontrolu hatasi", ex);
         }
     }
 
     // ------------------------------------------------------------------ KURULUM
-    /** admin: komut gondericisi (null olabilir). Kurulum basariliysa true. */
+    /** Kervan koye ulasti: o koyde han yoksa kurar. */
+    public void koyaHanciKur(String key, World w) {
+        if (!aktif() || !veriYuklendi || hanlar.containsKey(key)) return;
+        kur(key, w, null);
+    }
+
+    /** Admin komutu: koy.yml'deki koye han kurar. */
     public boolean kur(org.bukkit.command.CommandSender admin) {
-        if (yarim) { if (admin != null) admin.sendMessage(ChatColor.RED + "Yarim kalmis kurulum var: once /npcklan hanci sil (araziyi geri yukler)."); return false; }
-        if (dunyaAdi != null) { if (admin != null) admin.sendMessage(ChatColor.RED + "Han zaten kurulu. Once /npcklan hanci sil."); return false; }
         double[] koy = YasakAlan.koyDikdortgeniGetir();
         String kd = YasakAlan.koyDunyasiGetir();
         World w = kd != null ? Bukkit.getWorld(kd) : null;
-        if (koy == null || w == null) { if (admin != null) admin.sendMessage(ChatColor.RED + "Koy bolgesi (koy.yml) tanimli degil."); return false; }
+        if (koy == null || w == null) { admin.sendMessage(ChatColor.RED + "Koy bolgesi (koy.yml) tanimli degil."); return false; }
+        return kur("koy", w, admin);
+    }
+
+    private boolean kur(String key, World w, org.bukkit.command.CommandSender admin) {
+        Han mevcut = hanlar.get(key);
+        if (mevcut != null) {
+            if (admin != null) admin.sendMessage(ChatColor.RED + (mevcut.yarim ? "Yarim kalmis kurulum var: once /npcklan hanci sil (araziyi geri yukler)." : "Han zaten kurulu. Once /npcklan hanci sil."));
+            return false;
+        }
+        double[] koy = YasakAlan.koyDikdortgeniGetir();
+        if (koy == null) return false;
         for (int deneme = 0; deneme < 80; deneme++) {
             int yon = rng.nextInt(4);
             double mesafe = 10 + rng.nextDouble() * 35; // koy kenarindan 10-45 blok disarida
@@ -102,7 +119,7 @@ public class HanciYonetici implements Listener {
             int x0 = x - GEN / 2, z0 = z - GEN / 2;
             int zemin = uygunMu(w, x0, z0);
             if (zemin == Integer.MIN_VALUE) continue;
-            insa(w, x0, z0, zemin);
+            if (!insa(key, w, x0, z0, zemin)) return false;
             if (admin != null) admin.sendMessage(ChatColor.GREEN + "Han kuruldu: " + x + ", " + zemin + ", " + z);
             return true;
         }
@@ -139,7 +156,7 @@ public class HanciYonetici implements Listener {
         w.getBlockAt(x, y, z).setBlockData(Bukkit.createBlockData(veri), false);
     }
 
-    private void insa(World w, int x0, int z0, int fy) {
+    private boolean insa(String key, World w, int x0, int z0, int fy) {
         // 1) arazi yedegi (kutu: x0..x0+8, fy-5..fy+8, z0..z0+8)
         int yMin = fy - 5, yMax = fy + 8;
         List<String> yedek = new ArrayList<>();
@@ -148,8 +165,13 @@ public class HanciYonetici implements Listener {
         }
         YamlConfiguration y = new YamlConfiguration();
         y.set("dunya", w.getName()); y.set("x0", x0); y.set("z0", z0); y.set("fy", fy); y.set("yedek", yedek);
+        File yedekDosya = yedekDosyasi(key);
         // villager henuz yok; once yedegi diske yaz, sonra insa et (yarim kalirsa geri alinabilsin)
-        try { y.save(dosya); } catch (Exception e) { plugin.getLogger().log(java.util.logging.Level.WARNING, "hanci.yml yazilamadi - han kurulmadi", e); return; }
+        try { y.save(yedekDosya); } catch (Exception e) { plugin.getLogger().log(java.util.logging.Level.WARNING, "han yedegi yazilamadi - han kurulmadi", e); return false; }
+        Han h = new Han(); h.key = key; h.dunya = w.getName(); h.yarim = true; // insa bitene kadar yarim isaretli (cokerse otomatik yeniden kurulmaz)
+        h.vx = x0 + 4; h.vy = fy + 1; h.vz = z0 + 4;
+        hanlar.put(key, h);
+        kaydet();
 
         // 2) temizle (zeminin ustu) + temel
         for (int x = 0; x < GEN; x++) for (int z = 0; z < GEN; z++) {
@@ -209,14 +231,14 @@ public class HanciYonetici implements Listener {
         // kapi onu basamak
         set(w, x0 + 4, fy, z0 - 1, "minecraft:spruce_planks");
 
-        this.dunyaAdi = w.getName();
-        this.vx = x0 + 4; this.vy = fy + 1; this.vz = z0 + 4;
-        dogur(w);
-        plugin.getLogger().info("[Hanci] Han kuruldu: " + dunyaAdi + " " + vx + "," + vy + "," + vz);
+        h.yarim = false;
+        dogur(h, w);
+        plugin.getLogger().info("[Hanci] Han kuruldu (" + key + "): " + h.dunya + " " + h.vx + "," + h.vy + "," + h.vz);
+        return true;
     }
 
-    private void dogur(World w) {
-        Location l = new Location(w, vx + 0.5, vy, vz + 0.5);
+    private void dogur(Han h, World w) {
+        Location l = new Location(w, h.vx + 0.5, h.vy, h.vz + 0.5);
         Villager v = w.spawn(l, Villager.class);
         v.setAI(false);
         v.setInvulnerable(true);
@@ -227,27 +249,30 @@ public class HanciYonetici implements Listener {
         v.setCustomName(ChatColor.GOLD + "Hanci");
         v.setCustomNameVisible(true);
         v.getPersistentDataContainer().set(hanciKey, PersistentDataType.BYTE, (byte) 1);
-        villagerId = v.getUniqueId();
-        kaydet(null);
+        h.villagerId = v.getUniqueId();
+        kaydet();
     }
 
     // ------------------------------------------------------------------ KALDIR
     public boolean sil(org.bukkit.command.CommandSender admin) {
-        if (!dosya.exists()) { admin.sendMessage(ChatColor.RED + "Kayitli han yok."); return false; }
-        YamlConfiguration y = YamlConfiguration.loadConfiguration(dosya);
+        Han h = hanlar.get("koy");
+        File yedekDosya = yedekDosyasi("koy");
+        if (h == null || !yedekDosya.exists()) { admin.sendMessage(ChatColor.RED + "Kayitli han yok."); return false; }
+        YamlConfiguration y = YamlConfiguration.loadConfiguration(yedekDosya);
         World w = Bukkit.getWorld(y.getString("dunya", ""));
         List<String> yedek = y.getStringList("yedek");
         if (w == null || yedek.isEmpty()) { admin.sendMessage(ChatColor.RED + "Yedek okunamadi, han silinmedi."); return false; }
         int x0 = y.getInt("x0"), z0 = y.getInt("z0"), fy = y.getInt("fy");
-        Entity e = villagerId == null ? null : Bukkit.getEntity(villagerId);
+        Entity e = h.villagerId == null ? null : Bukkit.getEntity(h.villagerId);
         if (e != null) e.remove();
         int i = 0, yMin = fy - 5, yMax = fy + 8;
         for (int x = 0; x < GEN; x++) for (int yy = yMin; yy <= yMax; yy++) for (int z = 0; z < GEN; z++) {
             BlockData bd = Bukkit.createBlockData(yedek.get(i++));
             w.getBlockAt(x0 + x, yy, z0 + z).setBlockData(bd, false);
         }
-        dunyaAdi = null; villagerId = null; yarim = false;
-        dosya.delete();
+        hanlar.remove("koy");
+        yedekDosya.delete();
+        kaydet();
         admin.sendMessage(ChatColor.GREEN + "Han kaldirildi, arazi geri yuklendi.");
         return true;
     }
@@ -273,13 +298,16 @@ public class HanciYonetici implements Listener {
         try {
             if (dosya.exists()) {
                 YamlConfiguration y = YamlConfiguration.loadConfiguration(dosya);
-                dunyaAdi = y.getString("dunya");
-                vx = y.getInt("vx"); vy = y.getInt("vy"); vz = y.getInt("vz");
-                String id = y.getString("villager");
-                villagerId = id == null ? null : UUID.fromString(id);
-                if (!y.contains("vx")) { // yedek var ama konum yok: yari kalmis kurulum -> kayitli kabul edilmez
-                    dunyaAdi = null; yarim = y.contains("yedek");
-                    if (yarim) plugin.getLogger().warning("[Hanci] Yarim kalmis han kurulumu var - /npcklan hanci sil ile geri yukleyin.");
+                org.bukkit.configuration.ConfigurationSection hs = y.getConfigurationSection("hanlar");
+                if (hs != null) for (String key : hs.getKeys(false)) {
+                    Han h = new Han();
+                    h.key = key; h.dunya = hs.getString(key + ".dunya");
+                    h.vx = hs.getInt(key + ".vx"); h.vy = hs.getInt(key + ".vy"); h.vz = hs.getInt(key + ".vz");
+                    String id = hs.getString(key + ".villager");
+                    h.villagerId = id == null ? null : UUID.fromString(id);
+                    h.yarim = hs.getBoolean(key + ".yarim", false);
+                    if (h.yarim) plugin.getLogger().warning("[Hanci] Yarim kalmis han kurulumu var (" + key + ") - /npcklan hanci sil ile geri yukleyin.");
+                    hanlar.put(key, h);
                 }
             }
             veriYuklendi = true;
@@ -288,13 +316,18 @@ public class HanciYonetici implements Listener {
         }
     }
 
-    private void kaydet(Object ignored) {
-        if (!veriYuklendi || dunyaAdi == null) return;
+    private synchronized void kaydet() {
+        if (!veriYuklendi) return;
         try {
-            YamlConfiguration y = dosya.exists() ? YamlConfiguration.loadConfiguration(dosya) : new YamlConfiguration();
-            y.set("dunya", dunyaAdi); y.set("vx", vx); y.set("vy", vy); y.set("vz", vz);
-            y.set("villager", villagerId == null ? null : villagerId.toString());
-            y.save(dosya);
+            YamlConfiguration y = new YamlConfiguration();
+            for (Han h : hanlar.values()) {
+                String p = "hanlar." + h.key;
+                y.set(p + ".dunya", h.dunya); y.set(p + ".vx", h.vx); y.set(p + ".vy", h.vy); y.set(p + ".vz", h.vz);
+                y.set(p + ".villager", h.villagerId == null ? null : h.villagerId.toString()); y.set(p + ".yarim", h.yarim);
+            }
+            File gecici = new File(plugin.getDataFolder(), "hanci.yml.tmp");
+            y.save(gecici);
+            java.nio.file.Files.move(gecici.toPath(), dosya.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception ex) {
             plugin.getLogger().log(java.util.logging.Level.WARNING, "hanci.yml yazilamadi", ex);
         }

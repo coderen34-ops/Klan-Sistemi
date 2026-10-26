@@ -70,6 +70,7 @@ public class NpcDunyaYonetici implements Listener {
 
     private static class Kervan {
         double x, z; boolean enkaz; final List<ItemStack> esya = new ArrayList<>();
+        String kaynakKey, hedefKey; double kx, kz; boolean koyGordu;
     }
 
     private static class Enkaz {
@@ -257,44 +258,97 @@ public class NpcDunyaYonetici implements Listener {
     }
 
     // ------------------------------------------------------------------ KERVAN
+    private record Dugum(String key, double x, double z, boolean koy) { }
+
+    private List<Dugum> dugumler(World w) {
+        List<Dugum> l = new ArrayList<>();
+        for (VahsiKale k : aktifKaleler()) {
+            if (k.merkez.getWorld().equals(w)) l.add(new Dugum("kale:" + k.id, k.merkez.getX(), k.merkez.getZ(), false));
+        }
+        double[] koy = YasakAlan.koyDikdortgeniGetir();
+        String kd = YasakAlan.koyDunyasiGetir();
+        if (koy != null && kd != null && kd.equals(w.getName())) l.add(new Dugum("koy", (koy[0] + koy[1]) / 2, (koy[2] + koy[3]) / 2, true));
+        return l;
+    }
+
+    private static Dugum dugumBul(List<Dugum> l, String key) {
+        if (key == null) return null;
+        for (Dugum d : l) if (d.key().equals(key)) return d;
+        return null;
+    }
+
+    private static String rotaAnahtari(String a, String b) { return a.compareTo(b) < 0 ? a + "~" + b : b + "~" + a; }
+
+    /** Sabit rotalar: en yakin dugumden en yakin dugume (kale/koy). Rotalar tekrar edildikce yol/kopru olusur. */
+    private void hedefSec(Kervan kv, VahsiKale k, List<Dugum> dugumler) {
+        String home = "kale:" + k.id;
+        if (kv.esya.size() >= 8 && !home.equals(kv.kaynakKey) && dugumBul(dugumler, home) != null) { kv.hedefKey = home; return; }
+        Dugum koy = dugumBul(dugumler, "koy");
+        if (!kv.koyGordu && koy != null && !"koy".equals(kv.kaynakKey)) { kv.hedefKey = "koy"; return; }
+        List<Dugum> aday = new ArrayList<>();
+        for (Dugum d : dugumler) if (!d.key().equals(kv.kaynakKey)) aday.add(d);
+        if (aday.isEmpty()) { kv.hedefKey = null; return; }
+        final double cx = kv.x, cz = kv.z;
+        aday.sort(java.util.Comparator.comparingDouble(d -> Math.hypot(d.x() - cx, d.z() - cz)));
+        kv.hedefKey = aday.get(rng.nextInt(Math.min(3, aday.size()))).key();
+    }
+
     /** Periyodik (npc.kervan-dakika): her aktif kale için soyut yolculuk + olay rulosu. */
     public void kervanTick() {
         if (!aktif() || !veriYuklendi) return;
         for (VahsiKale k : aktifKaleler()) {
             gelisim(k);
+            World w = k.merkez.getWorld();
             Kervan kv = kervanlar.computeIfAbsent(k.id, i -> {
                 Kervan n = new Kervan(); n.x = k.merkez.getX(); n.z = k.merkez.getZ(); return n;
             });
             if (kv.enkaz) continue;
-            final double ox = kv.x, oz = kv.z;
-            double zar = rng.nextDouble();
-            if (zar < 0.20) { // eve dön, yükü hazine odasına bırak
-                List<ItemStack> getirilen;
-                synchronized (this) { getirilen = new ArrayList<>(kv.esya); kv.esya.clear(); }
-                hazineyeEkle(k.id, getirilen); // yük önce kervandan ÇIKAR, sonra hazineye eklenir
-                kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
+            String home = "kale:" + k.id;
+            if (kv.kaynakKey == null) { kv.kaynakKey = home; kv.kx = k.merkez.getX(); kv.kz = k.merkez.getZ(); }
+            List<Dugum> dugumler = dugumler(w);
+            if (kv.hedefKey == null) hedefSec(kv, k, dugumler);
+            Dugum hedef = dugumBul(dugumler, kv.hedefKey);
+            if (hedef == null) { kv.hedefKey = null; continue; }
+            double kalan = Math.hypot(hedef.x() - kv.x, hedef.z() - kv.z);
+            double adim = dk("kervan-adim", 350);
+            if (kalan <= adim) {
+                // VARIS: rota sayaci (patika/kopru), yuk teslimi / ticaret / hanci
+                kv.x = hedef.x(); kv.z = hedef.z();
+                plugin.patika().rotaEkle(w, rotaAnahtari(kv.kaynakKey, hedef.key()), (int) kv.kx, (int) kv.kz, (int) hedef.x(), (int) hedef.z());
+                kv.kaynakKey = hedef.key(); kv.kx = hedef.x(); kv.kz = hedef.z(); kv.hedefKey = null;
+                if (hedef.key().equals(home)) {
+                    List<ItemStack> getirilen;
+                    synchronized (this) { getirilen = new ArrayList<>(kv.esya); kv.esya.clear(); }
+                    hazineyeEkle(k.id, getirilen); // yük önce kervandan ÇIKAR, sonra hazineye eklenir
+                } else {
+                    kv.esya.addAll(lootUret(false, k.seviye)); // köy/kale ticareti
+                    if (hedef.koy()) {
+                        kv.koyGordu = true;
+                        plugin.hanci().koyaHanciKur("koy", w); // kervan köye ulaştı: hancı yoksa kurulur
+                    }
+                }
                 continue;
             }
-            // 150-400 blokluk rastgele adım
-            double aci = rng.nextDouble() * Math.PI * 2, mesafe = 150 + rng.nextDouble() * 250;
-            kv.x += Math.cos(aci) * mesafe; kv.z += Math.sin(aci) * mesafe;
-            plugin.patika().kervanGecisi(k.merkez.getWorld(), ox, oz, kv.x, kv.z); // patika/kopru sayaci
+            // yolda ilerle (dogrusal rota)
+            kv.x += (hedef.x() - kv.x) / kalan * adim;
+            kv.z += (hedef.z() - kv.z) / kalan * adim;
             double olay = rng.nextDouble();
-            if (olay < 0.35) {          // hayvan/yaratık saldırısı: nöbetçi gücüne göre loot
+            if (olay < 0.30) {          // hayvan/yaratık saldırısı: nöbetçi gücüne göre loot
                 if (rng.nextDouble() < Math.min(0.9, 0.5 + gucu(k) / 200.0)) kv.esya.addAll(lootUret(true, k.seviye));
-            } else if (olay < 0.75) {   // köy ticareti
-                kv.esya.addAll(lootUret(false, k.seviye));
-            } else if (olay < 0.78) {   // pusu: kervan yok oldu -> ENKAZ
+            } else if (olay < 0.33) {   // pusu: kervan yok oldu -> ENKAZ
                 kv.enkaz = true;
                 Enkaz e = new Enkaz();
-                e.kaleId = k.id; e.dunya = k.merkez.getWorld().getName(); e.x = kv.x; e.z = kv.z;
+                e.kaleId = k.id; e.dunya = w.getName(); e.x = kv.x; e.z = kv.z;
                 e.sonYakinlik = System.currentTimeMillis();
                 // yükün yarısı enkaza kalır (sandığa gerçek eşya olarak), yarısı kaybolur
                 for (int i = 0; i < kv.esya.size(); i++) if (i % 2 == 0) e.esya.add(kv.esya.get(i));
                 enkazlar.put(UUID.randomUUID(), e);
                 kv.esya.clear();
                 // kervan ertesi dönemde yeniden kurulur
-                Bukkit.getScheduler().runTaskLater(plugin, () -> { kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ(); }, 20L * 60 * 30);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    kv.enkaz = false; kv.x = k.merkez.getX(); kv.z = k.merkez.getZ();
+                    kv.kaynakKey = home; kv.kx = kv.x; kv.kz = kv.z; kv.hedefKey = null;
+                }, 20L * 60 * 30);
                 plugin.getLogger().info("[NPC] " + k.isim + " kervanı pusuya düştü -> ENKAZ (" + Math.round(e.x) + "," + Math.round(e.z) + ")");
             }
         }
@@ -674,6 +728,7 @@ public class NpcDunyaYonetici implements Listener {
                 if (kv != null) for (String k : kv.getKeys(false)) {
                     Kervan n = new Kervan();
                     for (Object o : kv.getList(k + ".esya", new ArrayList<>())) if (o instanceof ItemStack is) n.esya.add(is); n.x = kv.getDouble(k + ".x"); n.z = kv.getDouble(k + ".z"); n.enkaz = kv.getBoolean(k + ".enkaz");
+                    n.kaynakKey = kv.getString(k + ".kaynak"); n.hedefKey = kv.getString(k + ".hedef"); n.kx = kv.getDouble(k + ".kx"); n.kz = kv.getDouble(k + ".kz"); n.koyGordu = kv.getBoolean(k + ".koygordu");
                     kervanlar.put(UUID.fromString(k), n);
                 }
                 ConfigurationSection en = y.getConfigurationSection("enkaz");
@@ -703,7 +758,7 @@ public class NpcDunyaYonetici implements Listener {
             zindanGorev.forEach((k, v) -> y.set("zindan-gorev." + k, java.util.Arrays.asList(v)));
             iliski.forEach((k, v) -> y.set("iliski." + k.replace('|', '_'), v));
             saygi.forEach((kl, m) -> m.forEach((ka, v) -> y.set("saygi." + kl + "." + ka, v)));
-            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); });
+            kervanlar.forEach((k, v) -> { y.set("kervan." + k + ".x", v.x); y.set("kervan." + k + ".z", v.z); y.set("kervan." + k + ".esya", v.esya); y.set("kervan." + k + ".enkaz", v.enkaz); y.set("kervan." + k + ".kaynak", v.kaynakKey); y.set("kervan." + k + ".hedef", v.hedefKey); y.set("kervan." + k + ".kx", v.kx); y.set("kervan." + k + ".kz", v.kz); y.set("kervan." + k + ".koygordu", v.koyGordu); });
             enkazlar.forEach((k, e) -> {
                 String p = "enkaz." + k;
                 y.set(p + ".kale", e.kaleId.toString()); y.set(p + ".dunya", e.dunya); y.set(p + ".x", e.x); y.set(p + ".z", e.z); y.set(p + ".esya", e.esya);

@@ -287,6 +287,7 @@ npc:
   otonom-dakika: 30            # NPC-NPC savaş/ittifak/ticaret rulosu sıklığı
   kervan-dakika: 10            # Soyut kervan "yolda olay" rulosu sıklığı
   enkaz-omur-dakika: 40        # Enkaz, yakında oyuncu yokken bu kadar dakika sonra silinir (yaklaşınca süre sıfırlanır)
+  kervan-adim: 350             # Kervan her turda hedef dugume (kale/koy) dogru bu kadar blok ilerler
   patika:
     aktif: true
     asama1: 25                 # GRASS -> COARSE_DIRT icin gecis sayisi

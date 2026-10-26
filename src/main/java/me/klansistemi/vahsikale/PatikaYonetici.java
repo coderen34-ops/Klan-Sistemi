@@ -40,18 +40,21 @@ import me.klansistemi.KlanSistemi;
  *  - Kopru: kervan rotasindaki 3-8 bloklu su gecisi yeterince cok kullanilinca (config) meslek kalasindan kopru kurulur.
  *    claim / koy / vahsi kale icinde ASLA kurulmaz; orijinal bloklar kaydedilir, kullanilmazsa ya da admin komutuyla geri alinir.
  * Sayimlar bellekte tutulur, periyodik diske yazilir (atomik); veriYuklendi korumasi vardir.
- * Sinirlama: kervan soyut oldugu icin, kervan gecisi sadece YUKLU chunk'larda (ya da chunk yuklenince, bekleyen orneklerle) isler.
+ * Kervan soyut rotalari (dugum cifti) kalici tutulur: yuklu chunk'lara hemen, yuklenmemislere chunk ilk yuklendiginde (uretilirken bile) uygulanir.
  */
 public class PatikaYonetici implements Listener {
 
     private static final class Kayit {
-        int asama; int sayac; long son; String orijinal; boolean yasak;
+        int asama; int sayac; long son; String orijinal; String ust; boolean yasak;
         UUID sonOyuncu; long sonOyuncuZaman;
     }
 
     private static final class Kopru {
-        String anahtar; long son; final List<String> bloklar = new ArrayList<>(); // "x;y;z;blockdata"
-        String dunya;
+        String anahtar, dunya, rota; long son; final List<String> bloklar = new ArrayList<>(); // "x;y;z;blockdata"
+    }
+
+    private static final class Rota {
+        String key, dunya; int x1, z1, x2, z2; int sayi;
     }
 
     private final KlanSistemi plugin;
@@ -60,10 +63,10 @@ public class PatikaYonetici implements Listener {
     private boolean yuklendi = false, kirli = false;
 
     private final Map<String, Kayit> kayitlar = new HashMap<>();
-    private final Map<String, Integer> gecisSayaci = new HashMap<>();
     private final Map<String, Kopru> kopruler = new HashMap<>();
-    private final Map<String, List<int[]>> bekleyen = new HashMap<>(); // "dunya;cx;cz" -> {x,z,xEkseni}
-    private int bekleyenToplam = 0;
+    private final Map<String, Rota> rotalar = new HashMap<>();        // kervan rotalari (dugum cifti)
+    private final Map<String, Integer> uygulanan = new HashMap<>();   // "rota#dunya;cx;cz" -> o chunk'a uygulanmis gecis sayisi
+    private final Set<String> basarisizKopru = new HashSet<>();      // uygun olmayan gecitler (runtime)
 
     public PatikaYonetici(KlanSistemi plugin) {
         this.plugin = plugin;
@@ -152,7 +155,7 @@ public class PatikaYonetici implements Listener {
         if (hedef >= 1 && k.asama < 1) { b.setType(Material.COARSE_DIRT, false); k.asama = 1; kirli = true; }
         if (hedef >= 2 && k.asama < 2) {
             Block ust = b.getRelative(BlockFace.UP);
-            if (!ust.getType().isAir() && ust.isPassable() && !ust.isLiquid()) ust.setType(Material.AIR, false); // ot/cicek: yol altinda yasayamaz
+            if (!ust.getType().isAir() && ust.isPassable() && !ust.isLiquid()) { k.ust = ust.getBlockData().getAsString(); ust.setType(Material.AIR, false); } // ot/cicek kaydedilir, patika eski haline donunce geri gelir
             if (!ust.getType().isAir() && !ust.isPassable()) { k.sayac = ayar("asama2", 80) - 1; return; } // ustu kati blok: patikaya cevirme
             b.setType(Material.DIRT_PATH, false);
             k.asama = 2; kirli = true;
@@ -163,102 +166,200 @@ public class PatikaYonetici implements Listener {
         }
     }
 
-    // ------------------------------------------------------------------ KERVAN GECISI (soyut)
-    /** Soyut kervan (x1,z1) -> (x2,z2) yolculugu yapti: yuklu chunk'larda hemen, digerlerinde chunk yuklenince islenir. */
-    public void kervanGecisi(World w, double x1, double z1, double x2, double z2) {
+    // ------------------------------------------------------------------ KERVAN ROTALARI (soyut)
+    /** Soyut kervan bir dugumden digerine ulasti: rotanin gecis sayisi artar; YUKLU chunk'lara hemen, digerlerine chunk yuklenince uygulanir. */
+    public void rotaEkle(World w, String key, int x1, int z1, int x2, int z2) {
         if (!aktif() || !yuklendi || w.getEnvironment() != World.Environment.NORMAL) return;
-        double dx = x2 - x1, dz = z2 - z1, mesafe = Math.hypot(dx, dz);
-        int adim = Math.max(1, (int) (mesafe / 12));
-        boolean xe = Math.abs(dx) > Math.abs(dz);
-        Set<String> gorulen = new HashSet<>();
-        for (int i = 0; i <= adim; i++) {
-            int x = (int) Math.floor(x1 + dx * i / adim), z = (int) Math.floor(z1 + dz * i / adim);
-            if (w.isChunkLoaded(x >> 4, z >> 4)) ornekle(w, x, z, xe, gorulen);
-            else {
-                String ck = w.getName() + ";" + (x >> 4) + ";" + (z >> 4);
-                List<int[]> l = bekleyen.computeIfAbsent(ck, a -> new ArrayList<>());
-                if (l.size() < 40 && bekleyenToplam < 4000) { l.add(new int[]{x, z, xe ? 1 : 0}); bekleyenToplam++; }
-            }
+        Rota r = rotalar.get(key);
+        if (r == null) {
+            r = new Rota(); r.key = key; r.dunya = w.getName(); r.x1 = x1; r.z1 = z1; r.x2 = x2; r.z2 = z2;
+            rotalar.put(key, r);
         }
+        r.sayi++;
+        kirli = true;
+        long simdi = System.currentTimeMillis();
+        for (Kopru kp : kopruler.values()) if (key.equals(kp.rota)) kp.son = simdi; // rota kullanildikca kopru omru uzar
+        // yuklu chunk'lara hemen uygula
+        Set<Long> chunklar = rotaChunklari(r);
+        for (long c : chunklar) {
+            int cx = (int) (c >> 32), cz = (int) c;
+            if (w.isChunkLoaded(cx, cz)) rotaChunkUygula(w, r, cx, cz);
+        }
+        kopruTara(w, r);
+    }
+
+    private Set<Long> rotaChunklari(Rota r) {
+        Set<Long> s = new HashSet<>();
+        double dx = r.x2 - r.x1, dz = r.z2 - r.z1, len = Math.max(1, Math.hypot(dx, dz));
+        int adim = (int) (len / 8) + 1;
+        for (int i = 0; i <= adim; i++) {
+            int x = (int) Math.floor(r.x1 + dx * i / adim), z = (int) Math.floor(r.z1 + dz * i / adim);
+            s.add((((long) (x >> 4)) << 32) | ((z >> 4) & 0xffffffffL));
+        }
+        return s;
     }
 
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent ev) {
-        if (bekleyen.isEmpty() || ev.isNewChunk()) return;
-        String ck = ev.getWorld().getName() + ";" + ev.getChunk().getX() + ";" + ev.getChunk().getZ();
-        List<int[]> l = bekleyen.remove(ck);
-        if (l == null) return;
-        bekleyenToplam -= l.size();
-        Set<String> gorulen = new HashSet<>();
-        for (int[] n : l) ornekle(ev.getWorld(), n[0], n[1], n[2] == 1, gorulen);
+        if (!aktif() || !yuklendi || rotalar.isEmpty()) return;
+        final World w = ev.getWorld();
+        final int cx = ev.getChunk().getX(), cz = ev.getChunk().getZ();
+        int bx0 = cx << 4, bx1 = bx0 + 15, bz0 = cz << 4, bz1 = bz0 + 15;
+        List<Rota> ilgili = new ArrayList<>();
+        for (Rota r : rotalar.values()) {
+            if (!r.dunya.equals(w.getName())) continue;
+            if (Math.max(r.x1, r.x2) < bx0 - 2 || Math.min(r.x1, r.x2) > bx1 + 2 || Math.max(r.z1, r.z2) < bz0 - 2 || Math.min(r.z1, r.z2) > bz1 + 2) continue;
+            if (rotaChunklari(r).contains((((long) cx) << 32) | (cz & 0xffffffffL))) ilgili.add(r);
+        }
+        if (ilgili.isEmpty()) return;
+        Bukkit.getScheduler().runTask(plugin, () -> { // bir tik sonra: yeni uretilen chunk'ta da guvenli
+            if (!w.isChunkLoaded(cx, cz)) return;
+            for (Rota r : ilgili) { rotaChunkUygula(w, r, cx, cz); kopruTara(w, r); }
+        });
     }
 
-    private void ornekle(World w, int x, int z, boolean xe, Set<String> gorulen) {
-        try {
-            int y = w.getHighestBlockYAt(x, z, HeightMap.WORLD_SURFACE);
-            Block b = w.getBlockAt(x, y, z);
-            if (b.getType() == Material.WATER) { kopruAdayi(w, x, z, xe, gorulen); return; }
-            int yg = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
-            Block zemin = w.getBlockAt(x, yg, z);
+    private void rotaChunkUygula(World w, Rota r, int cx, int cz) {
+        String k2 = r.key + "#" + w.getName() + ";" + cx + ";" + cz;
+        int delta = r.sayi - uygulanan.getOrDefault(k2, 0);
+        if (delta <= 0) return;
+        uygulanan.put(k2, r.sayi);
+        kirli = true;
+        double dx = r.x2 - r.x1, dz = r.z2 - r.z1, len = Math.max(1, Math.hypot(dx, dz));
+        boolean xe = Math.abs(dx) >= Math.abs(dz);
+        int isx = dx >= 0 ? 1 : -1, isz = dz >= 0 ? 1 : -1;
+        int adim = (int) (len / 0.7) + 1;
+        int sonX = Integer.MIN_VALUE, sonZ = Integer.MIN_VALUE;
+        int oncekiKaraY = Integer.MIN_VALUE, oncekiKaraX = 0, oncekiKaraZ = 0;
+        for (int i = 0; i <= adim; i++) {
+            int x = (int) Math.floor(r.x1 + dx * i / adim), z = (int) Math.floor(r.z1 + dz * i / adim);
+            if (x == sonX && z == sonZ) continue;
+            sonX = x; sonZ = z;
+            if ((x >> 4) != cx || (z >> 4) != cz) continue;
+            int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+            Block zemin = w.getBlockAt(x, y, z);
             Material m = zemin.getType();
             if (m == Material.GRASS_BLOCK || m == Material.DIRT || m == Material.COARSE_DIRT || m == Material.DIRT_PATH || m == Material.GRAVEL) {
-                sayacArtir(zemin, 4, null);
+                sayacArtir(zemin, 4 * delta, null);
             }
-        } catch (Exception ignored) { }
-    }
-
-    // ------------------------------------------------------------------ KOPRU
-    private void kopruAdayi(World w, int bx, int bz, boolean xe, Set<String> gorulen) {
-        int ax = xe ? 1 : 0, az = xe ? 0 : 1;
-        int hi = 0, lo = 0;
-        while (hi < 9 && suYuzeyi(w, bx + ax * (hi + 1), bz + az * (hi + 1))) hi++;
-        while (lo < 9 && suYuzeyi(w, bx - ax * (lo + 1), bz - az * (lo + 1))) lo++;
-        int uzunluk = hi + lo + 1;
-        if (uzunluk < 3 || uzunluk > 8) return;
-        int ax1 = bx + ax * (hi + 1), az1 = bz + az * (hi + 1), ax2 = bx - ax * (lo + 1), az2 = bz - az * (lo + 1);
-        if (!w.isChunkLoaded(ax1 >> 4, az1 >> 4) || !w.isChunkLoaded(ax2 >> 4, az2 >> 4)) return;
-        int ya = w.getHighestBlockYAt(ax1, az1, HeightMap.MOTION_BLOCKING_NO_LEAVES);
-        int yb = w.getHighestBlockYAt(ax2, az2, HeightMap.MOTION_BLOCKING_NO_LEAVES);
-        Material ma = w.getBlockAt(ax1, ya, az1).getType(), mb = w.getBlockAt(ax2, yb, az2).getType();
-        if (ya != yb || !kara(ma) || !kara(mb)) return;
-        int sx = bx - ax * lo, sz = bz - az * lo;
-        String key = w.getName() + ";" + (xe ? "X" : "Z") + ";" + sx + ";" + sz + ";" + uzunluk;
-        if (!gorulen.add(key)) return; // bir yolculukta tek sayim
-        Kopru mevcut = kopruler.get(key);
-        if (mevcut != null) { mevcut.son = System.currentTimeMillis(); return; }
-        int sayi = gecisSayaci.merge(key, 1, Integer::sum);
-        kirli = true;
-        if (sayi >= ayar("kopru-esik", 15)) {
-            if (!kopruKur(w, key, sx, sz, ax, az, uzunluk, ya)) gecisSayaci.put(key, Integer.MIN_VALUE / 2); // uygun degil: bir daha deneme
         }
     }
 
-    private boolean suYuzeyi(World w, int x, int z) {
-        if (!w.isChunkLoaded(x >> 4, z >> 4)) return false;
-        return w.getBlockAt(x, w.getHighestBlockYAt(x, z, HeightMap.WORLD_SURFACE), z).getType() == Material.WATER;
+    /** Rota boyunca yuklu bolgelerde su/ucurum gecidi arar; esik asildiysa kopru kurmayi dener. */
+    private void kopruTara(World w, Rota r) {
+        if (r.sayi < ayar("kopru-esik", 15)) return;
+        double dx = r.x2 - r.x1, dz = r.z2 - r.z1, len = Math.max(1, Math.hypot(dx, dz));
+        boolean xe = Math.abs(dx) >= Math.abs(dz);
+        int isx = dx >= 0 ? 1 : -1, isz = dz >= 0 ? 1 : -1;
+        int adim = (int) (len / 0.7) + 1;
+        int sonX = Integer.MIN_VALUE, sonZ = Integer.MIN_VALUE;
+        int oy = Integer.MIN_VALUE, ox = 0, oz = 0;
+        for (int i = 0; i <= adim; i++) {
+            int x = (int) Math.floor(r.x1 + dx * i / adim), z = (int) Math.floor(r.z1 + dz * i / adim);
+            if (x == sonX && z == sonZ) continue;
+            sonX = x; sonZ = z;
+            if (!w.isChunkLoaded(x >> 4, z >> 4)) { oy = Integer.MIN_VALUE; continue; }
+            int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+            Material m = w.getBlockAt(x, y, z).getType();
+            boolean su = m == Material.WATER;
+            boolean uc = !su && oy != Integer.MIN_VALUE && y < oy - 4;
+            if (su || uc) {
+                if (oy != Integer.MIN_VALUE) kopruDene(w, r, ox, oz, oy, xe, xe ? isx : isz);
+                oy = Integer.MIN_VALUE; // gecit denendi; bir sonraki kara hucresinden devam
+            } else if (kara(m)) { oy = y; ox = x; oz = z; }
+        }
     }
+
+    // ------------------------------------------------------------------ KOPRU (su + ucurum, 3-32 blok, saglam)
+    private static final Material DECK = Material.SPRUCE_PLANKS, RAIL = Material.SPRUCE_FENCE, PILLAR = Material.STRIPPED_SPRUCE_LOG;
 
     private boolean kara(Material m) {
         return m.isSolid() && !Tag.LEAVES.isTagged(m) && !Tag.ICE.isTagged(m) && m != Material.WATER && m != Material.LAVA;
     }
 
-    private boolean kopruKur(World w, String key, int sx, int sz, int ax, int az, int n, int deckY) {
-        List<Block> hucreler = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            Block b = w.getBlockAt(sx + ax * i, deckY, sz + az * i);
-            if (korumali(b)) return false;
-            Block u1 = b.getRelative(BlockFace.UP), u2 = u1.getRelative(BlockFace.UP);
-            if ((!u1.getType().isAir() && !u1.isPassable()) || (!u2.getType().isAir() && !u2.isPassable())) return false; // ustu kapali
-            if (b.getType() != Material.WATER && !b.getType().isAir()) return false;
-            hucreler.add(b);
+    private void kopruDene(World w, Rota r, int lx, int lz, int ly, boolean xe, int yon) {
+        int ax = xe ? yon : 0, az = xe ? 0 : yon;
+        int n = 0;
+        boolean bitti = false;
+        for (int i = 1; i <= 33; i++) {
+            int x = lx + ax * i, z = lz + az * i;
+            if (!w.isChunkLoaded(x >> 4, z >> 4)) return; // henuz yuklu degil: sonra tekrar denenir
+            int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+            Material m = w.getBlockAt(x, y, z).getType();
+            if (m == Material.LAVA) return;
+            boolean su = m == Material.WATER;
+            boolean uc = !su && y < ly - 4;
+            if (su || uc) {
+                if (su && y > ly) return; // su kiyidan yuksek: kopru kurma
+                n = i; continue;
+            }
+            // kara bulundu: yukseklik uyumu
+            if (!kara(m) || Math.abs(y - ly) > 1) return;
+            bitti = true;
+            break;
         }
+        if (!bitti || n < 3 || n > 32) return;
+        String key = w.getName() + ";" + (xe ? "X" : "Z") + ";" + lx + ";" + lz + ";" + yon + ";" + n;
+        if (kopruler.containsKey(key) || !basarisizKopru.add(key)) return; // zaten var / daha once uygun degildi (bu calisma boyunca)
+        if (kopruKur(w, r, key, lx, lz, ax, az, n, ly)) basarisizKopru.remove(key);
+    }
+
+    private boolean kopruKur(World w, Rota r, String key, int lx, int lz, int ax, int az, int n, int deckY) {
+        int px = az != 0 ? 1 : 0, pz = ax != 0 ? 1 : 0; // dik eksen
+        java.util.LinkedHashMap<String, Block> degisecek = new java.util.LinkedHashMap<>();
+        java.util.LinkedHashMap<Block, Material> yeni = new java.util.LinkedHashMap<>();
+        for (int i = 1; i <= n; i++) {
+            int cx = lx + ax * i, cz = lz + az * i;
+            Block merkez = w.getBlockAt(cx, deckY, cz);
+            if (korumali(merkez)) return false;
+            Material mm = merkez.getType();
+            if (mm != Material.WATER && !mm.isAir()) return false; // merkez serit serbest olmali
+            for (int o = 1; o <= 2; o++) { // ust: 2 blok bosluk
+                Block u = merkez.getRelative(BlockFace.UP, o);
+                if (!u.getType().isAir() && !u.isPassable()) return false;
+            }
+            for (int d = -1; d <= 1; d++) {
+                Block b = w.getBlockAt(cx + px * d, deckY, cz + pz * d);
+                Material m = b.getType();
+                if (d != 0 && !(m == Material.WATER || m.isAir())) continue; // yan serit: dolu ise atla (arazi)
+                if (d != 0 && korumali(b)) continue;
+                yeni.put(b, DECK);
+                if (Math.abs(d) == 1) { // korkuluk
+                    Block rl = b.getRelative(BlockFace.UP);
+                    if (rl.getType().isAir() || rl.isPassable()) {
+                        yeni.put(rl, RAIL);
+                        if (i % 8 == 4) { Block fan = rl.getRelative(BlockFace.UP); if (fan.getType().isAir()) yeni.put(fan, Material.LANTERN); }
+                    }
+                }
+            }
+            // ayaklar: her 6 blokta bir, 3 sutun, saglam zemine kadar (en fazla 60)
+            if (i % 6 == 3) {
+                for (int d = -1; d <= 1; d++) {
+                    int bx = cx + px * d, bz = cz + pz * d;
+                    for (int dy = 1; dy <= 60; dy++) {
+                        Block b = w.getBlockAt(bx, deckY - dy, bz);
+                        Material m = b.getType();
+                        if (!(m == Material.WATER || m.isAir() || m == Material.CAVE_AIR)) break; // saglam zemine ulasti
+                        if (b.getY() <= w.getMinHeight()) break;
+                        yeni.put(b, PILLAR);
+                    }
+                }
+            }
+        }
+        if (yeni.size() > 3000) return false;
         Kopru kp = new Kopru();
-        kp.anahtar = key; kp.dunya = w.getName(); kp.son = System.currentTimeMillis();
-        for (Block b : hucreler) kp.bloklar.add(b.getX() + ";" + b.getY() + ";" + b.getZ() + ";" + b.getBlockData().getAsString());
+        kp.anahtar = key; kp.dunya = w.getName(); kp.rota = r.key; kp.son = System.currentTimeMillis();
+        for (Block b : yeni.keySet()) kp.bloklar.add(b.getX() + ";" + b.getY() + ";" + b.getZ() + ";" + b.getBlockData().getAsString());
         kopruler.put(key, kp);
+        kirli = true;
         kaydet(); // geri alma bilgisi YAPIDAN ONCE diske
-        for (Block b : hucreler) b.setType(Material.OAK_PLANKS, false);
-        plugin.getLogger().info("[Patika] Kervan koprusu kuruldu: " + key);
+        for (Map.Entry<Block, Material> e : yeni.entrySet()) {
+            Block b = e.getKey();
+            if (e.getValue() == PILLAR) b.setBlockData(Bukkit.createBlockData("minecraft:stripped_spruce_log[axis=y]"), false);
+            else if (e.getValue() == RAIL) b.setType(RAIL, false);
+            else if (e.getValue() == Material.LANTERN) b.setBlockData(Bukkit.createBlockData("minecraft:lantern[hanging=false]"), false);
+            else b.setType(DECK, false);
+        }
+        plugin.getLogger().info("[Patika] Kervan koprusu kuruldu (" + n + " blok, " + yeni.size() + " blok): " + key);
         return true;
     }
 
@@ -268,12 +369,13 @@ public class PatikaYonetici implements Listener {
         for (String s : kp.bloklar) {
             String[] p = s.split(";", 4);
             Block b = w.getBlockAt(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
-            if (b.getType() == Material.OAK_PLANKS) b.setBlockData(Bukkit.createBlockData(p[3]), false); // oyuncu degistirdiyse dokunma
+            Material m = b.getType();
+            if (m == DECK || m == RAIL || m == PILLAR || m == Material.LANTERN) b.setBlockData(Bukkit.createBlockData(p[3]), false); // oyuncu degistirdiyse dokunma
         }
     }
 
     // ------------------------------------------------------------------ DECAY / BAKIM
-    /** Periyodik (10 dk): kullanilmayan patikalar bir kademe geri doner, kopruler kaldirilir, hafif kayitlar silinir. */
+    /** Periyodik (10 dk): kullanilmayan patikalar bir kademe geri doner (cicekler geri gelir), kopruler kaldirilir. */
     public void bakim() {
         if (!aktif() || !yuklendi) return;
         long simdi = System.currentTimeMillis();
@@ -285,7 +387,7 @@ public class PatikaYonetici implements Listener {
             World w = Bukkit.getWorld(p[0]);
             if (w == null) continue;
             int x = Integer.parseInt(p[1]), z = Integer.parseInt(p[2]);
-            if (k.asama == 0) { // hafif kayitlar
+            if (k.asama == 0) {
                 if (k.sayac < 5 && simdi - k.son > 30 * 60_000L) sil.add(e.getKey());
                 else if (simdi - k.son > decay) { k.sayac = Math.max(0, k.sayac - 5); k.son = simdi; if (k.sayac == 0) sil.add(e.getKey()); }
                 continue;
@@ -294,8 +396,10 @@ public class PatikaYonetici implements Listener {
             Block b = w.getBlockAt(x, w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES), z);
             if (!beklenenTip(k, b.getType())) { sil.add(e.getKey()); continue; } // degistirilmis: birak
             int yeni = k.asama - 1;
-            if (yeni == 0) b.setBlockData(Bukkit.createBlockData(k.orijinal), false);
-            else if (yeni == 1) b.setType(Material.COARSE_DIRT, false);
+            if (yeni == 0) {
+                b.setBlockData(Bukkit.createBlockData(k.orijinal), false);
+                geriCicek(b, k);
+            } else if (yeni == 1) b.setType(Material.COARSE_DIRT, false);
             else if (yeni == 2) b.setType(Material.DIRT_PATH, false);
             k.asama = yeni; k.son = simdi;
             k.sayac = yeni == 0 ? 0 : yeni == 1 ? ayar("asama1", 25) : ayar("asama2", 80);
@@ -305,10 +409,17 @@ public class PatikaYonetici implements Listener {
         for (String s : sil) kayitlar.remove(s);
         long kopruDecay = ayar("kopru-decay-dakika", 720) * 60_000L;
         for (Kopru kp : new ArrayList<>(kopruler.values())) {
-            if (simdi - kp.son > kopruDecay) { kopruGeriAl(kp); kopruler.remove(kp.anahtar); gecisSayaci.remove(kp.anahtar); kirli = true; }
+            if (simdi - kp.son > kopruDecay) { kopruGeriAl(kp); kopruler.remove(kp.anahtar); basarisizKopru.remove(kp.anahtar); kirli = true; }
         }
         if (!sil.isEmpty()) kirli = true;
         if (kirli) kaydet();
+    }
+
+    /** Patika eski haline donunce kayitli ot/cicek geri gelir (ustu bossa). */
+    private void geriCicek(Block zemin, Kayit k) {
+        if (k.ust == null) return;
+        Block ust = zemin.getRelative(BlockFace.UP);
+        if (ust.getType().isAir()) ust.setBlockData(Bukkit.createBlockData(k.ust), false);
     }
 
     /** Admin: tum patikalari ve koprulerı (degistirilmemis olanlari) eski haline dondurur. */
@@ -322,20 +433,22 @@ public class PatikaYonetici implements Listener {
             int x = Integer.parseInt(a[1]), z = Integer.parseInt(a[2]);
             if (!w.isChunkLoaded(x >> 4, z >> 4)) continue; // yuklu olmayan chunk'a dokunma; sonra tekrar calistirilabilir
             Block b = w.getBlockAt(x, w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES), z);
-            if (beklenenTip(k, b.getType())) { b.setBlockData(Bukkit.createBlockData(k.orijinal), false); p++; }
+            if (beklenenTip(k, b.getType())) { b.setBlockData(Bukkit.createBlockData(k.orijinal), false); geriCicek(b, k); p++; }
             kayitlar.remove(e.getKey());
         }
         for (Kopru kp : new ArrayList<>(kopruler.values())) { kopruGeriAl(kp); kopruler.remove(kp.anahtar); kb++; }
-        gecisSayaci.clear();
+        uygulanan.clear();
+        basarisizKopru.clear();
         kirli = true; kaydet();
-        s.sendMessage(ChatColor.GREEN + "Patika geri alindi: " + p + " blok, " + kb + " kopru (yuklu olmayan chunk'lar atlandi, tekrar calistirilabilir).");
+        s.sendMessage(ChatColor.GREEN + "Patika geri alindi: " + p + " blok, " + kb + " kopru (yuklu olmayan chunk'lar atlandi, tekrar calistirilabilir). Rota sayaclari korunur; sifirlamak icin rotalar da silinir.");
+        rotalar.clear(); kaydet();
     }
 
     public void bilgi(CommandSender s) {
         int[] st = new int[4];
         for (Kayit k : kayitlar.values()) st[k.asama]++;
         s.sendMessage(ChatColor.GOLD + "Patika: kademe0=" + st[0] + " kademe1=" + st[1] + " kademe2=" + st[2] + " kademe3=" + st[3]
-                + " | kopru=" + kopruler.size() + " | bekleyen ornek=" + bekleyenToplam);
+                + " | kopru=" + kopruler.size() + " | kervan rotasi=" + rotalar.size());
     }
 
     // ------------------------------------------------------------------ KALICILIK
@@ -344,19 +457,26 @@ public class PatikaYonetici implements Listener {
             if (dosya.exists()) {
                 YamlConfiguration y = YamlConfiguration.loadConfiguration(dosya);
                 for (String s : y.getStringList("kayit")) {
-                    String[] p = s.split(";", 7);
+                    String[] p = s.split(";", 8);
                     Kayit k = new Kayit();
                     k.asama = Integer.parseInt(p[3]); k.sayac = Integer.parseInt(p[4]); k.son = Long.parseLong(p[5]); k.orijinal = p[6];
+                    k.ust = p.length > 7 && !p[7].isEmpty() ? p[7] : null;
                     kayitlar.put(p[0] + ";" + p[1] + ";" + p[2], k);
                 }
-                for (String s : y.getStringList("gecis")) {
-                    int i = s.lastIndexOf('|');
-                    gecisSayaci.put(s.substring(0, i), Integer.parseInt(s.substring(i + 1)));
+                for (String s : y.getStringList("rota")) {
+                    String[] p = s.split("\\|");
+                    Rota r = new Rota();
+                    r.key = p[0]; r.dunya = p[1]; r.x1 = Integer.parseInt(p[2]); r.z1 = Integer.parseInt(p[3]); r.x2 = Integer.parseInt(p[4]); r.z2 = Integer.parseInt(p[5]); r.sayi = Integer.parseInt(p[6]);
+                    rotalar.put(r.key, r);
+                }
+                for (String s : y.getStringList("uygulanan")) {
+                    int i = s.lastIndexOf('=');
+                    uygulanan.put(s.substring(0, i), Integer.parseInt(s.substring(i + 1)));
                 }
                 ConfigurationSection ks = y.getConfigurationSection("kopru");
                 if (ks != null) for (String id : ks.getKeys(false)) {
                     Kopru kp = new Kopru();
-                    kp.anahtar = ks.getString(id + ".anahtar"); kp.dunya = ks.getString(id + ".dunya"); kp.son = ks.getLong(id + ".son");
+                    kp.anahtar = ks.getString(id + ".anahtar"); kp.dunya = ks.getString(id + ".dunya"); kp.rota = ks.getString(id + ".rota"); kp.son = ks.getLong(id + ".son");
                     kp.bloklar.addAll(ks.getStringList(id + ".bloklar"));
                     kopruler.put(kp.anahtar, kp);
                 }
@@ -375,16 +495,19 @@ public class PatikaYonetici implements Listener {
             for (Map.Entry<String, Kayit> e : kayitlar.entrySet()) {
                 Kayit k = e.getValue();
                 if (k.asama == 0 && k.sayac < 5) continue;
-                kl.add(e.getKey() + ";" + k.asama + ";" + k.sayac + ";" + k.son + ";" + k.orijinal);
+                kl.add(e.getKey() + ";" + k.asama + ";" + k.sayac + ";" + k.son + ";" + k.orijinal + ";" + (k.ust == null ? "" : k.ust));
             }
             y.set("kayit", kl);
-            List<String> gl = new ArrayList<>();
-            for (Map.Entry<String, Integer> e : gecisSayaci.entrySet()) gl.add(e.getKey() + "|" + e.getValue());
-            y.set("gecis", gl);
+            List<String> rl = new ArrayList<>();
+            for (Rota r : rotalar.values()) rl.add(r.key + "|" + r.dunya + "|" + r.x1 + "|" + r.z1 + "|" + r.x2 + "|" + r.z2 + "|" + r.sayi);
+            y.set("rota", rl);
+            List<String> ul = new ArrayList<>();
+            for (Map.Entry<String, Integer> e : uygulanan.entrySet()) ul.add(e.getKey() + "=" + e.getValue());
+            y.set("uygulanan", ul);
             int i = 0;
             for (Kopru kp : kopruler.values()) {
                 String p = "kopru." + (i++);
-                y.set(p + ".anahtar", kp.anahtar); y.set(p + ".dunya", kp.dunya); y.set(p + ".son", kp.son); y.set(p + ".bloklar", kp.bloklar);
+                y.set(p + ".anahtar", kp.anahtar); y.set(p + ".dunya", kp.dunya); y.set(p + ".rota", kp.rota); y.set(p + ".son", kp.son); y.set(p + ".bloklar", kp.bloklar);
             }
             File gecici = new File(plugin.getDataFolder(), "patika.yml.tmp");
             y.save(gecici);
