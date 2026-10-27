@@ -986,7 +986,7 @@ public class VahsiKaleYonetici implements Listener {
     /** Nöbetçiler büyülü demir zırh + kalkan, liderler büyülü elmas zırh giyer. Not: vanilla
      *  Vindicator AI'ının aktif "kalkanla blokla" davranışı yok (bu sadece oyuncularda/Piglinlerde
      *  var) - kalkan elde tutulur ve kol/el görünümünü değiştirir ama otomatik blok yapmaz. */
-    private void donatimGiydir(Vindicator v, String rol) {
+    private void donatimGiydir(Mob v, String rol) {
         boolean lider = "LIDER".equals(rol);
         EntityEquipment ekip = v.getEquipment();
         if (ekip == null) return;
@@ -1229,6 +1229,9 @@ public class VahsiKaleYonetici implements Listener {
         LivingEntity hedef = ev.getTarget();
         if (hedef == null) return;
         var pdc = ev.getEntity().getPersistentDataContainer();
+        if (ev.getEntity() instanceof org.bukkit.entity.IronGolem
+                && (hedef.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING)
+                || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE))) { ev.setCancelled(true); return; }
         if (pdc.has(kervanKey, PersistentDataType.STRING)) {
             if (hedef instanceof Player) { if (!pdc.has(kizginKey, PersistentDataType.BYTE)) ev.setCancelled(true); }
             else if (!(hedef instanceof Monster) // köylü, tüccar, golem, hayvan: vanilla Vindicator AI'ı buralara saldırmasın
@@ -1238,6 +1241,7 @@ public class VahsiKaleYonetici implements Listener {
             return;
         }
         if (pdc.has(muhafizKey, PersistentDataType.BYTE)) {
+            if (hedef instanceof Player hp) { if (!hp.getUniqueId().equals(takviyeHedef.get(ev.getEntity().getUniqueId()))) ev.setCancelled(true); return; }
             if (!(hedef instanceof Monster) || hedef.getPersistentDataContainer().has(muhafizKey, PersistentDataType.BYTE)
                     || hedef.getPersistentDataContainer().has(kaleIdKey, PersistentDataType.STRING)) ev.setCancelled(true);
             return;
@@ -1253,7 +1257,10 @@ public class VahsiKaleYonetici implements Listener {
     public void onNobetciVurus(EntityDamageByEntityEvent ev) {
         if (!(ev.getEntity() instanceof Player pl)) return;
         var pdc = ev.getDamager().getPersistentDataContainer();
-        if (pdc.has(muhafizKey, PersistentDataType.BYTE)) { ev.setCancelled(true); return; }
+        if (pdc.has(muhafizKey, PersistentDataType.BYTE)) {
+            if (!pl.getUniqueId().equals(takviyeHedef.get(ev.getDamager().getUniqueId()))) ev.setCancelled(true);
+            return;
+        }
         if (pdc.has(kervanKey, PersistentDataType.STRING) && !pdc.has(kizginKey, PersistentDataType.BYTE)) { ev.setCancelled(true); return; }
         String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
         if (kid == null) return;
@@ -1272,15 +1279,13 @@ public class VahsiKaleYonetici implements Listener {
     /** Takviye: NPC klanının kendi insan (giydirilmiş) muhafızları oyuncunun yanında belirir, onu takip eder,
      *  çevredeki canavarlara saldırır ve süre bitince çekilir. Oyunculara asla saldırmazlar. */
     public int takviyeMuhafizlariCagir(VahsiKale kale, Player sahip, int adet, java.util.function.BooleanSupplier devam) {
-        List<Vindicator> liste = new ArrayList<>();
+        List<org.bukkit.entity.PigZombie> liste = new ArrayList<>();
         String skin = null;
         for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
         final String skinF = skin;
         for (int i = 0; i < adet; i++) {
             Location l = sahip.getLocation().add(Math.random() * 4 - 2, 0, Math.random() * 4 - 2);
-            Vindicator v = l.getWorld().spawn(l, Vindicator.class);
-            v.setPersistent(false);
-            v.setRemoveWhenFarAway(false);
+            org.bukkit.entity.PigZombie v = muhafizTaban(l);
             v.getPersistentDataContainer().set(muhafizKey, PersistentDataType.BYTE, (byte) 1);
             String ad = kale.isim + " Muhafızı";
             v.setCustomName(ChatColor.GREEN + ad);
@@ -1302,7 +1307,7 @@ public class VahsiKaleYonetici implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, gorev -> {
             boolean bitti = !sahip.isOnline() || !devam.getAsBoolean();
             boolean hayatta = false;
-            for (Vindicator v : liste) {
+            for (org.bukkit.entity.PigZombie v : liste) {
                 if (!v.isValid()) continue;
                 if (bitti) { v.remove(); continue; }
                 hayatta = true;
@@ -1311,7 +1316,16 @@ public class VahsiKaleYonetici implements Listener {
                         v.teleport(sahip.getLocation());
                         continue;
                     }
+                    Player dusman = takviyeDusmani(sahip);
+                    if (dusman != null && v.getLocation().distanceSquared(dusman.getLocation()) < 45 * 45) {
+                        takviyeHedef.put(v.getUniqueId(), dusman.getUniqueId());
+                        if (v.getTarget() != dusman) v.setTarget(dusman);
+                        v.setAnger(1200);
+                        continue;
+                    }
+                    takviyeHedef.remove(v.getUniqueId());
                     LivingEntity t = v.getTarget();
+                    if (t instanceof Player) { v.setTarget(null); t = null; }
                     if (t == null || !t.isValid()) {
                         LivingEntity en = null; double enMes = 18 * 18;
                         for (org.bukkit.entity.Entity e : sahip.getNearbyEntities(14, 8, 14)) {
@@ -1321,21 +1335,74 @@ public class VahsiKaleYonetici implements Listener {
                             double d = m.getLocation().distanceSquared(sahip.getLocation());
                             if (d < enMes) { enMes = d; en = m; }
                         }
-                        if (en != null) v.setTarget(en);
+                        if (en != null) { v.setTarget(en); v.setAnger(600); }
                         else if (v.getLocation().distanceSquared(sahip.getLocation()) > 36) v.getPathfinder().moveTo(sahip.getLocation(), 1.2);
                     }
                 } catch (Exception ignored) { }
             }
-            if (bitti || !hayatta) gorev.cancel();
+            if (bitti || !hayatta) { for (org.bukkit.entity.PigZombie z : liste) takviyeHedef.remove(z.getUniqueId()); sonDusman.remove(sahip.getUniqueId()); gorev.cancel(); }
         }, 20L, 20L);
         return liste.size();
     }
 
+    /** Muhafız -> saldırmasına izin verilen oyuncu (takviye ekibi için). */
+    private final Map<UUID, UUID> takviyeHedef = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Takviye sahibi -> {son düşman oyuncu, zaman}. */
+    private final Map<UUID, Object[]> sonDusman = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Köylü beyni Vindicator'dan kaçar; Zombified Piglin (nötr, köylü korkmaz) tabanı kullanılır, görünüm disguise ile verilir. */
+    private org.bukkit.entity.PigZombie muhafizTaban(Location l) {
+        org.bukkit.entity.PigZombie z = l.getWorld().spawn(l, org.bukkit.entity.PigZombie.class);
+        z.setPersistent(false);
+        z.setRemoveWhenFarAway(false);
+        z.setBaby(false);
+        z.setAnger(0);
+        z.setCanBreakDoors(false);
+        z.setShouldBurnInDay(false);
+        try { AttributeInstance r = z.getAttribute(Attribute.SPAWN_REINFORCEMENTS); if (r != null) r.setBaseValue(0); } catch (Throwable ignored) { }
+        return z;
+    }
+
+    private Player takviyeDusmani(Player sahip) {
+        Object[] kayit = sonDusman.get(sahip.getUniqueId());
+        if (kayit != null && System.currentTimeMillis() - (Long) kayit[1] < 30000L) {
+            Player d = Bukkit.getPlayer((UUID) kayit[0]);
+            if (d != null && d.isOnline() && !d.isDead() && d.getWorld() == sahip.getWorld() && d.getLocation().distanceSquared(sahip.getLocation()) < 40 * 40
+                    && d.getGameMode() != org.bukkit.GameMode.CREATIVE && d.getGameMode() != org.bukkit.GameMode.SPECTATOR) return d;
+        }
+        Klan sk = plugin.klanManager().oyuncununKlani(sahip.getUniqueId());
+        if (sk == null) return null;
+        Player en = null; double enMes = 28 * 28;
+        for (Player o : sahip.getWorld().getPlayers()) {
+            if (o.equals(sahip) || o.isDead() || o.getGameMode() == org.bukkit.GameMode.CREATIVE || o.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+            Klan ok = plugin.klanManager().oyuncununKlani(o.getUniqueId());
+            if (ok == null || ok.id.equals(sk.id)) continue;
+            if (plugin.iliski().iliski(sk.id, ok.id) != me.klansistemi.model.IliskiDurumu.HUSUMET) continue;
+            double d = o.getLocation().distanceSquared(sahip.getLocation());
+            if (d < enMes) { enMes = d; en = o; }
+        }
+        return en;
+    }
+
+    /** Takviye sahibine vuran / sahibin vurduğu oyuncu, takviye ekibinin hedefi olur (dost klan hariç). */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onTakviyeDusmanTakip(EntityDamageByEntityEvent ev) {
+        if (!(ev.getEntity() instanceof Player kurban)) return;
+        Player saldiran = null;
+        if (ev.getDamager() instanceof Player p) saldiran = p;
+        else if (ev.getDamager() instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof Player p) saldiran = p;
+        if (saldiran == null || saldiran.equals(kurban)) return;
+        Klan ka = plugin.klanManager().oyuncununKlani(saldiran.getUniqueId());
+        Klan kk = plugin.klanManager().oyuncununKlani(kurban.getUniqueId());
+        if (ka != null && kk != null && (ka.id.equals(kk.id) || plugin.iliski().iliski(ka.id, kk.id) == me.klansistemi.model.IliskiDurumu.DOST)) return;
+        long simdi = System.currentTimeMillis();
+        sonDusman.put(kurban.getUniqueId(), new Object[]{saldiran.getUniqueId(), simdi}); // bana vurana
+        sonDusman.put(saldiran.getUniqueId(), new Object[]{kurban.getUniqueId(), simdi}); // benim vurduğuma
+    }
+
     /** Görünür kervanın insan muhafızı: kalenin skini, nöbetçi donatımı; oyunculara KIZGIN olmadıkça saldırmaz. */
-    public Vindicator kervanMuhafiziUret(VahsiKale kale, Location l) {
-        Vindicator v = l.getWorld().spawn(l, Vindicator.class);
-        v.setPersistent(false);
-        v.setRemoveWhenFarAway(false);
+    public org.bukkit.entity.PigZombie kervanMuhafiziUret(VahsiKale kale, Location l) {
+        org.bukkit.entity.PigZombie v = muhafizTaban(l);
         v.getPersistentDataContainer().set(kervanKey, PersistentDataType.STRING, kale.id.toString());
         String ad = kale.isim + " Kervan Muhafızı";
         v.setCustomName(ChatColor.GOLD + ad);

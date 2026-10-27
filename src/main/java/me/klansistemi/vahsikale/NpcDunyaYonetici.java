@@ -734,7 +734,7 @@ public class NpcDunyaYonetici implements Listener {
                 continue;
             }
             org.bukkit.entity.Entity lider = null;
-            for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e instanceof org.bukkit.entity.Vindicator && e.isValid()) { lider = e; break; } }
+            for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e instanceof org.bukkit.entity.PigZombie && e.isValid()) { lider = e; break; } }
             if (lider == null) for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) { lider = e; break; } }
             if (lider == null) { kv.varliklar.clear(); continue; }
             Location ll = lider.getLocation();
@@ -776,7 +776,7 @@ public class NpcDunyaYonetici implements Listener {
             for (UUID id : kv.varliklar) {
                 org.bukkit.entity.Entity e = Bukkit.getEntity(id);
                 if (e instanceof org.bukkit.entity.Mob m && m.isValid() && m.getTarget() == null) {
-                    try { m.getPathfinder().moveTo(wp, m instanceof org.bukkit.entity.Vindicator ? 0.9 : 1.0); } catch (Exception ignored) { }
+                    try { m.getPathfinder().moveTo(wp, m instanceof org.bukkit.entity.PigZombie ? 0.9 : 1.0); } catch (Exception ignored) { }
                 }
             }
         }
@@ -788,9 +788,9 @@ public class NpcDunyaYonetici implements Listener {
         kv.sonX = kv.x; kv.sonZ = kv.z; kv.takilma = 0;
         Location b = new Location(w, x + 0.5, y, z + 0.5);
         int n = Math.max(1, Math.min(6, muhafizSayisi(k, kv)));
-        List<org.bukkit.entity.Vindicator> muhafizlar = new ArrayList<>();
+        List<org.bukkit.entity.PigZombie> muhafizlar = new ArrayList<>();
         for (int i = 0; i < n; i++) {
-            org.bukkit.entity.Vindicator g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
+            org.bukkit.entity.PigZombie g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
             kv.varliklar.add(g.getUniqueId());
             muhafizlar.add(g);
         }
@@ -979,9 +979,10 @@ public class NpcDunyaYonetici implements Listener {
         if (p == null || kv == null) return;
         for (UUID id : kv.varliklar) {
             org.bukkit.entity.Entity e = Bukkit.getEntity(id);
-            if (e instanceof org.bukkit.entity.Vindicator v && v.isValid()) {
+            if (e instanceof org.bukkit.entity.PigZombie v && v.isValid()) {
                 v.getPersistentDataContainer().set(plugin.vahsiKale().kizginKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
                 v.setTarget(p);
+                try { v.setAnger(1200); } catch (Throwable ignored) { }
             }
         }
     }
@@ -995,10 +996,10 @@ public class NpcDunyaYonetici implements Listener {
         Kervan kv = kervanlar.get(UUID.fromString(kid));
         if (kv == null) return;
         kv.varliklar.remove(ent.getUniqueId());
-        if (!(ent instanceof org.bukkit.entity.Vindicator)) return;
+        if (!(ent instanceof org.bukkit.entity.PigZombie)) return;
         for (UUID id : kv.varliklar) {
             org.bukkit.entity.Entity e = Bukkit.getEntity(id);
-            if (e instanceof org.bukkit.entity.Vindicator && e.isValid() && !e.isDead()) return; // muhafız kaldı
+            if (e instanceof org.bukkit.entity.PigZombie && e.isValid() && !e.isDead()) return; // muhafız kaldı
         }
         VahsiKale k = plugin.vahsiKale().kaleBul(UUID.fromString(kid));
         if (k == null) return;
