@@ -31,11 +31,14 @@ final class NobetciDisguiseYardimcisi {
             disguise.setTablistName(goruntuAdi);
         }
         DisguiseAPI.disguiseToAll(mob, disguise);
-        return DisguiseAPI.isDisguised(mob);
+        boolean ok = DisguiseAPI.isDisguised(mob);
+        if (ok) mob.setSilent(true); // taban mobun (domuz-zombi/vindicator) sesi çıkmasın; oyuncu sesleri VahsiKaleYonetici'de çalınır
+        return ok;
     }
 
     static void soyun(LivingEntity mob) {
         if (DisguiseAPI.isDisguised(mob)) DisguiseAPI.undisguiseToAll(mob);
+        mob.setSilent(false);
     }
 
     static boolean disguisliMi(LivingEntity mob) {

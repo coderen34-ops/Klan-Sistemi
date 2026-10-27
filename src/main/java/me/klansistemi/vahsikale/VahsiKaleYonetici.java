@@ -1345,6 +1345,34 @@ public class VahsiKaleYonetici implements Listener {
         return liste.size();
     }
 
+    // ------------------------------------------------------------------ OYUNCU SESLERİ (taban mob sessiz, disguise'lı NPC oyuncu gibi duyulur)
+    private boolean npcSesliMi(org.bukkit.entity.Entity e) {
+        if (!(e instanceof LivingEntity le) || !le.isSilent()) return false;
+        var pdc = e.getPersistentDataContainer();
+        return pdc.has(kervanKey, PersistentDataType.STRING) || pdc.has(kaleIdKey, PersistentDataType.STRING) || pdc.has(muhafizKey, PersistentDataType.BYTE);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onNpcHasarSesi(org.bukkit.event.entity.EntityDamageEvent ev) {
+        if (!npcSesliMi(ev.getEntity()) || ev.getFinalDamage() <= 0) return;
+        Location l = ev.getEntity().getLocation();
+        l.getWorld().playSound(l, Sound.ENTITY_PLAYER_HURT, 1f, 1f);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onNpcOlumSesi(EntityDeathEvent ev) {
+        if (!npcSesliMi(ev.getEntity())) return;
+        Location l = ev.getEntity().getLocation();
+        l.getWorld().playSound(l, Sound.ENTITY_PLAYER_DEATH, 1f, 1f);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onNpcVurusSesi(EntityDamageByEntityEvent ev) {
+        if (!npcSesliMi(ev.getDamager())) return;
+        Location l = ev.getDamager().getLocation();
+        l.getWorld().playSound(l, Sound.ENTITY_PLAYER_ATTACK_STRONG, 1f, 1f);
+    }
+
     /** Muhafız -> saldırmasına izin verilen oyuncu (takviye ekibi için). */
     private final Map<UUID, UUID> takviyeHedef = new java.util.concurrent.ConcurrentHashMap<>();
     /** Takviye sahibi -> {son düşman oyuncu, zaman}. */
