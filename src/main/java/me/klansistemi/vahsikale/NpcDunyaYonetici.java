@@ -1488,7 +1488,7 @@ public class NpcDunyaYonetici implements Listener {
             case "patika" -> {
                 if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }
                 String a2 = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "";
-                if (a2.equals("sifirla")) plugin.patika().hepsiniGeriAl(p); else plugin.patika().bilgi(p);
+                if (a2.equals("sifirla")) plugin.patika().hepsiniGeriAl(p); else if (a2.equals("liste")) plugin.patika().liste(p); else plugin.patika().bilgi(p);
             }
             case "hanci" -> {
                 if (!p.hasPermission("klan.admin")) { p.sendMessage(ChatColor.RED + "Yetkin yok."); return; }

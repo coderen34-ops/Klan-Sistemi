@@ -461,6 +461,26 @@ public class PatikaYonetici implements Listener {
         rotalar.clear(); kaydet();
     }
 
+    /** Admin icin: kervan rotalarinin ve en gelismis patika noktalarinin koordinatlari. */
+    public void liste(Player p) {
+        p.sendMessage(ChatColor.GOLD + "Kervan rotalari (" + rotalar.size() + "):");
+        int n = 0;
+        for (Rota r : rotalar.values()) {
+            if (++n > 15) { p.sendMessage(ChatColor.GRAY + "... (" + (rotalar.size() - 15) + " rota daha)"); break; }
+            p.sendMessage(ChatColor.YELLOW + " " + r.dunya + ": " + r.x1 + "," + r.z1 + " -> " + r.x2 + "," + r.z2
+                    + ChatColor.GRAY + "  /tp " + r.x1 + " ~ " + r.z1);
+        }
+        p.sendMessage(ChatColor.GOLD + "En gelismis patika noktalari (kademe 3):");
+        int m = 0;
+        for (Map.Entry<String, Kayit> e : kayitlar.entrySet()) {
+            if (e.getValue().asama < 3) continue;
+            if (++m > 10) break;
+            String[] k = e.getKey().split(";");
+            p.sendMessage(ChatColor.YELLOW + " " + k[0] + ": " + k[1] + ", " + k[2]);
+        }
+        if (m == 0) p.sendMessage(ChatColor.GRAY + " (henuz kademe 3 patika yok)");
+    }
+
     public void bilgi(CommandSender s) {
         int[] st = new int[4];
         for (Kayit k : kayitlar.values()) st[k.asama]++;

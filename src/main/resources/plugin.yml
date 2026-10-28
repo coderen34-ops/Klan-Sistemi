@@ -25,7 +25,7 @@ commands:
     permission: klan.admin
   npcklan:
     description: NPC Diplomasi Paneli ve kervan dedikodusu
-    usage: /npcklan [panel|dedikodu|hanci kur|hanci sil|patika bilgi|patika sifirla]
+    usage: /npcklan [panel|dedikodu|hanci kur|hanci sil|patika bilgi|patika liste|patika sifirla]
     permission: klan.kullan
   vahsikale:
     description: Vahşi Kale (NPC klanı) yönetim komutları
