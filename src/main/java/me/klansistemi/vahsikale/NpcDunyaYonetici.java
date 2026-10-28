@@ -237,22 +237,46 @@ public class NpcDunyaYonetici implements Listener {
         return l;
     }
 
-    /** Fetihte: kalenin hazine eşyaları kalenin yanındaki sandık(lar)a konur - oyuncu yağmalar. Önce hazineden ÇIKARILIR ve kaydedilir. */
+    /** Fetihte: kalenin hazine eşyaları, kalenin İÇİNDEKİ taht odasındaki (altın platform + end rod) sandık(lar)a konur -
+     *  oyuncu yağmalar. Hazine ancak yerleşme garanti olduktan sonra hazineden ÇIKARILIR (dünya/merkez yoksa veri SİLİNMEZ). */
     public void fetihDagit(VahsiKale kale) {
         if (!veriYuklendi) return;
+        if (kale.merkez == null || kale.merkez.getWorld() == null) return; // hazine yerinde kalır (kayıp yok)
         List<ItemStack> l;
         synchronized (this) { l = hazineEsya.remove(kale.id); }
-        if (l == null || l.isEmpty() || kale.merkez == null || kale.merkez.getWorld() == null) return;
+        if (l == null || l.isEmpty()) return;
         kaydet();
         World w = kale.merkez.getWorld();
-        int[][] ofs = {{3, 0}, {3, 2}, {3, -2}, {5, 0}, {-3, 0}, {-3, 2}};
-        int idx = 0, yerlesen = 0;
+        List<Block> yerler = new ArrayList<>();
+        Block tahtZemin = tahtBul(kale, w);
+        Location dusme = kale.merkez;
+        if (tahtZemin != null) {
+            dusme = tahtZemin.getLocation().add(0.5, 1, 0.5);
+            int tx = tahtZemin.getX(), ty = tahtZemin.getY() + 1, tz = tahtZemin.getZ();
+            for (int r = 2; r <= 3 && yerler.size() < 6; r++) {
+                for (int dx = -r; dx <= r && yerler.size() < 6; dx++) {
+                    for (int dz = -r; dz <= r && yerler.size() < 6; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // sadece halka
+                        Block zemin = w.getBlockAt(tx + dx, ty - 1, tz + dz);
+                        Block ust = w.getBlockAt(tx + dx, ty, tz + dz);
+                        Block ust2 = w.getBlockAt(tx + dx, ty + 1, tz + dz);
+                        if (zemin.getType().isSolid() && ust.getType().isAir() && ust2.getType().isAir()) yerler.add(ust);
+                    }
+                }
+            }
+        }
+        if (yerler.isEmpty()) { // taht odası bulunamadı (eski/elle kale): eski davranış - kalenin yanına
+            int[][] ofs = {{3, 0}, {3, 2}, {3, -2}, {5, 0}, {-3, 0}, {-3, 2}};
+            for (int[] o : ofs) {
+                int x = kale.merkez.getBlockX() + o[0], z = kale.merkez.getBlockZ() + o[1];
+                Block b = w.getBlockAt(x, w.getHighestBlockYAt(x, z) + 1, z);
+                if (b.getType().isAir()) yerler.add(b);
+            }
+        }
+        int yerlesen = 0;
         List<ItemStack> kalan = new ArrayList<>(l);
-        for (int[] o : ofs) {
+        for (Block b : yerler) {
             if (kalan.isEmpty()) break;
-            int x = kale.merkez.getBlockX() + o[0], z = kale.merkez.getBlockZ() + o[1];
-            Block b = w.getBlockAt(x, w.getHighestBlockYAt(x, z) + 1, z);
-            if (!b.getType().isAir()) continue;
             b.setType(Material.CHEST);
             if (b.getState(false) instanceof Chest c) {
                 java.util.Iterator<ItemStack> it = kalan.iterator();
@@ -262,8 +286,33 @@ public class NpcDunyaYonetici implements Listener {
                 yerlesen++;
             }
         }
-        for (ItemStack k : kalan) w.dropItemNaturally(kale.merkez, k); // yer bulunamadıysa yere dök (kayıp yok)
-        plugin.getLogger().info("[NPC] " + kale.isim + " hazine odası yağmaya açıldı: " + l.size() + " stack, " + yerlesen + " sandık.");
+        for (ItemStack k : kalan) w.dropItemNaturally(dusme, k); // yer bulunamadıysa yere dök (kayıp yok)
+        plugin.getLogger().info("[NPC] " + kale.isim + " hazine odası yağmaya açıldı: " + l.size() + " stack, " + yerlesen + " sandık"
+                + (tahtZemin != null ? " (taht odası)." : " (kale yanı - taht bulunamadı)."));
+    }
+
+    /** Kale sınırları içinde taht platformunu bulur: 3x3 altın/yosunlu platformun ortasında end rod / redstone meşalesi.
+     *  En üst katta olanı seçer. Döndürülen blok platformun orta (zemin) bloğudur. */
+    private Block tahtBul(VahsiKale kale, World w) {
+        if (kale.sinirMaxX < kale.sinirMinX) return null;
+        Block en = null;
+        for (int y = kale.sinirMaxY; y >= kale.sinirMinY && en == null; y--) {
+            for (int x = kale.sinirMinX; x <= kale.sinirMaxX; x++) {
+                for (int z = kale.sinirMinZ; z <= kale.sinirMaxZ; z++) {
+                    Material m = w.getBlockAt(x, y, z).getType();
+                    if (m != Material.GILDED_BLACKSTONE && m != Material.MOSSY_COBBLESTONE) continue;
+                    Material isik = w.getBlockAt(x, y + 1, z).getType();
+                    if (isik != Material.END_ROD && isik != Material.REDSTONE_TORCH) continue;
+                    boolean tam = true;
+                    for (int dx = -1; dx <= 1 && tam; dx++) for (int dz = -1; dz <= 1; dz++) {
+                        if (w.getBlockAt(x + dx, y, z + dz).getType() != m) { tam = false; break; }
+                    }
+                    if (tam) { en = w.getBlockAt(x, y, z); break; }
+                }
+                if (en != null) break;
+            }
+        }
+        return en;
     }
 
     /** Lider ardıllığı (npc.lider-ardil-dakika, varsayılan 40 dk = 2 MC günü) ve üye yenilenmesi
