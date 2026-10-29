@@ -1585,21 +1585,63 @@ public class VahsiKaleYonetici implements Listener {
 
     private final Map<UUID, VahsiKale> kaleOlumYeri = new LinkedHashMap<>();
 
-    /** SaglikManager/vanilla ölüm anında (öldüğü an) hangi kalede olduğunu not eder - respawn'da kullanılır. */
-    public void olumNotEt(Player p) {
+    // Prestij kaybı ağır yaralı (baygın) olunca kesilir; aynı kişiden ölünce ikinci kez kesilmesin diye (uuid -> kesildiği zaman)
+    private final Map<UUID, Long> yaraliPrestijKesildi = new java.util.HashMap<>();
+    private static final long YARALI_KESINTI_GECERLILIK_MS = 25 * 60 * 1000L; // baygınlık en fazla 20 dk sürer
+
+    private VahsiKale kusatmaKalesi(Player p) {
         for (VahsiKale kale : kaleler.values()) {
-            if (!kale.fethedildi && kale.kusatmadakiOyuncular.contains(p.getUniqueId())) {
-                kaleOlumYeri.put(p.getUniqueId(), kale);
-                Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
-                if (klan != null) {
-                    klan.prestij = Math.max(0, klan.prestij - olumPrestijKaybi());
-                    plugin.veri().kaydet();
-                    plugin.klanManager().klanaGonder(klan, "vahsikale-olum-prestij",
-                            "&c{oyuncu} &7bir Vahşi Kalede öldü, klan &e-{kayip} prestij&7 kaybetti.",
-                            "oyuncu", p.getName(), "kayip", olumPrestijKaybi());
-                }
-                return;
-            }
+            if (!kale.fethedildi && kale.kusatmadakiOyuncular.contains(p.getUniqueId())) return kale;
+        }
+        return null;
+    }
+
+    /** Ölümcül hasar: Meslek'in sağlık sistemi bunu NORMAL önceliğe iptal edip oyuncuyu ağır yaralı yapar,
+     *  bu yüzden vuruş ondan önce (LOW) yakalanır, sonuç bir tick sonra kontrol edilir (PrestijManager ile aynı kalıp). */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onOlumculHasar(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player p)) return;
+        if (p.getHealth() - event.getFinalDamage() > 0) return;
+        if (kusatmaKalesi(p) == null) return;
+        if (plugin.meslek().agirYaraliMi(p.getUniqueId())) return; // zaten baygın
+        UUID id = p.getUniqueId();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            // Totem vb. ile kurtulduysa ne baygın ne ölü olur: prestij kesilmez
+            if (plugin.meslek().agirYaraliMi(id) || p.isDead()) yaraliPrestijKaybi(p);
+        });
+    }
+
+    private void yaraliPrestijKaybi(Player p) {
+        VahsiKale kale = kusatmaKalesi(p);
+        if (kale == null) return;
+        long simdi = System.currentTimeMillis();
+        Long son = yaraliPrestijKesildi.get(p.getUniqueId());
+        if (son != null && simdi - son < YARALI_KESINTI_GECERLILIK_MS) return; // zaten kesildi
+        yaraliPrestijKesildi.put(p.getUniqueId(), simdi);
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan == null) return;
+        klan.prestij = Math.max(0, klan.prestij - olumPrestijKaybi());
+        plugin.veri().kaydet();
+        plugin.klanManager().klanaGonder(klan, "vahsikale-yarali-prestij",
+                "&c{oyuncu} &7bir Vahşi Kalede ağır yaralandı, klan &e-{kayip} prestij&7 kaybetti.",
+                "oyuncu", p.getName(), "kayip", olumPrestijKaybi());
+    }
+
+    /** SaglikManager/vanilla ölüm anında (öldüğü an) hangi kalede olduğunu not eder - respawn'da kullanılır.
+     *  Prestij kaybı artık ağır yaralı olunca kesilir; ölümde yalnızca daha önce kesilmediyse (doğrudan ölüm) kesilir. */
+    public void olumNotEt(Player p) {
+        VahsiKale kale = kusatmaKalesi(p);
+        if (kale == null) return;
+        kaleOlumYeri.put(p.getUniqueId(), kale);
+        Long son = yaraliPrestijKesildi.remove(p.getUniqueId());
+        if (son != null && System.currentTimeMillis() - son < YARALI_KESINTI_GECERLILIK_MS) return; // yaralanırken zaten kesildi
+        Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
+        if (klan != null) {
+            klan.prestij = Math.max(0, klan.prestij - olumPrestijKaybi());
+            plugin.veri().kaydet();
+            plugin.klanManager().klanaGonder(klan, "vahsikale-olum-prestij",
+                    "&c{oyuncu} &7bir Vahşi Kalede öldü, klan &e-{kayip} prestij&7 kaybetti.",
+                    "oyuncu", p.getName(), "kayip", olumPrestijKaybi());
         }
     }
 
