@@ -1589,6 +1589,9 @@ public class VahsiKaleYonetici implements Listener {
     private final Map<UUID, Long> yaraliPrestijKesildi = new java.util.HashMap<>();
     private static final long YARALI_KESINTI_GECERLILIK_MS = 25 * 60 * 1000L; // baygınlık en fazla 20 dk sürer
 
+    /** Oyuncu şu an bir vahşi kale kuşatmasında mı? (Meslek arayüzü isim görünürlüğü için) */
+    public boolean kusatmadaMi(Player p) { return kusatmaKalesi(p) != null; }
+
     private VahsiKale kusatmaKalesi(Player p) {
         for (VahsiKale kale : kaleler.values()) {
             if (!kale.fethedildi && kale.kusatmadakiOyuncular.contains(p.getUniqueId())) return kale;

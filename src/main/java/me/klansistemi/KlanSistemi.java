@@ -293,4 +293,10 @@ public class KlanSistemi extends JavaPlugin {
     public boolean kasaKilitliMi(Klan klan) {
         return savasManager != null && klan != null && savasManager.kilitliMi(klan.id);
     }
+
+    /** Meslek arayüzü: klan savaşında veya kale kuşatmasında olan oyuncular herkesin ismini görür. */
+    public boolean isimTamGorunur(org.bukkit.entity.Player p) {
+        if (savasManager != null && savasManager.katilimciSavasi(p.getUniqueId()) != null) return true;
+        return vahsiKaleYonetici != null && vahsiKaleYonetici.kusatmadaMi(p);
+    }
 }
