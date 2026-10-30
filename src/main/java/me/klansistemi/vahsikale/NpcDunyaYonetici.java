@@ -871,7 +871,6 @@ public class NpcDunyaYonetici implements Listener {
         } catch (Throwable ignored) { }
         tc.setCustomName(ChatColor.GOLD + k.isim + " Tüccarı");
         tc.setCustomNameVisible(true);
-        VahsiKaleYonetici.isimGizle(tc);
         tc.getPersistentDataContainer().set(plugin.vahsiKale().kervanKey, org.bukkit.persistence.PersistentDataType.STRING, k.id.toString());
         tc.getPersistentDataContainer().set(tuccarKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
         kv.varliklar.add(tc.getUniqueId());

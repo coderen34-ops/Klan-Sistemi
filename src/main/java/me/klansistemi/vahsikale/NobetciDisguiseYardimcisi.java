@@ -29,7 +29,6 @@ final class NobetciDisguiseYardimcisi {
         if (goruntuAdi != null && !goruntuAdi.isEmpty()) {
             disguise.setName(goruntuAdi);
             disguise.setTablistName(goruntuAdi);
-            disguise.setNameVisible(false); // isim sadece nişan alınınca Meslek arayüzünde gösterilir
         }
         DisguiseAPI.disguiseToAll(mob, disguise);
         boolean ok = DisguiseAPI.isDisguised(mob);
