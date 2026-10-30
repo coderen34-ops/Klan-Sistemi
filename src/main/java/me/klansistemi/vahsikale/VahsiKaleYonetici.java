@@ -956,6 +956,7 @@ public class VahsiKaleYonetici implements Listener {
         v.getPersistentDataContainer().set(rolKey, PersistentDataType.STRING, rol);
         v.setCustomName(ChatColor.RED + goruntuAdi);
         v.setCustomNameVisible(true);
+        isimGizle(v);
         AttributeInstance canOzniteligi = v.getAttribute(Attribute.MAX_HEALTH);
         if (canOzniteligi != null) canOzniteligi.setBaseValue(can);
         v.setHealth(can);
@@ -1290,6 +1291,7 @@ public class VahsiKaleYonetici implements Listener {
             String ad = kale.isim + " Muhafızı";
             v.setCustomName(ChatColor.GREEN + ad);
             v.setCustomNameVisible(true);
+            isimGizle(v);
             AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
             if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
             v.setHealth(nobetciCan(kale.seviye));
@@ -1435,6 +1437,7 @@ public class VahsiKaleYonetici implements Listener {
         String ad = kale.isim + " Kervan Muhafızı";
         v.setCustomName(ChatColor.GOLD + ad);
         v.setCustomNameVisible(true);
+        isimGizle(v);
         AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
         if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
         v.setHealth(nobetciCan(kale.seviye));
@@ -1591,6 +1594,18 @@ public class VahsiKaleYonetici implements Listener {
 
     /** Oyuncu şu an bir vahşi kale kuşatmasında mı? (Meslek arayüzü isim görünürlüğü için) */
     public boolean kusatmadaMi(Player p) { return kusatmaKalesi(p) != null; }
+
+    /** Hareket eden NPC'lerin (nöbetçi/lider/muhafız) ismi başlarında SÜREKLİ görünmesin: isim PDC'ye yazılır ve
+     *  Meslek arayüzü sadece nişan o NPC'ye getirilince (ya da savaş/kuşatmadaki oyunculara) gösterir. */
+    public static final org.bukkit.NamespacedKey ISIM_GIZLI_KEY = new org.bukkit.NamespacedKey("klansistemi", "isim_gizli");
+
+    @SuppressWarnings("deprecation")
+    public static void isimGizle(org.bukkit.entity.LivingEntity v) {
+        String ad = v.getCustomName();
+        if (ad == null || ad.isEmpty()) return;
+        v.getPersistentDataContainer().set(ISIM_GIZLI_KEY, PersistentDataType.STRING, ad);
+        v.setCustomNameVisible(false);
+    }
 
     private VahsiKale kusatmaKalesi(Player p) {
         for (VahsiKale kale : kaleler.values()) {
@@ -1885,6 +1900,7 @@ public class VahsiKaleYonetici implements Listener {
         v.getPersistentDataContainer().set(rolKey, PersistentDataType.STRING, "LIDER");
         String ad = kale.isim + " Lideri";
         v.setCustomName(ChatColor.RED + ad);
+        isimGizle(v);
         AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
         if (can != null) can.setBaseValue(liderCan(kale.seviye));
         v.setHealth(Math.min(liderCan(kale.seviye), v.getHealth() + 20));
