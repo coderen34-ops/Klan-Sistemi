@@ -187,6 +187,36 @@ final class CitizensKopru {
         } catch (Throwable t) { try { e.teleport(l); } catch (Throwable ignored) { } }
     }
 
+    /** Entity henüz/artık yüklü olmasa bile, o entity UUID'sine bağlı NPC'yi yok eder. */
+    static void kaldirUuid(UUID entityUuid) {
+        Object npc = npcler.remove(entityUuid);
+        if (npc != null) { try { cNpc.getMethod("destroy").invoke(npc); } catch (Throwable ignored) { } }
+        Entity e = Bukkit.getEntity(entityUuid);
+        try { if (e != null && e.isValid()) e.remove(); } catch (Throwable ignored) { }
+    }
+
+    /** NPC'nin görünen adını (Citizens'ın isim sistemi) değiştirir. */
+    static void adDegistir(LivingEntity e, String ad) {
+        try {
+            Object npc = npcOf(e);
+            if (npc != null) cNpc.getMethod("setName", String.class).invoke(npc, ad);
+        } catch (Throwable ignored) { }
+    }
+
+    /** Sentinel can/hasar değerlerini (varsa) günceller. */
+    static void statAyarla(LivingEntity e, double can, double hasar) {
+        try {
+            Object npc = npcOf(e);
+            if (npc == null) return;
+            Plugin s = Bukkit.getPluginManager().getPlugin("Sentinel");
+            if (s == null || !s.isEnabled()) return;
+            Class<?> cSent = Class.forName("org.mcmonkey.sentinel.SentinelTrait");
+            Object trait = cNpc.getMethod("getOrAddTrait", Class.class).invoke(npc, cSent);
+            alanAyarla(cSent, trait, "health", can);
+            alanAyarla(cSent, trait, "damage", hasar);
+        } catch (Throwable ignored) { }
+    }
+
     static void kaldir(LivingEntity e) {
         Object npc = npcler.remove(e.getUniqueId());
         try {

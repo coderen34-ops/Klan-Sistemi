@@ -588,6 +588,7 @@ public class NpcDunyaYonetici implements Listener {
             if (w == null) continue;
             boolean yakin = false;
             for (Player p : w.getPlayers()) {
+                if (p.hasMetadata("NPC")) continue;
                 double dx = p.getLocation().getX() - e.x, dz = p.getLocation().getZ() - e.z;
                 if (dx * dx + dz * dz <= 70.0 * 70.0) { yakin = true; break; }
             }
@@ -743,6 +744,7 @@ public class NpcDunyaYonetici implements Listener {
 
     private boolean oyuncuYakin(World w, double x, double z, double r) {
         for (Player p : w.getPlayers()) {
+            if (p.hasMetadata("NPC")) continue;
             double dx = p.getLocation().getX() - x, dz = p.getLocation().getZ() - z;
             if (dx * dx + dz * dz <= r * r) return true;
         }

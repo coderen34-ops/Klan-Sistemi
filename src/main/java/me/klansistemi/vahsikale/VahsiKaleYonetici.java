@@ -95,6 +95,7 @@ public class VahsiKaleYonetici implements Listener {
     private final NamespacedKey muhafizKey;
     public final NamespacedKey kervanKey; // değer: kale UUID (görünür kervan varlıkları)
     public final NamespacedKey kizginKey; // oyuncu kervana vurdu: muhafızlar artık saldırır
+    private final NamespacedKey kimlikKey; // Citizens nöbetçisinin KALICI kimliği (entity UUID'si her doğuşta değişir)
     private final NamespacedKey rolKey; // "NOBETCI" ya da "LIDER"
     private final NamespacedKey elciKey; // elçi NPC'sini nöbetçi/liderden ayırt etmek için (byte=1)
 
@@ -122,6 +123,7 @@ public class VahsiKaleYonetici implements Listener {
         this.muhafizKey = new NamespacedKey(plugin, "npc-muhafiz");
         this.kervanKey = new NamespacedKey(plugin, "npc-kervan");
         this.kizginKey = new NamespacedKey(plugin, "npc-kizgin");
+        this.kimlikKey = new NamespacedKey(plugin, "vahsikale-kimlik");
         this.elciKey = new NamespacedKey(plugin, "vahsikale-elci");
         baglan();
         tablolariOlustur();
@@ -215,10 +217,7 @@ public class VahsiKaleYonetici implements Listener {
         int toplam = kaleler.size();
         List<VahsiKale> kopya = new ArrayList<>(kaleler.values());
         for (VahsiKale kale : kopya) {
-            for (UUID npcId : kale.nobetciRolleri.keySet()) {
-                org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
-                if (e != null) e.remove();
-            }
+            for (UUID npcId : new ArrayList<>(kale.nobetciRolleri.keySet())) nobetciKaldir(npcId);
             elciSil(kale);
             araziYedekGeriYukle(kale.id);
             kaleler.remove(kale.id);
@@ -488,10 +487,7 @@ public class VahsiKaleYonetici implements Listener {
     /** Bir kaleyi (nöbetçi entity'leri dahil) hem bellekten hem DB'den kaldırır. sil() komutu ve
      *  klan silme kaskad mantığı (bkz. klanaAitKaleleriSil) tarafından paylaşılır. */
     private void silKaleyi(VahsiKale kale) {
-        for (UUID npcId : kale.nobetciRolleri.keySet()) {
-            org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
-            if (e != null) e.remove();
-        }
+        for (UUID npcId : new ArrayList<>(kale.nobetciRolleri.keySet())) nobetciKaldir(npcId);
         elciSil(kale);
         araziYedekGeriYukle(kale.id);
         kaleler.remove(kale.id);
@@ -949,6 +945,7 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void dogurBir(VahsiKale kale, Location konum, String rol, double can, double hasar, String goruntuAdi, String skinAdi) {
+        if (kaleNpcAktif() && npcNobetciDogur(kale, konum, rol, can, hasar, goruntuAdi, skinAdi)) return;
         Vindicator v = konum.getWorld().spawn(konum, Vindicator.class);
         v.setPersistent(true);
         v.setRemoveWhenFarAway(false);
@@ -981,6 +978,196 @@ public class VahsiKaleYonetici implements Listener {
         kale.nobetciRolleri.put(v.getUniqueId(), rol);
         kale.nobetciSkinleri.put(v.getUniqueId(), skinAdi);
         nobetciKaydet(kale.id, v.getUniqueId(), rol, false, skinAdi);
+    }
+
+    // ------------------------------------------------------------------ KALICI CITIZENS NÖBETÇİLERİ
+    /** Citizens nöbetçisi: entity UUID'si her doğuşta değiştiği için nöbetçi, KALICI bir "kimlik" UUID'siyle takip edilir
+     *  (kale.nobetciRolleri/oluNobetciler/DB hep bu kimlikle çalışır). Kayıt kale-npc.yml'de saklanır; restart'ta ve chunk
+     *  yüklenince nobetciNpcBekcisi() aynı kimlikle yeniden doğurur. Eski (Vindicator) nöbetçilerde kimlik = entity UUID'si. */
+    private static final class NpcKayit {
+        UUID kaleId; String rol, skin, ad; String dunya; double x, y, z; double can, maxCan, hasar;
+    }
+
+    private final Map<UUID, NpcKayit> npcKayit = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<UUID, UUID> npcCanli = new java.util.concurrent.ConcurrentHashMap<>(); // kimlik -> güncel entity UUID
+    private int npcBekciSayac = 0;
+
+    private boolean kaleNpcAktif() {
+        return !"mob".equalsIgnoreCase(plugin.getConfig().getString("npc.tabani", "citizens"))
+                && !"mob".equalsIgnoreCase(plugin.getConfig().getString("npc.kale-tabani", "citizens"))
+                && CitizensKopru.hazir();
+    }
+
+    /** Entity'nin nöbetçi kimliği: Citizens nöbetçisinde PDC'deki kalıcı kimlik, diğerlerinde entity UUID'si. */
+    private UUID nobetciKimlik(org.bukkit.entity.Entity e) {
+        String k = e.getPersistentDataContainer().get(kimlikKey, PersistentDataType.STRING);
+        if (k != null) { try { return UUID.fromString(k); } catch (IllegalArgumentException ignored) { } }
+        return e.getUniqueId();
+    }
+
+    /** Kimliğe karşılık gelen YÜKLÜ nöbetçi entity'si (yoksa null). */
+    private org.bukkit.entity.Entity nobetciVarlik(UUID kimlik) {
+        UUID eu = npcCanli.get(kimlik);
+        if (eu != null) {
+            org.bukkit.entity.Entity e = Bukkit.getEntity(eu);
+            if (e != null && e.isValid()) return e;
+        }
+        return Bukkit.getEntity(kimlik);
+    }
+
+    private void nobetciKaldir(UUID kimlik) {
+        UUID eu = npcCanli.remove(kimlik);
+        if (eu != null) CitizensKopru.kaldirUuid(eu);
+        org.bukkit.entity.Entity e = Bukkit.getEntity(kimlik);
+        if (e != null) { if (e instanceof LivingEntity le && CitizensKopru.npcMi(le)) CitizensKopru.kaldir(le); else e.remove(); }
+        if (npcKayit.remove(kimlik) != null) npcKayitKaydet();
+    }
+
+    private boolean npcNobetciDogur(VahsiKale kale, Location konum, String rol, double can, double hasar, String goruntuAdi, String skinAdi) {
+        NpcKayit r = new NpcKayit();
+        r.kaleId = kale.id; r.rol = rol; r.skin = skinAdi; r.ad = goruntuAdi;
+        r.dunya = konum.getWorld().getName(); r.x = konum.getX(); r.y = konum.getY(); r.z = konum.getZ();
+        r.can = can; r.maxCan = can; r.hasar = hasar;
+        UUID kimlik = UUID.randomUUID();
+        if (!npcDogur(kale, kimlik, r)) return false;
+        npcKayit.put(kimlik, r);
+        kale.nobetciRolleri.put(kimlik, rol);
+        kale.nobetciSkinleri.put(kimlik, skinAdi);
+        nobetciKaydet(kale.id, kimlik, rol, false, skinAdi);
+        npcKayitKaydet();
+        return true;
+    }
+
+    /** Kayıttan (yeniden) doğurur; başarıyla doğduysa npcCanli güncellenir. */
+    private boolean npcDogur(VahsiKale kale, UUID kimlik, NpcKayit r) {
+        World w = Bukkit.getWorld(r.dunya);
+        if (w == null) return false;
+        Location l = new Location(w, r.x, r.y, r.z);
+        LivingEntity c = CitizensKopru.uret(plugin, l, ChatColor.RED + r.ad, r.skin, r.maxCan, r.hasar, plugin.getConfig().getBoolean("npc.sentinel", true));
+        if (c == null) return false;
+        c.getPersistentDataContainer().set(kaleIdKey, PersistentDataType.STRING, kale.id.toString());
+        c.getPersistentDataContainer().set(rolKey, PersistentDataType.STRING, r.rol);
+        c.getPersistentDataContainer().set(kimlikKey, PersistentDataType.STRING, kimlik.toString());
+        donatimGiydir(c, r.rol);
+        if (c.getEquipment() != null) c.getEquipment().setItemInMainHand(new ItemStack("LIDER".equals(r.rol) ? Material.DIAMOND_AXE : Material.IRON_AXE));
+        if (r.can > 0 && r.can < r.maxCan) { try { c.setHealth(Math.max(1.0, Math.min(r.can, r.maxCan))); } catch (Throwable ignored) { } }
+        npcCanli.put(kimlik, c.getUniqueId());
+        return true;
+    }
+
+    private File npcKayitDosyasi() { return new File(plugin.getDataFolder(), "kale-npc.yml"); }
+
+    private synchronized void npcKayitKaydet() {
+        org.bukkit.configuration.file.YamlConfiguration y = new org.bukkit.configuration.file.YamlConfiguration();
+        for (Map.Entry<UUID, NpcKayit> e : npcKayit.entrySet()) {
+            NpcKayit r = e.getValue(); String p = "npc." + e.getKey() + ".";
+            y.set(p + "kale", r.kaleId.toString()); y.set(p + "rol", r.rol); y.set(p + "skin", r.skin); y.set(p + "ad", r.ad);
+            y.set(p + "dunya", r.dunya); y.set(p + "x", r.x); y.set(p + "y", r.y); y.set(p + "z", r.z);
+            y.set(p + "can", r.can); y.set(p + "maxCan", r.maxCan); y.set(p + "hasar", r.hasar);
+        }
+        try { plugin.getDataFolder().mkdirs(); y.save(npcKayitDosyasi()); }
+        catch (Exception ex) { plugin.getLogger().log(Level.WARNING, "kale-npc.yml yazılamadı", ex); }
+    }
+
+    private void npcKayitYukle() {
+        File f = npcKayitDosyasi();
+        if (!f.exists()) return;
+        org.bukkit.configuration.file.YamlConfiguration y = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(f);
+        org.bukkit.configuration.ConfigurationSection sec = y.getConfigurationSection("npc");
+        if (sec == null) return;
+        for (String k : sec.getKeys(false)) {
+            try {
+                String p = "npc." + k + ".";
+                NpcKayit r = new NpcKayit();
+                r.kaleId = UUID.fromString(y.getString(p + "kale")); r.rol = y.getString(p + "rol", "NOBETCI");
+                r.skin = y.getString(p + "skin"); r.ad = y.getString(p + "ad", "Nöbetçi");
+                r.dunya = y.getString(p + "dunya"); r.x = y.getDouble(p + "x"); r.y = y.getDouble(p + "y"); r.z = y.getDouble(p + "z");
+                r.can = y.getDouble(p + "can"); r.maxCan = y.getDouble(p + "maxCan", r.can); r.hasar = y.getDouble(p + "hasar", 4);
+                npcKayit.put(UUID.fromString(k), r);
+            } catch (Exception ex) { plugin.getLogger().warning("Bozuk kale-npc kaydı atlandı: " + k); }
+        }
+    }
+
+    /** Yüklü Citizens nöbetçilerinin can değerini kayda işler (restart/chunk boşalması sonrası tam canla doğmasınlar). */
+    private void npcCanlariKaydet() {
+        for (Map.Entry<UUID, UUID> e : npcCanli.entrySet()) {
+            NpcKayit r = npcKayit.get(e.getKey());
+            org.bukkit.entity.Entity en = Bukkit.getEntity(e.getValue());
+            if (r != null && en instanceof LivingEntity le && le.isValid() && !le.isDead()) r.can = le.getHealth();
+        }
+        npcKayitKaydet();
+    }
+
+    /** ~5 sn'de bir: eksik (yüklü olmayan) Citizens nöbetçilerini kimlikleriyle yeniden doğurur, hedefi uzaklaşmış /
+     *  dost olmuş nöbetçileri postuna döndürür, can durumunu kaydeder. */
+    private void nobetciNpcBekcisi() {
+        if (!kaleNpcAktif() && npcKayit.isEmpty()) return;
+        boolean degisti = false;
+        for (Map.Entry<UUID, NpcKayit> e : new ArrayList<>(npcKayit.entrySet())) {
+            UUID kimlik = e.getKey(); NpcKayit r = e.getValue();
+            VahsiKale kale = kaleler.get(r.kaleId);
+            if (kale == null) { npcKayit.remove(kimlik); degisti = true; continue; }
+            if (kale.fethedildi || kale.oluNobetciler.contains(kimlik) || !kale.nobetciRolleri.containsKey(kimlik)) {
+                if (npcCanli.containsKey(kimlik)) { UUID eu = npcCanli.remove(kimlik); if (eu != null) CitizensKopru.kaldirUuid(eu); }
+                if (kale.fethedildi) { npcKayit.remove(kimlik); degisti = true; }
+                continue;
+            }
+            org.bukkit.entity.Entity en = nobetciVarlik(kimlik);
+            if (en instanceof LivingEntity le && le.isValid() && !le.isDead()) {
+                r.can = le.getHealth();
+                npcNobetciDavranisi(kale, r, le);
+                continue;
+            }
+            // yüklü değil: eski kayıt kalıntısını temizle, chunk yüklü ve yakında oyuncu varsa yeniden doğur
+            World w = Bukkit.getWorld(r.dunya);
+            if (w == null || !w.isChunkLoaded(((int) Math.floor(r.x)) >> 4, ((int) Math.floor(r.z)) >> 4)) continue;
+            boolean yakin = false;
+            for (Player p : w.getPlayers()) {
+                if (p.hasMetadata("NPC")) continue;
+                double dx = p.getLocation().getX() - r.x, dz = p.getLocation().getZ() - r.z;
+                if (dx * dx + dz * dz <= 100.0 * 100.0) { yakin = true; break; }
+            }
+            if (!yakin) continue;
+            UUID eski = npcCanli.remove(kimlik);
+            if (eski != null) CitizensKopru.kaldirUuid(eski);
+            if (npcDogur(kale, kimlik, r)) degisti = true;
+        }
+        if (degisti || ++npcBekciSayac % 6 == 0) npcKayitKaydet();
+    }
+
+    private void npcNobetciDavranisi(VahsiKale kale, NpcKayit r, LivingEntity le) {
+        LivingEntity hedef = CitizensKopru.hedefAl(le);
+        Location ev = new Location(le.getWorld(), r.x, r.y, r.z);
+        if (hedef != null) {
+            boolean birak = !hedef.isValid() || hedef.isDead() || hedef.getWorld() != le.getWorld()
+                    || hedef.getLocation().distanceSquared(ev) > Math.pow(kale.saldiriYaricap + 30, 2);
+            if (hedef instanceof Player hp) {
+                if (hp.getGameMode() == org.bukkit.GameMode.CREATIVE || hp.getGameMode() == org.bukkit.GameMode.SPECTATOR || dostOyuncuMu(kale, hp)) birak = true;
+            }
+            if (birak) { CitizensKopru.hedefVer(le, null); CitizensKopru.yuru(le, ev); }
+        } else if (le.getLocation().distanceSquared(ev) > 36) {
+            CitizensKopru.yuru(le, ev); // postuna dön
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onChunkBosalt(org.bukkit.event.world.ChunkUnloadEvent ev) {
+        if (npcCanli.isEmpty()) return;
+        org.bukkit.Chunk ch = ev.getChunk();
+        boolean degisti = false;
+        for (Map.Entry<UUID, UUID> e : new ArrayList<>(npcCanli.entrySet())) {
+            org.bukkit.entity.Entity en = Bukkit.getEntity(e.getValue());
+            NpcKayit r = npcKayit.get(e.getKey());
+            boolean burada;
+            if (en != null) burada = en.getWorld().equals(ch.getWorld()) && (en.getLocation().getBlockX() >> 4) == ch.getX() && (en.getLocation().getBlockZ() >> 4) == ch.getZ();
+            else burada = r != null && r.dunya.equals(ch.getWorld().getName()) && (((int) Math.floor(r.x)) >> 4) == ch.getX() && (((int) Math.floor(r.z)) >> 4) == ch.getZ();
+            if (!burada) continue;
+            if (r != null && en instanceof LivingEntity le && !le.isDead()) r.can = le.getHealth();
+            npcCanli.remove(e.getKey());
+            CitizensKopru.kaldirUuid(e.getValue());
+            degisti = true;
+        }
+        if (degisti) npcKayitKaydet();
     }
 
     /** Nöbetçiler büyülü demir zırh + kalkan, liderler büyülü elmas zırh giyer. Not: vanilla
@@ -1047,6 +1234,7 @@ public class VahsiKaleYonetici implements Listener {
 
     // ------------------------------------------------------------------ TESPİT / SALDIRI (periyodik)
     private int disguiseBekciSayaci = 0;
+    private int npcBekciSure = 0;
 
     /** Her tick() çağrısında (1 sn) sayaç artırılır; ~15 saniyede bir, disguise'ı düşmüş (ör. bir
      *  anti-cheat/paket eklentisinin resync'i, LibsDisguises'in geçici bir hatası) İnsan tipi
@@ -1141,6 +1329,7 @@ public class VahsiKaleYonetici implements Listener {
                 disguiseBekcisi();
                 elciBekcisi();
             }
+            if (++npcBekciSure >= 5) { npcBekciSure = 0; nobetciNpcBekcisi(); }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Vahşi Kale tick() - disguise/elçi bekçisi hatası (atlanıyor)", e);
         }
@@ -1154,6 +1343,7 @@ public class VahsiKaleYonetici implements Listener {
             for (VahsiKale kale : kaleler.values()) {
                 if (kale.fethedildi || kale.merkez == null || kale.merkez.getWorld() == null) continue;
                 for (Player p : kale.merkez.getWorld().getPlayers()) {
+                    if (p.hasMetadata("NPC")) continue; // Citizens NPC'leri (nöbetçi/takviye) kuşatmacı sayılmaz
                     double mesafe = p.getLocation().distance(kale.merkez);
                     // Eskiden sadece merkeze düz mesafe bakılıyordu - büyük/yüksek kalelerde yapının
                     // fiziksel sınırları (sinirMinX/MaxX/...) merkeze olan daire yarıçapından taşabiliyordu,
@@ -1209,8 +1399,9 @@ public class VahsiKaleYonetici implements Listener {
 
     private void dostHedefTemizle(VahsiKale kale, Player p) {
         for (UUID npcId : kale.nobetciRolleri.keySet()) {
-            org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
+            org.bukkit.entity.Entity e = nobetciVarlik(npcId);
             if (e instanceof Mob mob && mob.isValid() && p.equals(mob.getTarget())) mob.setTarget(null);
+            else if (e instanceof LivingEntity le && CitizensKopru.npcMi(le) && le.isValid() && p.equals(CitizensKopru.hedefAl(le))) CitizensKopru.hedefVer(le, null);
         }
     }
 
@@ -1402,7 +1593,7 @@ public class VahsiKaleYonetici implements Listener {
         World w = hedef.merkez.getWorld();
         List<Location> ic = new ArrayList<>();
         for (UUID id : hedef.nobetciRolleri.keySet()) {
-            org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+            org.bukkit.entity.Entity e = nobetciVarlik(id);
             if (e != null && e.isValid()) ic.add(e.getLocation());
         }
         if (ic.isEmpty()) ic.add(hedef.merkez.clone());
@@ -1520,6 +1711,7 @@ public class VahsiKaleYonetici implements Listener {
         if (sk == null) return null;
         Player en = null; double enMes = 28 * 28;
         for (Player o : sahip.getWorld().getPlayers()) {
+            if (o.hasMetadata("NPC")) continue;
             if (o.equals(sahip) || o.isDead() || o.getGameMode() == org.bukkit.GameMode.CREATIVE || o.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
             Klan ok = plugin.klanManager().oyuncununKlani(o.getUniqueId());
             if (ok == null || ok.id.equals(sk.id)) continue;
@@ -1577,8 +1769,12 @@ public class VahsiKaleYonetici implements Listener {
         if (dostOyuncuMu(kale, p)) return; // barış/ittifak: nöbetçiler saldırmaz
         for (UUID npcId : kale.nobetciRolleri.keySet()) {
             if (kale.oluNobetciler.contains(npcId)) continue;
-            org.bukkit.entity.Entity e = Bukkit.getEntity(npcId);
-            if (e instanceof Mob mob && mob.isValid() && (mob.getTarget() == null || !mob.getTarget().equals(p))) {
+            org.bukkit.entity.Entity e = nobetciVarlik(npcId);
+            if (e instanceof LivingEntity le && CitizensKopru.npcMi(le)) {
+                if (le.isValid() && !le.isDead() && le.getWorld() == p.getWorld() && !p.equals(CitizensKopru.hedefAl(le))
+                        && le.getLocation().distance(p.getLocation()) <= kale.saldiriYaricap + 5
+                        && p.getGameMode() != org.bukkit.GameMode.CREATIVE && p.getGameMode() != org.bukkit.GameMode.SPECTATOR) CitizensKopru.hedefVer(le, p);
+            } else if (e instanceof Mob mob && mob.isValid() && (mob.getTarget() == null || !mob.getTarget().equals(p))) {
                 if (mob.getLocation().distance(p.getLocation()) <= kale.saldiriYaricap + 5) mob.setTarget(p);
             }
         }
@@ -1591,8 +1787,18 @@ public class VahsiKaleYonetici implements Listener {
         if (kaleIdStr == null) return;
         VahsiKale kale = kaleler.get(UUID.fromString(kaleIdStr));
         if (kale == null) return;
-        kale.oluNobetciler.add(event.getEntity().getUniqueId());
-        nobetciOldu(kale.id, event.getEntity().getUniqueId());
+        UUID olenKimlik = nobetciKimlik(event.getEntity());
+        kale.oluNobetciler.add(olenKimlik);
+        nobetciOldu(kale.id, olenKimlik);
+        if (CitizensKopru.npcMi(event.getEntity())) {
+            event.getDrops().clear();
+            event.setDroppedExp(0);
+            final UUID euid = event.getEntity().getUniqueId();
+            npcCanli.remove(olenKimlik);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> CitizensKopru.kaldirUuid(euid), 60L);
+            npcKayit.remove(olenKimlik);
+            npcKayitKaydet();
+        }
         plugin.npcDunya().nobetciOlduLoot(kale, event.getEntity().getLocation());
         if (kale.tumuOldu()) {
             Bukkit.getOnlinePlayers().forEach(pl -> {
@@ -1948,7 +2154,7 @@ public class VahsiKaleYonetici implements Listener {
             if (mevcut != null && mevcut >= tier) continue;
             EntityEquipment ekip = le.getEquipment();
             if (ekip == null) continue;
-            boolean lider = "LIDER".equals(kale.nobetciRolleri.get(le.getUniqueId()));
+            boolean lider = "LIDER".equals(kale.nobetciRolleri.get(nobetciKimlik(le)));
             ItemStack[] yeni = new ItemStack[4];
             for (int i = 0; i < 4; i++) {
                 ItemStack parca = new ItemStack(zirh[i]);
@@ -1965,8 +2171,10 @@ public class VahsiKaleYonetici implements Listener {
             if (km != null) { km.addEnchant(Enchantment.SHARPNESS, Math.min(5, 1 + tier), true); kilicItem.setItemMeta(km); }
             ekip.setHelmet(yeni[0]); ekip.setChestplate(yeni[1]); ekip.setLeggings(yeni[2]); ekip.setBoots(yeni[3]);
             ekip.setItemInMainHand(kilicItem);
-            ekip.setHelmetDropChance(1f); ekip.setChestplateDropChance(1f); ekip.setLeggingsDropChance(1f);
-            ekip.setBootsDropChance(1f); ekip.setItemInMainHandDropChance(1f);
+            try {
+                ekip.setHelmetDropChance(1f); ekip.setChestplateDropChance(1f); ekip.setLeggingsDropChance(1f);
+                ekip.setBootsDropChance(1f); ekip.setItemInMainHandDropChance(1f);
+            } catch (Throwable ignored) { }
             le.getPersistentDataContainer().set(ekipmanKey(), PersistentDataType.INTEGER, tier);
         }
     }
@@ -1985,7 +2193,7 @@ public class VahsiKaleYonetici implements Listener {
         java.util.List<org.bukkit.entity.LivingEntity> l = new java.util.ArrayList<>();
         for (Map.Entry<UUID, String> e : kale.nobetciRolleri.entrySet()) {
             if (kale.oluNobetciler.contains(e.getKey())) continue;
-            org.bukkit.entity.Entity en = Bukkit.getEntity(e.getKey());
+            org.bukkit.entity.Entity en = nobetciVarlik(e.getKey());
             if (en instanceof org.bukkit.entity.LivingEntity le && !le.isDead() && le.isValid()) l.add(le);
         }
         return l;
@@ -1996,24 +2204,30 @@ public class VahsiKaleYonetici implements Listener {
         if (kale.fethedildi || liderYasiyorMu(kale)) return false;
         org.bukkit.entity.LivingEntity secilen = null;
         for (org.bukkit.entity.LivingEntity le : yasayanNobetciler(kale)) {
-            if (!(le instanceof Vindicator)) continue;
+            if (!(le instanceof Vindicator) && !CitizensKopru.npcMi(le)) continue;
             if (secilen == null || le.getHealth() > secilen.getHealth()) secilen = le;
         }
-        if (!(secilen instanceof Vindicator v)) return false;
-        UUID id = v.getUniqueId();
+        if (secilen == null) return false;
+        org.bukkit.entity.LivingEntity v = secilen;
+        UUID id = nobetciKimlik(v);
         String skin = kale.nobetciSkinleri.get(id);
         kale.nobetciRolleri.put(id, "LIDER");
         v.getPersistentDataContainer().set(rolKey, PersistentDataType.STRING, "LIDER");
         String ad = kale.isim + " Lideri";
-        v.setCustomName(ChatColor.RED + ad);
+        boolean npc = CitizensKopru.npcMi(v);
+        if (npc) CitizensKopru.adDegistir(v, ChatColor.RED + ad); else v.setCustomName(ChatColor.RED + ad);
         AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
         if (can != null) can.setBaseValue(liderCan(kale.seviye));
         v.setHealth(Math.min(liderCan(kale.seviye), v.getHealth() + 20));
         AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
         if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye) * 1.5);
         donatimGiydir(v, "LIDER");
-        if (skin != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
-            try { NobetciDisguiseYardimcisi.giydir(v, skin, ad); } catch (Throwable t) { /* görünüm bozulmasın */ }
+        if (npc) {
+            CitizensKopru.statAyarla(v, liderCan(kale.seviye), nobetciHasar(kale.seviye) * 1.5);
+            NpcKayit r = npcKayit.get(id);
+            if (r != null) { r.rol = "LIDER"; r.ad = ad; r.maxCan = liderCan(kale.seviye); r.hasar = nobetciHasar(kale.seviye) * 1.5; r.can = v.getHealth(); npcKayitKaydet(); }
+        } else if (skin != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises") && v instanceof Vindicator vv) {
+            try { NobetciDisguiseYardimcisi.giydir(vv, skin, ad); } catch (Throwable t) { /* görünüm bozulmasın */ }
         }
         nobetciKaydet(kale.id, id, "LIDER", false, skin);
         return true;
@@ -2034,6 +2248,7 @@ public class VahsiKaleYonetici implements Listener {
             kale.nobetciRolleri.remove(id);
             kale.nobetciSkinleri.remove(id);
             nobetciSil(kale.id, id);
+            if (npcKayit.remove(id) != null) npcKayitKaydet();
             Location taban = canli.get(rng.nextInt(canli.size())).getLocation().clone().add(rng.nextInt(3) - 1, 0, rng.nextInt(3) - 1);
             String skin = KlanSkinHavuzu.nobetciSkin(kale.klanTuru, rng);
             dogurBir(kale, taban, "NOBETCI", nobetciCan(kale.seviye), nobetciHasar(kale.seviye), kale.isim + " Nöbetçisi", skin);
@@ -2148,6 +2363,7 @@ public class VahsiKaleYonetici implements Listener {
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Vahşi Kale sandıkları yüklenemedi!", e);
         }
+        npcKayitYukle();
         sinirlariGenislet();
         if (!kaleler.isEmpty()) {
             plugin.getLogger().info(kaleler.size() + " Vahşi Kale yüklendi.");
@@ -2226,6 +2442,7 @@ public class VahsiKaleYonetici implements Listener {
     public VahsiKale kaleBul(UUID id) { return kaleler.get(id); }
 
     public void kapat() {
+        try { npcCanlariKaydet(); } catch (Throwable ignored) { }
         try { CitizensKopru.hepsiniKaldir(); } catch (Throwable ignored) { }
         if (baglanti != null) {
             try { baglanti.close(); } catch (SQLException ignored) { }
