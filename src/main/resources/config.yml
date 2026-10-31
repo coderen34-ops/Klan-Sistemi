@@ -284,6 +284,8 @@ vahsikale:
 # NPC dünyası (Faz 5): periyodik/soyut simülasyon. Tüm değerler canlıda /klan reload ile değil restart ile geçerli.
 npc:
   aktif: true
+  zirh-dusme-sansi: 0.3        # Kale nöbetçisi ölünce her zırh parçası/silah için düşme şansı (0-1)
+  zirh-dusme-sansi-lider: 0.5  # Lider için aynısı
   otonom-dakika: 30            # NPC-NPC savaş/ittifak/ticaret rulosu sıklığı
   kervan-dakika: 10            # Soyut kervan "yolda olay" rulosu sıklığı
   kervan-muhafiz: 3            # Görünür kervandaki insan muhafız sayısı

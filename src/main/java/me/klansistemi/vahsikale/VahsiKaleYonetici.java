@@ -1055,6 +1055,30 @@ public class VahsiKaleYonetici implements Listener {
         return true;
     }
 
+    /** Citizens nöbetçisi ölünce takılı zırh/silahın BİR KISMI (parça başına şansla) yere düşer. Lider daha yüksek şansla düşürür. */
+    private void npcEkipmanDusur(VahsiKale kale, LivingEntity ent) {
+        EntityEquipment ekip = ent.getEquipment();
+        if (ekip == null) return;
+        boolean lider = "LIDER".equals(ent.getPersistentDataContainer().get(rolKey, PersistentDataType.STRING));
+        double sans = plugin.getConfig().getDouble(lider ? "npc.zirh-dusme-sansi-lider" : "npc.zirh-dusme-sansi", lider ? 0.5 : 0.3);
+        Random rng = new Random();
+        Location l = ent.getLocation();
+        List<ItemStack> parcalar = new ArrayList<>();
+        for (ItemStack it : ekip.getArmorContents()) parcalar.add(it);
+        parcalar.add(ekip.getItemInMainHand());
+        for (ItemStack it : parcalar) {
+            if (it == null || it.getType() == Material.AIR) continue;
+            if (rng.nextDouble() >= sans) continue;
+            ItemStack d = it.clone();
+            // kullanılmış hâl: dayanıklılığın bir kısmı gitmiş olsun (sonsuz yeni zırh kaynağı olmasın)
+            if (d.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable dm && d.getType().getMaxDurability() > 0) {
+                dm.setDamage((int) (d.getType().getMaxDurability() * (0.2 + rng.nextDouble() * 0.5)));
+                d.setItemMeta((ItemMeta) dm);
+            }
+            l.getWorld().dropItemNaturally(l, d);
+        }
+    }
+
     private File npcKayitDosyasi() { return new File(plugin.getDataFolder(), "kale-npc.yml"); }
 
     private synchronized void npcKayitKaydet() {
@@ -1793,6 +1817,7 @@ public class VahsiKaleYonetici implements Listener {
         if (CitizensKopru.npcMi(event.getEntity())) {
             event.getDrops().clear();
             event.setDroppedExp(0);
+            npcEkipmanDusur(kale, event.getEntity());
             final UUID euid = event.getEntity().getUniqueId();
             npcCanli.remove(olenKimlik);
             Bukkit.getScheduler().runTaskLater(plugin, () -> CitizensKopru.kaldirUuid(euid), 60L);
