@@ -54,7 +54,8 @@ import java.util.logging.Level;
 public class BolgeManager implements Listener {
 
     public static final double CHUNK_MALIYETI = 100000.0;
-    public static final int CHUNK_LIMITI = 4; // şimdilik sabit (ileride ayarlanabilir)
+    /** Klan başına chunk üst sınırı; config'te bolge.chunk-limiti (0 = sınırsız, varsayılan). Para verdiği sürece istediği kadar claim edebilir. */
+    private int chunkLimiti() { return plugin.getConfig().getInt("bolge.chunk-limiti", 0); }
 
     private static final class ChunkAnahtari {
         final String dunya;
@@ -141,7 +142,7 @@ public class BolgeManager implements Listener {
         if (a == null) { m().gonder(p, "klanda-degil", "&cBir klanda değilsiniz."); return; }
         List<ChunkAnahtari> kendi = new ArrayList<>();
         for (Map.Entry<ChunkAnahtari, UUID> e : claimler.entrySet()) if (e.getValue().equals(a.id)) kendi.add(e.getKey());
-        p.sendMessage(Mesaj.renk("&6&l--- " + a.isim + " Klan Bölgeleri (" + kendi.size() + "/" + CHUNK_LIMITI + ") ---"));
+        p.sendMessage(Mesaj.renk("&6&l--- " + a.isim + " Klan Bölgeleri (" + kendi.size() + (chunkLimiti() > 0 ? "/" + chunkLimiti() : "") + ") ---"));
         if (kendi.isEmpty()) { p.sendMessage(Mesaj.renk("&7Henüz hiç chunk claim edilmemiş. &e/klan bolge alet")); return; }
         for (ChunkAnahtari k : kendi) {
             p.sendMessage(Mesaj.renk("&e" + k.dunya + " &7chunk (" + k.x + ", " + k.z + ") &8- &7blok: &f" + (k.x * 16) + ",~ " + (k.z * 16) + ",~"));
@@ -177,8 +178,8 @@ public class BolgeManager implements Listener {
 
         int mevcutSayi = 0;
         for (UUID sahip : claimler.values()) if (sahip.equals(a.id)) mevcutSayi++;
-        if (mevcutSayi >= CHUNK_LIMITI) {
-            m().gonder(p, "bolge-limit", "&cKlanın zaten en fazla &e{limit} &cchunk claim edebilir.", "limit", CHUNK_LIMITI);
+        if (chunkLimiti() > 0 && mevcutSayi >= chunkLimiti()) {
+            m().gonder(p, "bolge-limit", "&cKlanın zaten en fazla &e{limit} &cchunk claim edebilir.", "limit", chunkLimiti());
             return;
         }
 

@@ -986,7 +986,7 @@ public class VahsiKaleYonetici implements Listener {
     /** Nöbetçiler büyülü demir zırh + kalkan, liderler büyülü elmas zırh giyer. Not: vanilla
      *  Vindicator AI'ının aktif "kalkanla blokla" davranışı yok (bu sadece oyuncularda/Piglinlerde
      *  var) - kalkan elde tutulur ve kol/el görünümünü değiştirir ama otomatik blok yapmaz. */
-    private void donatimGiydir(Mob v, String rol) {
+    private void donatimGiydir(LivingEntity v, String rol) {
         boolean lider = "LIDER".equals(rol);
         EntityEquipment ekip = v.getEquipment();
         if (ekip == null) return;
@@ -1010,11 +1010,13 @@ public class VahsiKaleYonetici implements Listener {
         ekip.setBoots(zirhlar[3]);
         ekip.setItemInOffHand(new ItemStack(Material.SHIELD));
         // Ölünce zırh/kalkan düşürmesin - bu görsel/savaş donanımı, gerçek loot zaten sandıklarda.
-        ekip.setHelmetDropChance(0f);
-        ekip.setChestplateDropChance(0f);
-        ekip.setLeggingsDropChance(0f);
-        ekip.setBootsDropChance(0f);
-        ekip.setItemInOffHandDropChance(0f);
+        try { // oyuncu tipi (Citizens) NPC'lerde düşme şansı ayarı desteklenmeyebilir
+            ekip.setHelmetDropChance(0f);
+            ekip.setChestplateDropChance(0f);
+            ekip.setLeggingsDropChance(0f);
+            ekip.setBootsDropChance(0f);
+            ekip.setItemInOffHandDropChance(0f);
+        } catch (Throwable ignored) { }
     }
 
     /** Sunucu restart'ında LibsDisguises tüm disguise'ları kaybeder; mevcut nöbetçiler PERSİSTE EDİLMİŞ
@@ -1082,6 +1084,7 @@ public class VahsiKaleYonetici implements Listener {
         Klan klan = plugin.klanManager().oyuncununKlani(p.getUniqueId());
         if (klan == null) return;
         plugin.npcDunya().saldiriBildir(klan, kale);
+        try { plugin.npcDunya().muttefikDestegi(kale, p); } catch (Exception e) { plugin.getLogger().log(Level.WARNING, "Müttefik desteği çağrılamadı", e); }
         plugin.klanManager().klanaGonder(klan, "vahsikale-kusatma",
                 "&c{oyuncu} &7bir Vahşi Kaleye (&e{kale}&7) saldırıyor! Yardım etmek istiyorsan &e/vahsikale yardim &7yaz (30 saniyen var - yoksa 5 dakika ışınlanamazsın).",
                 "oyuncu", p.getName(), "kale", kale.isim);
@@ -1276,56 +1279,102 @@ public class VahsiKaleYonetici implements Listener {
         }
     }
 
-    /** Takviye: NPC klanının kendi insan (giydirilmiş) muhafızları oyuncunun yanında belirir, onu takip eder,
-     *  çevredeki canavarlara saldırır ve süre bitince çekilir. Oyunculara asla saldırmazlar. */
+    // ------------------------------------------------------------------ TAKVİYE / DESTEK BİRİMLERİ (Citizens ya da mob tabanı)
+    private boolean birimNpcMi(LivingEntity e) { return CitizensKopru.npcMi(e); }
+
+    private void birimKaldir(LivingEntity e) {
+        if (birimNpcMi(e)) CitizensKopru.kaldir(e); else e.remove();
+    }
+
+    private LivingEntity birimHedef(LivingEntity e) {
+        if (birimNpcMi(e)) return CitizensKopru.hedefAl(e);
+        return e instanceof Mob m ? m.getTarget() : null;
+    }
+
+    private void birimHedefVer(LivingEntity e, LivingEntity t) {
+        if (birimNpcMi(e)) { CitizensKopru.hedefVer(e, t); return; }
+        if (e instanceof Mob m) {
+            m.setTarget(t);
+            if (t != null && e instanceof org.bukkit.entity.PigZombie z) z.setAnger(1200);
+        }
+    }
+
+    private void birimYuru(LivingEntity e, Location l, double hiz) {
+        if (birimNpcMi(e)) { CitizensKopru.yuru(e, l); return; }
+        if (e instanceof Mob m) { try { m.getPathfinder().moveTo(l, hiz); } catch (Exception ignored) { } }
+    }
+
+    private void birimIsinla(LivingEntity e, Location l) {
+        if (birimNpcMi(e)) CitizensKopru.isinla(e, l); else e.teleport(l);
+    }
+
+    /** Takviye/destek birimi: npc.tabani=citizens (varsayılan) ise Citizens oyuncu NPC'si (+ Sentinel istatistikleri);
+     *  Citizens yok/hata verirse ya da npc.tabani=mob ise Zombified Piglin + LibsDisguises. */
+    private LivingEntity birimUret(Location l, String ad, ChatColor renk, double can, double hasar, String skin) {
+        boolean mobTabani = "mob".equalsIgnoreCase(plugin.getConfig().getString("npc.tabani", "citizens"));
+        if (!mobTabani && CitizensKopru.hazir()) {
+            LivingEntity c = CitizensKopru.uret(plugin, l, renk + ad, skin, can, hasar, plugin.getConfig().getBoolean("npc.sentinel", true));
+            if (c != null) {
+                donatimGiydir(c, "NOBETCI");
+                if (c.getEquipment() != null) c.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
+                return c;
+            }
+        }
+        org.bukkit.entity.PigZombie v = muhafizTaban(l);
+        v.setCustomName(renk + ad);
+        v.setCustomNameVisible(true);
+        AttributeInstance canO = v.getAttribute(Attribute.MAX_HEALTH);
+        if (canO != null) canO.setBaseValue(can);
+        v.setHealth(can);
+        AttributeInstance hasarO = v.getAttribute(Attribute.ATTACK_DAMAGE);
+        if (hasarO != null) hasarO.setBaseValue(hasar);
+        donatimGiydir(v, "NOBETCI");
+        if (v.getEquipment() != null) v.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
+        if (skin != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try { NobetciDisguiseYardimcisi.giydir(v, skin, ad); } catch (Throwable t) { /* görünüm bozulur, işlev kalır */ }
+            });
+        }
+        return v;
+    }
+
+    private String kaleSkini(VahsiKale kale) {
+        for (String sk : kale.nobetciSkinleri.values()) if (sk != null) return sk;
+        return null;
+    }
+
+    /** Takviye: NPC klanının kendi insan muhafızları (Citizens oyuncu NPC'si ya da giydirilmiş mob) oyuncunun yanında belirir,
+     *  onu takip eder, çevredeki canavarlara ve takviye sahibinin düşman oyuncusuna saldırır, süre bitince çekilir. */
     public int takviyeMuhafizlariCagir(VahsiKale kale, Player sahip, int adet, java.util.function.BooleanSupplier devam) {
-        List<org.bukkit.entity.PigZombie> liste = new ArrayList<>();
-        String skin = null;
-        for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
-        final String skinF = skin;
+        List<LivingEntity> liste = new ArrayList<>();
+        final String skinF = kaleSkini(kale);
         for (int i = 0; i < adet; i++) {
             Location l = sahip.getLocation().add(Math.random() * 4 - 2, 0, Math.random() * 4 - 2);
-            org.bukkit.entity.PigZombie v = muhafizTaban(l);
+            LivingEntity v = birimUret(l, kale.isim + " Muhafızı", ChatColor.GREEN, nobetciCan(kale.seviye), nobetciHasar(kale.seviye), skinF);
             v.getPersistentDataContainer().set(muhafizKey, PersistentDataType.BYTE, (byte) 1);
-            String ad = kale.isim + " Muhafızı";
-            v.setCustomName(ChatColor.GREEN + ad);
-            v.setCustomNameVisible(true);
-            AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
-            if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
-            v.setHealth(nobetciCan(kale.seviye));
-            AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
-            if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye));
-            donatimGiydir(v, "NOBETCI");
-            if (v.getEquipment() != null) v.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
-            if (skinF != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    try { NobetciDisguiseYardimcisi.giydir(v, skinF, ad); } catch (Throwable t) { /* görünüm bozulur, işlev kalır */ }
-                });
-            }
             liste.add(v);
         }
         Bukkit.getScheduler().runTaskTimer(plugin, gorev -> {
             boolean bitti = !sahip.isOnline() || !devam.getAsBoolean();
             boolean hayatta = false;
-            for (org.bukkit.entity.PigZombie v : liste) {
+            for (LivingEntity v : liste) {
                 if (!v.isValid()) continue;
-                if (bitti) { v.remove(); continue; }
+                if (bitti) { birimKaldir(v); continue; }
                 hayatta = true;
                 try {
                     if (v.getWorld() != sahip.getWorld() || v.getLocation().distanceSquared(sahip.getLocation()) > 40 * 40) {
-                        v.teleport(sahip.getLocation());
+                        birimIsinla(v, sahip.getLocation());
                         continue;
                     }
                     Player dusman = takviyeDusmani(sahip);
                     if (dusman != null && v.getLocation().distanceSquared(dusman.getLocation()) < 45 * 45) {
                         takviyeHedef.put(v.getUniqueId(), dusman.getUniqueId());
-                        if (v.getTarget() != dusman) v.setTarget(dusman);
-                        v.setAnger(1200);
+                        if (birimHedef(v) != dusman) birimHedefVer(v, dusman);
                         continue;
                     }
                     takviyeHedef.remove(v.getUniqueId());
-                    LivingEntity t = v.getTarget();
-                    if (t instanceof Player) { v.setTarget(null); t = null; }
+                    LivingEntity t = birimHedef(v);
+                    if (t instanceof Player) { birimHedefVer(v, null); t = null; }
                     if (t == null || !t.isValid()) {
                         LivingEntity en = null; double enMes = 18 * 18;
                         for (org.bukkit.entity.Entity e : sahip.getNearbyEntities(14, 8, 14)) {
@@ -1335,12 +1384,81 @@ public class VahsiKaleYonetici implements Listener {
                             double d = m.getLocation().distanceSquared(sahip.getLocation());
                             if (d < enMes) { enMes = d; en = m; }
                         }
-                        if (en != null) { v.setTarget(en); v.setAnger(600); }
-                        else if (v.getLocation().distanceSquared(sahip.getLocation()) > 36) v.getPathfinder().moveTo(sahip.getLocation(), 1.2);
+                        if (en != null) birimHedefVer(v, en);
+                        else if (v.getLocation().distanceSquared(sahip.getLocation()) > 36) birimYuru(v, sahip.getLocation(), 1.2);
                     }
                 } catch (Exception ignored) { }
             }
-            if (bitti || !hayatta) { for (org.bukkit.entity.PigZombie z : liste) takviyeHedef.remove(z.getUniqueId()); sonDusman.remove(sahip.getUniqueId()); gorev.cancel(); }
+            if (bitti || !hayatta) { for (LivingEntity z : liste) takviyeHedef.remove(z.getUniqueId()); sonDusman.remove(sahip.getUniqueId()); gorev.cancel(); }
+        }, 20L, 20L);
+        return liste.size();
+    }
+
+    /** Müttefik desteği: kuşatılan kalenin İÇİNDE (nöbetçi/lider yakınında) doğar, yalnızca kuşatan oyunculara saldırır,
+     *  süre ya da kuşatma bitince çekilir. Ölenler gönderen kalenin gücünden düşer.
+     *  @return doğan birim sayısı */
+    public int destekEkibiUret(VahsiKale gonderen, VahsiKale hedef, int adet, int sureSn) {
+        if (hedef.merkez == null || hedef.merkez.getWorld() == null) return 0;
+        World w = hedef.merkez.getWorld();
+        List<Location> ic = new ArrayList<>();
+        for (UUID id : hedef.nobetciRolleri.keySet()) {
+            org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+            if (e != null && e.isValid()) ic.add(e.getLocation());
+        }
+        if (ic.isEmpty()) ic.add(hedef.merkez.clone());
+        final String skinF = kaleSkini(gonderen);
+        final Random rng = new Random();
+        List<LivingEntity> liste = new ArrayList<>();
+        for (int i = 0; i < adet; i++) {
+            Location l = ic.get(rng.nextInt(ic.size())).clone().add(rng.nextDouble() * 4 - 2, 0, rng.nextDouble() * 4 - 2);
+            LivingEntity v = birimUret(l, gonderen.isim + " Destek Muhafızı", ChatColor.DARK_AQUA, nobetciCan(gonderen.seviye), nobetciHasar(gonderen.seviye), skinF);
+            v.getPersistentDataContainer().set(muhafizKey, PersistentDataType.BYTE, (byte) 1);
+            liste.add(v);
+            w.spawnParticle(org.bukkit.Particle.CLOUD, l.clone().add(0, 1, 0), 25, 0.4, 0.8, 0.4, 0.05);
+        }
+        if (liste.isEmpty()) return 0;
+        Location ses = ic.get(0);
+        w.playSound(ses, Sound.EVENT_RAID_HORN, 2f, 1f);
+        for (UUID pid : new ArrayList<>(hedef.kusatmadakiOyuncular)) {
+            Player op = Bukkit.getPlayer(pid);
+            if (op != null) op.sendMessage(Mesaj.renk("&b" + gonderen.isim + " &7kalesinin muhafızları &e" + hedef.isim + " &7savunmasına geldi!"));
+        }
+        final long bitisMs = System.currentTimeMillis() + sureSn * 1000L;
+        final Set<UUID> bizKaldirdik = new HashSet<>();
+        final int[] olen = {0};
+        Bukkit.getScheduler().runTaskTimer(plugin, gorev -> {
+            boolean bitti = !kaleler.containsKey(hedef.id) || hedef.fethedildi || hedef.kusatmadakiOyuncular.isEmpty()
+                    || System.currentTimeMillis() > bitisMs;
+            boolean hayatta = false;
+            for (LivingEntity v : liste) {
+                if (bizKaldirdik.contains(v.getUniqueId())) continue;
+                if (!v.isValid()) { bizKaldirdik.add(v.getUniqueId()); olen[0]++; takviyeHedef.remove(v.getUniqueId()); continue; }
+                if (bitti) { birimKaldir(v); bizKaldirdik.add(v.getUniqueId()); takviyeHedef.remove(v.getUniqueId()); continue; }
+                hayatta = true;
+                try {
+                    Player en = null; double enMes = 45 * 45;
+                    for (UUID pid : hedef.kusatmadakiOyuncular) {
+                        Player op = Bukkit.getPlayer(pid);
+                        if (op == null || !op.isOnline() || op.isDead() || op.getWorld() != v.getWorld()) continue;
+                        if (op.getGameMode() == org.bukkit.GameMode.CREATIVE || op.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+                        if (dostOyuncuMu(gonderen, op)) continue; // gönderen kalenin dostuna dokunulmaz
+                        double d = op.getLocation().distanceSquared(v.getLocation());
+                        if (d < enMes) { enMes = d; en = op; }
+                    }
+                    if (en != null) {
+                        takviyeHedef.put(v.getUniqueId(), en.getUniqueId());
+                        if (birimHedef(v) != en) birimHedefVer(v, en);
+                    } else {
+                        takviyeHedef.remove(v.getUniqueId());
+                        if (birimHedef(v) != null) birimHedefVer(v, null);
+                        if (v.getWorld() == hedef.merkez.getWorld() && v.getLocation().distanceSquared(hedef.merkez) > 25 * 25) birimYuru(v, hedef.merkez, 1.0);
+                    }
+                } catch (Exception ignored) { }
+            }
+            if (bitti || !hayatta) {
+                plugin.npcDunya().destekKaybi(gonderen, olen[0]);
+                gorev.cancel();
+            }
         }, 20L, 20L);
         return liste.size();
     }
@@ -1419,7 +1537,7 @@ public class VahsiKaleYonetici implements Listener {
         Player saldiran = null;
         if (ev.getDamager() instanceof Player p) saldiran = p;
         else if (ev.getDamager() instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof Player p) saldiran = p;
-        if (saldiran == null || saldiran.equals(kurban)) return;
+        if (saldiran == null || saldiran.equals(kurban) || saldiran.hasMetadata("NPC") || kurban.hasMetadata("NPC")) return;
         Klan ka = plugin.klanManager().oyuncununKlani(saldiran.getUniqueId());
         Klan kk = plugin.klanManager().oyuncununKlani(kurban.getUniqueId());
         if (ka != null && kk != null && (ka.id.equals(kk.id) || plugin.iliski().iliski(ka.id, kk.id) == me.klansistemi.model.IliskiDurumu.DOST)) return;
@@ -2105,6 +2223,7 @@ public class VahsiKaleYonetici implements Listener {
     public VahsiKale kaleBul(UUID id) { return kaleler.get(id); }
 
     public void kapat() {
+        try { CitizensKopru.hepsiniKaldir(); } catch (Throwable ignored) { }
         if (baglanti != null) {
             try { baglanti.close(); } catch (SQLException ignored) { }
         }

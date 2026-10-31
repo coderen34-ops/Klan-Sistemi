@@ -306,6 +306,16 @@ npc:
   ittifak-min-prestij: 10       # NPC klanıyla ittifak için klan prestiji
   dedikodu-kervan-kotasi: 4     # Bir kervan hakkında 30 dk'da verilebilecek en fazla ip ucu
   takviye-cooldown-dakika: 30
+  tabani: citizens              # citizens = gerçek oyuncu tipi NPC (Citizens); mob = eski Zombified Piglin + LibsDisguises (yedek)
+  sentinel: true                # Citizens NPC'lerine Sentinel can/hasar eğilimi eklenir (Sentinel kuruluysa)
+  destek:                       # Kuşatılan kaleye NPC müttefik desteği
+    aktif: true
+    max-yardimci: 2             # Bir kuşatmada en fazla bu kadar ittifaklı kale yardım gönderir
+    max-muhafiz: 8              # Kale başına en fazla muhafız
+    max-mesafe: 3000            # Bundan uzaktaki ittifaklı kale yardım edemez (blok)
+    hiz-blok-sn: 25             # Gecikme = 20 sn + mesafe/hız (en fazla 240 sn)
+    sure-saniye: 180            # Destek ekibi bu kadar kalır
+    bekleme-dakika: 15          # Aynı kaleye yeni destek çağrısı için bekleme
 
 mesajlar:
   admin-dagitildi: '&a{klan} klanı zorla dağıtıldı.'
@@ -621,3 +631,6 @@ mesajlar:
   zaten-klanda: '&cZaten bir klandasınız.'
   dostluk-bozuldu: '&e{klan} klanıyla ittifak sona erdi.'
   husumet-bitti: '&e{klan} klanıyla husumet sona erdi.'
+
+bolge:
+  chunk-limiti: 0   # Klan başına azami chunk claim; 0 = sınırsız (her chunk $100.000 klan kasasından)

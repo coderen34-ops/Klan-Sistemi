@@ -1153,6 +1153,53 @@ public class NpcDunyaYonetici implements Listener {
         kaydet();
     }
 
+    // ------------------------------------------------------------------ MÜTTEFİK DESTEĞİ
+    private final Map<UUID, Long> destekSon = new LinkedHashMap<>(); // kuşatılan kale -> son destek çağrısı (runtime)
+
+    /** Bir oyuncu klanı kaleyi kuşatınca, o kalenin NPC ittifaklı kaleleri (mesafe sınırı içinde) gecikmeyle
+     *  kalenin İÇİNDE doğan destek ekibi gönderir. Kuşatma başına sınırlı sayıda kale/muhafız, bekleme süreli. */
+    public void muttefikDestegi(VahsiKale kusatilan, Player kusatan) {
+        if (!aktif() || !veriYuklendi || !plugin.getConfig().getBoolean("npc.destek.aktif", true)) return;
+        if (kusatilan == null || kusatilan.fethedildi || kusatilan.merkez == null || kusatilan.merkez.getWorld() == null) return;
+        long simdi = System.currentTimeMillis();
+        long bekleme = dk("destek.bekleme-dakika", 15) * 60_000L;
+        Long son = destekSon.get(kusatilan.id);
+        if (son != null && simdi - son < bekleme) return;
+        double maxMes = plugin.getConfig().getDouble("npc.destek.max-mesafe", 3000);
+        List<VahsiKale> adaylar = new ArrayList<>();
+        for (VahsiKale d : aktifKaleler()) {
+            if (d == kusatilan || !d.merkez.getWorld().equals(kusatilan.merkez.getWorld())) continue;
+            if (!"ITTIFAK".equals(iliski.get(anahtar(kusatilan.id, d.id)))) continue;
+            if (d.merkez.distance(kusatilan.merkez) > maxMes) continue;
+            if (gucu(d) < 4) continue; // yardım edecek gücü yok
+            adaylar.add(d);
+        }
+        if (adaylar.isEmpty()) return;
+        adaylar.sort((a, b) -> Double.compare(a.merkez.distanceSquared(kusatilan.merkez), b.merkez.distanceSquared(kusatilan.merkez)));
+        destekSon.put(kusatilan.id, simdi);
+        int maxYardimci = dk("destek.max-yardimci", 2);
+        int maxMuhafiz = dk("destek.max-muhafiz", 8);
+        int sure = dk("destek.sure-saniye", 180);
+        double hiz = Math.max(5, plugin.getConfig().getDouble("npc.destek.hiz-blok-sn", 25));
+        for (int i = 0; i < Math.min(maxYardimci, adaylar.size()); i++) {
+            VahsiKale d = adaylar.get(i);
+            int gecikmeSn = (int) Math.min(240, 20 + d.merkez.distance(kusatilan.merkez) / hiz);
+            int adet = Math.max(2, Math.min(maxMuhafiz, Math.min(2 + d.seviye, gucu(d) / 4)));
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                VahsiKale hedef = plugin.vahsiKale().kaleBul(kusatilan.id);
+                if (hedef == null || hedef.fethedildi || hedef.kusatmadakiOyuncular.isEmpty()) return; // kuşatma bitti: çağrı iptal
+                plugin.vahsiKale().destekEkibiUret(d, hedef, adet, sure);
+            }, gecikmeSn * 20L);
+        }
+    }
+
+    /** Destek ekibinde ölenler gönderen kalenin gücünden düşer (yenilenme mantığı gücü zamanla geri getirir). */
+    public void destekKaybi(VahsiKale gonderen, int olen) {
+        if (gonderen == null || olen <= 0) return;
+        guc.put(gonderen.id, Math.max(1, gucu(gonderen) - olen));
+        kaydet();
+    }
+
     // ------------------------------------------------------------------ İTTİFAK (kalıcı)
     public boolean ittifakVarMi(UUID klanId, UUID kaleId) {
         Map<UUID, Long> m;
