@@ -1547,28 +1547,30 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     /** Görünür kervanın insan muhafızı: kalenin skini, nöbetçi donatımı; oyunculara KIZGIN olmadıkça saldırmaz. */
-    public org.bukkit.entity.PigZombie kervanMuhafiziUret(VahsiKale kale, Location l) {
-        org.bukkit.entity.PigZombie v = muhafizTaban(l);
+    public LivingEntity kervanMuhafiziUret(VahsiKale kale, Location l) {
+        LivingEntity v = birimUret(l, kale.isim + " Kervan Muhafızı", ChatColor.GOLD, nobetciCan(kale.seviye), nobetciHasar(kale.seviye), kaleSkini(kale));
         v.getPersistentDataContainer().set(kervanKey, PersistentDataType.STRING, kale.id.toString());
-        String ad = kale.isim + " Kervan Muhafızı";
-        v.setCustomName(ChatColor.GOLD + ad);
-        v.setCustomNameVisible(true);
-        AttributeInstance can = v.getAttribute(Attribute.MAX_HEALTH);
-        if (can != null) can.setBaseValue(nobetciCan(kale.seviye));
-        v.setHealth(nobetciCan(kale.seviye));
-        AttributeInstance hasar = v.getAttribute(Attribute.ATTACK_DAMAGE);
-        if (hasar != null) hasar.setBaseValue(nobetciHasar(kale.seviye));
-        donatimGiydir(v, "NOBETCI");
-        if (v.getEquipment() != null) v.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_AXE));
-        String skin = null;
-        for (String sk : kale.nobetciSkinleri.values()) if (sk != null) { skin = sk; break; }
-        final String skinF = skin;
-        if (skinF != null && Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try { NobetciDisguiseYardimcisi.giydir(v, skinF, ad); } catch (Throwable t) { /* görünüm bozulur, işlev kalır */ }
-            });
-        }
         return v;
+    }
+
+    /** Kervan muhafızı mı (Citizens NPC'si ya da mob tabanı)? */
+    public boolean kervanMuhafiziMi(org.bukkit.entity.Entity e) {
+        return e != null && (e instanceof org.bukkit.entity.PigZombie || CitizensKopru.npcMi(e))
+                && e.getPersistentDataContainer().has(kervanKey, PersistentDataType.STRING);
+    }
+
+    /** Kervan muhafızını kızdırır: artık hedefe saldırır. */
+    public void kervanMuhafiziKizdir(LivingEntity v, LivingEntity hedef) {
+        v.getPersistentDataContainer().set(kizginKey, PersistentDataType.BYTE, (byte) 1);
+        birimHedefVer(v, hedef);
+    }
+
+    public void kervanVarlikKaldir(org.bukkit.entity.Entity e) {
+        if (e instanceof LivingEntity le && CitizensKopru.npcMi(le)) CitizensKopru.kaldir(le); else e.remove();
+    }
+
+    public void kervanMuhafiziYuru(LivingEntity e, Location l, boolean isinla) {
+        if (isinla) birimIsinla(e, l); else birimYuru(e, l, 0.9);
     }
 
     private void saldirTetikle(VahsiKale kale, Player p) {
@@ -1676,6 +1678,7 @@ public class VahsiKaleYonetici implements Listener {
                 kale.fetihZamani = System.currentTimeMillis();
                 klan.prestij += fetihPrestiji();
                 me.klansistemi.BasarimKopru.sayac(event.getPlayer(), "klan_kale");
+                HaberKopru.yaz("KLAN", kale.isim + " fethedildi", event.getPlayer().getName() + " önderliğinde " + klan.isim + " klanı " + kale.isim + " kalesini fethetti.");
                 plugin.veri().kaydet();
                 plugin.npcDunya().fetihDagit(kale); // kervan hazine odasi (gercek esya) sandiklara
                 elciSil(kale); // fethedilince elçiyle diplomasi/ticaret anlamsızlaşıyor

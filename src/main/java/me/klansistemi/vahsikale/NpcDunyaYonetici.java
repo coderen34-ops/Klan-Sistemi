@@ -134,13 +134,15 @@ public class NpcDunyaYonetici implements Listener {
         if ("SAVAS".equals(mevcut)) {
             savasCoz(a, b, key);
         } else if ("ITTIFAK".equals(mevcut)) {
-            if (zar < 0.10) { iliski.remove(key); plugin.getLogger().info("[NPC] İttifak bozuldu: " + a.isim + " x " + b.isim); }
+            if (zar < 0.10) { iliski.remove(key); plugin.getLogger().info("[NPC] İttifak bozuldu: " + a.isim + " x " + b.isim); HaberKopru.yaz("KLAN", "İttifak bozuldu", a.isim + " ile " + b.isim + " arasındaki ittifak sona erdi."); }
         } else if (zar < 0.35) {
             iliski.put(key, "SAVAS");
             plugin.getLogger().info("[NPC] Savaş ilan etti: " + a.isim + " x " + b.isim);
+            HaberKopru.yaz("KLAN", "Savaş ilan edildi", a.isim + " ile " + b.isim + " birbirine savaş açtı.");
         } else if (zar < 0.65) {
             iliski.put(key, "ITTIFAK");
             plugin.getLogger().info("[NPC] İttifak kurdu: " + a.isim + " + " + b.isim);
+            HaberKopru.yaz("KLAN", "Yeni ittifak", a.isim + " ile " + b.isim + " ittifak kurdu.");
         } else {
             // ticaret: ikisinin de hazinesi seviyeyle orantılı artar (aynı sunucu ekonomisine soyut bağlı)
             hazine.put(a.id, hazinesi(a) + 40.0 * a.seviye);
@@ -735,7 +737,7 @@ public class NpcDunyaYonetici implements Listener {
     }
 
     private void gorselKaldir(Kervan kv) {
-        for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null) e.remove(); }
+        for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null) plugin.vahsiKale().kervanVarlikKaldir(e); }
         kv.varliklar.clear();
     }
 
@@ -783,7 +785,7 @@ public class NpcDunyaYonetici implements Listener {
                 continue;
             }
             org.bukkit.entity.Entity lider = null;
-            for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e instanceof org.bukkit.entity.PigZombie && e.isValid()) { lider = e; break; } }
+            for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (plugin.vahsiKale().kervanMuhafiziMi(e) && e.isValid()) { lider = e; break; } }
             if (lider == null) for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) { lider = e; break; } }
             if (lider == null) { kv.varliklar.clear(); continue; }
             Location ll = lider.getLocation();
@@ -818,13 +820,16 @@ public class NpcDunyaYonetici implements Listener {
                 }
             }
             if (kv.takilma >= 5) {
-                for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) e.teleport(wp); }
+                for (UUID id : kv.varliklar) { org.bukkit.entity.Entity e = Bukkit.getEntity(id); if (e != null && e.isValid()) { if (plugin.vahsiKale().kervanMuhafiziMi(e) && e instanceof org.bukkit.entity.LivingEntity le) plugin.vahsiKale().kervanMuhafiziYuru(le, wp, true); else e.teleport(wp); } }
                 kv.takilma = 0;
                 continue;
             }
             for (UUID id : kv.varliklar) {
                 org.bukkit.entity.Entity e = Bukkit.getEntity(id);
-                if (e instanceof org.bukkit.entity.Mob m && m.isValid() && m.getTarget() == null) {
+                if (plugin.vahsiKale().kervanMuhafiziMi(e) && e instanceof org.bukkit.entity.LivingEntity le && le.isValid()
+                        && CitizensKopru.npcMi(le)) {
+                    if (CitizensKopru.hedefAl(le) == null) plugin.vahsiKale().kervanMuhafiziYuru(le, wp, false);
+                } else if (e instanceof org.bukkit.entity.Mob m && m.isValid() && m.getTarget() == null) {
                     try { m.getPathfinder().moveTo(wp, m instanceof org.bukkit.entity.PigZombie ? 0.9 : 1.0); } catch (Exception ignored) { }
                 }
             }
@@ -837,9 +842,9 @@ public class NpcDunyaYonetici implements Listener {
         kv.sonX = kv.x; kv.sonZ = kv.z; kv.takilma = 0;
         Location b = new Location(w, x + 0.5, y, z + 0.5);
         int n = Math.max(1, Math.min(6, muhafizSayisi(k, kv)));
-        List<org.bukkit.entity.PigZombie> muhafizlar = new ArrayList<>();
+        List<org.bukkit.entity.LivingEntity> muhafizlar = new ArrayList<>();
         for (int i = 0; i < n; i++) {
-            org.bukkit.entity.PigZombie g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
+            org.bukkit.entity.LivingEntity g = plugin.vahsiKale().kervanMuhafiziUret(k, b.clone().add(rng.nextInt(5) - 2, 0, rng.nextInt(5) - 2));
             kv.varliklar.add(g.getUniqueId());
             muhafizlar.add(g);
         }
@@ -1028,10 +1033,8 @@ public class NpcDunyaYonetici implements Listener {
         if (p == null || kv == null) return;
         for (UUID id : kv.varliklar) {
             org.bukkit.entity.Entity e = Bukkit.getEntity(id);
-            if (e instanceof org.bukkit.entity.PigZombie v && v.isValid()) {
-                v.getPersistentDataContainer().set(plugin.vahsiKale().kizginKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
-                v.setTarget(p);
-                try { v.setAnger(1200); } catch (Throwable ignored) { }
+            if (plugin.vahsiKale().kervanMuhafiziMi(e) && e instanceof org.bukkit.entity.LivingEntity v && v.isValid()) {
+                plugin.vahsiKale().kervanMuhafiziKizdir(v, p);
             }
         }
     }
@@ -1045,10 +1048,10 @@ public class NpcDunyaYonetici implements Listener {
         Kervan kv = kervanlar.get(UUID.fromString(kid));
         if (kv == null) return;
         kv.varliklar.remove(ent.getUniqueId());
-        if (!(ent instanceof org.bukkit.entity.PigZombie)) return;
+        if (!plugin.vahsiKale().kervanMuhafiziMi(ent)) return;
         for (UUID id : kv.varliklar) {
             org.bukkit.entity.Entity e = Bukkit.getEntity(id);
-            if (e instanceof org.bukkit.entity.PigZombie && e.isValid() && !e.isDead()) return; // muhafız kaldı
+            if (plugin.vahsiKale().kervanMuhafiziMi(e) && e.isValid() && !e.isDead()) return; // muhafız kaldı
         }
         VahsiKale k = plugin.vahsiKale().kaleBul(UUID.fromString(kid));
         if (k == null) return;
@@ -1069,6 +1072,7 @@ public class NpcDunyaYonetici implements Listener {
             Klan kk = plugin.klanManager().oyuncununKlani(katil.getUniqueId());
             if (kk != null) saldiriBildir(kk, k);
             katil.sendMessage(ChatColor.GOLD + k.isim + " kervanı yağmalandı! Enkaz sandığı birazdan belirir.");
+            HaberKopru.yaz("KLAN", k.isim + " kervanı yağmalandı", katil.getName() + (kk != null ? " (" + kk.isim + ")" : "") + " " + k.isim + " kervanının muhafızlarını devirdi.");
         }
         kaydet();
     }
@@ -1189,6 +1193,7 @@ public class NpcDunyaYonetici implements Listener {
                 VahsiKale hedef = plugin.vahsiKale().kaleBul(kusatilan.id);
                 if (hedef == null || hedef.fethedildi || hedef.kusatmadakiOyuncular.isEmpty()) return; // kuşatma bitti: çağrı iptal
                 plugin.vahsiKale().destekEkibiUret(d, hedef, adet, sure);
+                HaberKopru.yaz("KLAN", "Müttefik desteği", d.isim + ", kuşatma altındaki müttefiki " + hedef.isim + "'e destek ekibi gönderdi.");
             }, gecikmeSn * 20L);
         }
     }
