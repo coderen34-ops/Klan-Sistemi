@@ -1775,6 +1775,31 @@ public class VahsiKaleYonetici implements Listener {
         sonDusman.put(saldiran.getUniqueId(), new Object[]{kurban.getUniqueId(), simdi}); // benim vurduğuma
     }
 
+    /** Bir oyuncu nöbetçiye ya da kervan muhafızına vurunca NPC karşılık verir. Eskiden sadece kale yarıçapına girmek
+     *  (nöbetçi) ya da kervana özel kışkırtma (muhafız) hedef belirliyordu; vurulan NPC'ye hedef verilmiyordu. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onNpcKarsilik(EntityDamageByEntityEvent ev) {
+        if (!(ev.getEntity() instanceof LivingEntity npc) || !CitizensKopru.npcMi(npc)) return;
+        Player p = null;
+        if (ev.getDamager() instanceof Player d) p = d;
+        else if (ev.getDamager() instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof Player d) p = d;
+        if (p == null || p.hasMetadata("NPC") || npc.isDead()) return;
+        if (p.getGameMode() == org.bukkit.GameMode.CREATIVE || p.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+        var pdc = npc.getPersistentDataContainer();
+        if (pdc.has(kervanKey, PersistentDataType.STRING)) {
+            String kid = pdc.get(kervanKey, PersistentDataType.STRING);
+            VahsiKale kale = kid == null ? null : kaleler.get(UUID.fromString(kid));
+            if (kale != null && dostOyuncuMu(kale, p)) return;
+            kervanMuhafiziKizdir(npc, p);
+            return;
+        }
+        String kid = pdc.get(kaleIdKey, PersistentDataType.STRING);
+        if (kid == null) return;
+        VahsiKale kale = kaleler.get(UUID.fromString(kid));
+        if (kale == null || kale.fethedildi || dostOyuncuMu(kale, p)) return;
+        CitizensKopru.hedefVer(npc, p);
+    }
+
     /** Görünür kervanın insan muhafızı: kalenin skini, nöbetçi donatımı; oyunculara KIZGIN olmadıkça saldırmaz. */
     public LivingEntity kervanMuhafiziUret(VahsiKale kale, Location l) {
         LivingEntity v = birimUret(l, kale.isim + " Kervan Muhafızı", ChatColor.GOLD, nobetciCan(kale.seviye), nobetciHasar(kale.seviye), kaleSkini(kale));
