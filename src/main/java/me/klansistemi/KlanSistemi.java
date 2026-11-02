@@ -142,6 +142,7 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(bolgeManager, this);
         getServer().getPluginManager().registerEvents(vahsiKaleYonetici, this);
         getServer().getPluginManager().registerEvents(npcDunyaYonetici, this);
+        getServer().getPluginManager().registerEvents(new me.klansistemi.vahsikale.NpcBaygin(this), this);
         getServer().getPluginManager().registerEvents(hanciYonetici, this);
         getServer().getPluginManager().registerEvents(patikaYonetici, this);
         Bukkit.getScheduler().runTaskTimer(this, patikaYonetici::bakim, 12000L, 12000L);

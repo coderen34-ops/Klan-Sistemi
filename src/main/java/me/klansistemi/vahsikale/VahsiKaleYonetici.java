@@ -1160,6 +1160,7 @@ public class VahsiKaleYonetici implements Listener {
     }
 
     private void npcNobetciDavranisi(VahsiKale kale, NpcKayit r, LivingEntity le) {
+        if (NpcBaygin.bayginMi(le) || NpcBaygin.gorevdeMi(le)) return; // baygın ya da sağlıkçı görevinde
         LivingEntity hedef = CitizensKopru.hedefAl(le);
         Location ev = new Location(le.getWorld(), r.x, r.y, r.z);
         if (hedef != null) {
@@ -1676,6 +1677,18 @@ public class VahsiKaleYonetici implements Listener {
             }
         }, 20L, 20L);
         return liste.size();
+    }
+
+    /** Klan NPC'sinin grup anahtarı: "kervan:<kale>", "kale:<kale>", "takviye" ya da null (klan NPC'si değil). */
+    public String npcGrupAnahtari(org.bukkit.entity.Entity e) {
+        if (e == null) return null;
+        var pdc = e.getPersistentDataContainer();
+        String kv = pdc.get(kervanKey, PersistentDataType.STRING);
+        if (kv != null) return "kervan:" + kv;
+        String k = pdc.get(kaleIdKey, PersistentDataType.STRING);
+        if (k != null) return "kale:" + k;
+        if (pdc.has(muhafizKey, PersistentDataType.BYTE)) return "takviye";
+        return null;
     }
 
     // ------------------------------------------------------------------ OYUNCU SESLERİ (taban mob sessiz, disguise'lı NPC oyuncu gibi duyulur)

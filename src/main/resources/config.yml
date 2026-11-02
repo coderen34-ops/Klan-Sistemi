@@ -310,6 +310,9 @@ npc:
   takviye-cooldown-dakika: 30
   tabani: citizens              # citizens = gerçek oyuncu tipi NPC (Citizens); mob = eski Zombified Piglin + LibsDisguises (yedek)
   sentinel: true                # Citizens NPC'lerine Sentinel can/hasar eğilimi eklenir (Sentinel kuruluysa)
+  bayginlik: true               # Klan NPC'leri ölümcül vuruşta bayılır (yerde kalır), süre dolunca ölür
+  bayginlik-saniye: 45          # Baygın NPC'nin ölmeden önceki süresi
+  adrenalin-sans: 50            # Bir grubun (kale/kervan) adrenalin iğnesi bulmuş olma ihtimali (%), 1-2 iğne
   destek:                       # Kuşatılan kaleye NPC müttefik desteği
     aktif: true
     max-yardimci: 2             # Bir kuşatmada en fazla bu kadar ittifaklı kale yardım gönderir

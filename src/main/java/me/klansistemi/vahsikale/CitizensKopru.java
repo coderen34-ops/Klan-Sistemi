@@ -159,6 +159,7 @@ final class CitizensKopru {
 
     /** Hedefe saldırgan (aggressive) yürüyüş; hedef null ise gezinmeyi iptal eder. */
     static void hedefVer(LivingEntity e, LivingEntity hedef) {
+        if (hedef != null && (NpcBaygin.bayginMi(e) || NpcBaygin.gorevdeMi(e))) return;
         try {
             Object npc = npcOf(e);
             if (npc == null) return;
@@ -169,6 +170,12 @@ final class CitizensKopru {
     }
 
     static void yuru(LivingEntity e, Location l) {
+        if (NpcBaygin.bayginMi(e) || NpcBaygin.gorevdeMi(e)) return; // baygın ya da sağlıkçı görevindeki NPC'yi diğer sistemler yürütmesin
+        yuruZorla(e, l);
+    }
+
+    /** Baygınlık/sağlıkçı mantığının kendi yürütmesi (yukarıdaki korumayı atlar). */
+    static void yuruZorla(LivingEntity e, Location l) {
         try {
             Object npc = npcOf(e);
             if (npc == null) return;
@@ -178,6 +185,7 @@ final class CitizensKopru {
     }
 
     static void isinla(LivingEntity e, Location l) {
+        if (NpcBaygin.bayginMi(e)) return;
         try {
             Object npc = npcOf(e);
             if (npc == null) { e.teleport(l); return; }
@@ -214,6 +222,39 @@ final class CitizensKopru {
             Object trait = cNpc.getMethod("getOrAddTrait", Class.class).invoke(npc, cSent);
             alanAyarla(cSent, trait, "health", can);
             alanAyarla(cSent, trait, "damage", hasar);
+        } catch (Throwable ignored) { }
+    }
+
+    private static final Map<UUID, Double> eskiHasar = new ConcurrentHashMap<>();
+
+    /** Baygın NPC: gezinmeyi iptal eder, Sentinel hasarını sıfırlar (eski değer saklanır). */
+    static void dovusDurdur(LivingEntity e) {
+        try {
+            Object npc = npcOf(e);
+            if (npc == null) return;
+            try { cNav.getMethod("cancelNavigation").invoke(cNpc.getMethod("getNavigator").invoke(npc)); } catch (Throwable ignored) { }
+            Plugin s = Bukkit.getPluginManager().getPlugin("Sentinel");
+            if (s == null || !s.isEnabled()) return;
+            Class<?> cSent = Class.forName("org.mcmonkey.sentinel.SentinelTrait");
+            Object trait = cNpc.getMethod("getOrAddTrait", Class.class).invoke(npc, cSent);
+            try {
+                Object eski = cSent.getField("damage").get(trait);
+                if (eski instanceof Number n && !eskiHasar.containsKey(e.getUniqueId())) eskiHasar.put(e.getUniqueId(), n.doubleValue());
+            } catch (Throwable ignored) { }
+            alanAyarla(cSent, trait, "damage", 0.0);
+        } catch (Throwable ignored) { }
+    }
+
+    /** Baygınlık bitince Sentinel hasarını eski değerine döndürür. */
+    static void dovusGeriAl(LivingEntity e) {
+        Double eski = eskiHasar.remove(e.getUniqueId());
+        if (eski == null) return;
+        try {
+            Object npc = npcOf(e);
+            if (npc == null) return;
+            Class<?> cSent = Class.forName("org.mcmonkey.sentinel.SentinelTrait");
+            Object trait = cNpc.getMethod("getOrAddTrait", Class.class).invoke(npc, cSent);
+            alanAyarla(cSent, trait, "damage", eski);
         } catch (Throwable ignored) { }
     }
 
