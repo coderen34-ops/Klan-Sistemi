@@ -111,26 +111,18 @@ public class IliskiManager implements Listener {
     }
 
     // ------------------------------------------------------------------ GÖRÜŞ YAZMA
-    /** Not geçerliyse temizlenmiş halini, değilse null döner (oyuncuya sebep bildirilir). */
-    private String notuTemizle(Player p, String not) {
-        if (not == null) return "";
-        not = not.replace("&", "").replace("§", "").trim();
-        if (not.length() > notMax()) {
-            m().gonder(p, "gorus-uzun", "&cGörüş notu en fazla {max} karakter olabilir.", "max", notMax());
-            return null;
-        }
-        String norm = KlanManager.anahtar(not);
+    /** Görüş işlemi sonucu. ayrinti: BEKLEME/HUSUMET_BEKLEME için kalan ms. */
+    public record GorusIslemi(me.klansistemi.api.GorusSonucu sonuc, long ayrinti, boolean oncekiDost) { }
+
+    /** Temizlenmiş not geçerliyse null, değilse hata sonucunu döner. */
+    private me.klansistemi.api.GorusSonucu notDogrula(String temiz) {
+        if (temiz.length() > notMax()) return me.klansistemi.api.GorusSonucu.NOT_UZUN;
+        String norm = KlanManager.anahtar(temiz);
         for (String kelime : plugin.ayar().yasakliKelimeler()) {
-            if (!kelime.isBlank() && norm.contains(KlanManager.anahtar(kelime))) {
-                m().gonder(p, "gorus-yasakli", "&cGörüş notunuz uygunsuz bir ifade içeriyor.");
-                return null;
-            }
+            if (!kelime.isBlank() && norm.contains(KlanManager.anahtar(kelime))) return me.klansistemi.api.GorusSonucu.NOT_YASAKLI;
         }
-        if (REKLAM.matcher(not).find()) {
-            m().gonder(p, "gorus-reklam", "&cGörüş notunda bağlantı veya reklam olamaz.");
-            return null;
-        }
-        return not;
+        if (REKLAM.matcher(temiz).find()) return me.klansistemi.api.GorusSonucu.NOT_REKLAM;
+        return null;
     }
 
     /**
@@ -138,21 +130,54 @@ public class IliskiManager implements Listener {
      * not null ise mevcut not korunur (sadece durum değişir).
      */
     public boolean gorusYaz(Player p, Klan hedef, IliskiDurumu durum, String not) {
-        Klan benim = plugin.klanManager().oyuncununKlani(p.getUniqueId());
-        if (benim == null) { m().gonder(p, "klanda-degil", "&cBir klanda değilsiniz."); return false; }
-        if (benim.uyeler.get(p.getUniqueId()).rol != Rol.LIDER) { m().gonder(p, "sadece-lider", "&cBunu sadece klan Lideri yapabilir."); return false; }
-        if (hedef.id.equals(benim.id)) { m().gonder(p, "gorus-kendine", "&cKendi klanınız hakkında görüş yazamazsınız."); return false; }
+        GorusIslemi r = gorusIsle(p.getUniqueId(), p.getName(), hedef, durum, not, yeniDurum -> {
+            m().gonder(p, "gorus-kaydedildi", "&a{klan} hakkındaki görüşünüz kaydedildi: {durum}", "klan", hedef.isim, "durum", yeniDurum.renkliAd());
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_YES, 1f, 1f);
+        });
+        switch (r.sonuc()) {
+            case BASARILI -> { return true; }
+            case KLANDA_DEGIL -> m().gonder(p, "klanda-degil", "&cBir klanda değilsiniz.");
+            case SADECE_LIDER -> m().gonder(p, "sadece-lider", "&cBunu sadece klan Lideri yapabilir.");
+            case KENDINE -> m().gonder(p, "gorus-kendine", "&cKendi klanınız hakkında görüş yazamazsınız.");
+            case BEKLEME -> m().gonder(p, "gorus-bekleme", "&cBu klan hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.",
+                    "sure", Zaman.sure(r.ayrinti()));
+            case NOT_UZUN -> m().gonder(p, "gorus-uzun", "&cGörüş notu en fazla {max} karakter olabilir.", "max", notMax());
+            case NOT_YASAKLI -> m().gonder(p, "gorus-yasakli", "&cGörüş notunuz uygunsuz bir ifade içeriyor.");
+            case NOT_REKLAM -> m().gonder(p, "gorus-reklam", "&cGörüş notunda bağlantı veya reklam olamaz.");
+            case HUSUMET_BEKLEME -> {
+                m().gonder(p, "husumet-bekleme", "&cDostluk bozulduktan sonra husumet ilanı için {sure} beklemelisiniz.",
+                        "sure", Zaman.sure(r.ayrinti()));
+                if (r.oncekiDost()) m().gonder(p, "husumet-once-boz", "&7Önce durumu TARAFSIZ yaparak dostluğu bozun.");
+            }
+            default -> { }
+        }
+        return false;
+    }
+
+    /**
+     * Oyuncu-bağımsız çekirdek (komut/panel ve KlanAPI ortak kullanır). Ana thread.
+     * basariBildirimi: kayıt yapıldıktan sonra, klan duyurularından ÖNCE çağrılır (oyuncuya özel mesaj/ses için; null olabilir).
+     */
+    public GorusIslemi gorusIsle(UUID oyuncu, String oyuncuAd, Klan hedef, IliskiDurumu durum, String not,
+                                 java.util.function.Consumer<IliskiDurumu> basariBildirimi) {
+        Klan benim = plugin.klanManager().oyuncununKlani(oyuncu);
+        if (benim == null) return new GorusIslemi(me.klansistemi.api.GorusSonucu.KLANDA_DEGIL, 0, false);
+        if (benim.uyeler.get(oyuncu).rol != Rol.LIDER) return new GorusIslemi(me.klansistemi.api.GorusSonucu.SADECE_LIDER, 0, false);
+        if (hedef.id.equals(benim.id)) return new GorusIslemi(me.klansistemi.api.GorusSonucu.KENDINE, 0, false);
 
         long simdi = System.currentTimeMillis();
         Gorus eski = gorus(benim.id, hedef.id);
-        if (eski != null && simdi - eski.zaman < gorusBeklemeMs()) {
-            m().gonder(p, "gorus-bekleme", "&cBu klan hakkındaki görüşünüzü {sure} sonra değiştirebilirsiniz.",
-                    "sure", Zaman.sure(eski.zaman + gorusBeklemeMs() - simdi));
-            return false;
-        }
+        if (eski != null && simdi - eski.zaman < gorusBeklemeMs())
+            return new GorusIslemi(me.klansistemi.api.GorusSonucu.BEKLEME, eski.zaman + gorusBeklemeMs() - simdi, false);
         IliskiDurumu yeniDurum = durum != null ? durum : (eski != null ? eski.durum : IliskiDurumu.TARAFSIZ);
-        String yeniNot = not != null ? notuTemizle(p, not) : (eski != null ? eski.not : "");
-        if (yeniNot == null) return false;
+        String yeniNot;
+        if (not != null) {
+            yeniNot = not.replace("&", "").replace("§", "").trim();
+            me.klansistemi.api.GorusSonucu hata = notDogrula(yeniNot);
+            if (hata != null) return new GorusIslemi(hata, 0, false);
+        } else {
+            yeniNot = eski != null ? eski.not : "";
+        }
 
         String cift = ciftAnahtari(benim.id, hedef.id);
         IliskiDurumu onceki = iliski(benim.id, hedef.id);
@@ -160,25 +185,24 @@ public class IliskiManager implements Listener {
             Long bitis = dostlukBitisleri.get(cift);
             long kalan = bitis == null ? 0 : bitis + husumetBeklemeMs() - simdi;
             if (onceki == IliskiDurumu.DOST) kalan = husumetBeklemeMs(); // Önce dostluk bozulmalı, sonra beklenmeli
-            if (kalan > 0) {
-                m().gonder(p, "husumet-bekleme", "&cDostluk bozulduktan sonra husumet ilanı için {sure} beklemelisiniz.",
-                        "sure", Zaman.sure(kalan));
-                if (onceki == IliskiDurumu.DOST) m().gonder(p, "husumet-once-boz", "&7Önce durumu TARAFSIZ yaparak dostluğu bozun.");
-                return false;
-            }
+            if (kalan > 0) return new GorusIslemi(me.klansistemi.api.GorusSonucu.HUSUMET_BEKLEME, kalan, onceki == IliskiDurumu.DOST);
         }
 
-        Gorus g = new Gorus(benim.id, hedef.id, yeniDurum, yeniNot, p.getName(), simdi);
+        Gorus g = new Gorus(benim.id, hedef.id, yeniDurum, yeniNot, oyuncuAd, simdi);
         gorusler.computeIfAbsent(benim.id, k -> new HashMap<>()).put(hedef.id, g);
         IliskiDurumu sonraki = iliski(benim.id, hedef.id);
         if (onceki == IliskiDurumu.DOST && sonraki != IliskiDurumu.DOST) dostlukBitisleri.put(cift, simdi);
         plugin.veri().kaydet();
 
-        plugin.log().yaz(benim, p.getName(), "GORUS", hedef.isim + " -> " + yeniDurum.ad + (yeniNot.isEmpty() ? "" : " | \"" + yeniNot + "\""));
-        m().gonder(p, "gorus-kaydedildi", "&a{klan} hakkındaki görüşünüz kaydedildi: {durum}", "klan", hedef.isim, "durum", yeniDurum.renkliAd());
-        p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_YES, 1f, 1f);
+        plugin.log().yaz(benim, oyuncuAd, "GORUS", hedef.isim + " -> " + yeniDurum.ad + (yeniNot.isEmpty() ? "" : " | \"" + yeniNot + "\""));
+        if (basariBildirimi != null) basariBildirimi.accept(yeniDurum);
         degisimBildir(benim, hedef, onceki, sonraki, yeniDurum);
-        return true;
+        try {
+            Bukkit.getPluginManager().callEvent(new me.klansistemi.olay.KlanGorusEvent(benim.isim, oyuncu, yeniNot, hedef.isim));
+            if (onceki != sonraki)
+                Bukkit.getPluginManager().callEvent(new me.klansistemi.olay.KlanIliskiDegistiEvent(benim.isim, hedef.isim, onceki.name(), sonraki.name(), oyuncu));
+        } catch (Throwable ex) { plugin.getLogger().warning("Klan olayı: " + ex); }
+        return new GorusIslemi(me.klansistemi.api.GorusSonucu.BASARILI, 0, false);
     }
 
     private void degisimBildir(Klan benim, Klan hedef, IliskiDurumu onceki, IliskiDurumu sonraki, IliskiDurumu benimGorusum) {

@@ -134,6 +134,9 @@ public class KlanSistemi extends JavaPlugin {
         getServer().getPluginManager().registerEvents(panel, this);
         getServer().getPluginManager().registerEvents(esya, this);
         getServer().getPluginManager().registerEvents(iliski, this);
+        // Koninski-Mobil köprüsü: KlanAPI servisi (plugin kapanınca Bukkit otomatik kaldırır)
+        getServer().getServicesManager().register(me.klansistemi.api.KlanAPI.class,
+                new me.klansistemi.api.KlanAPIImpl(this), this, org.bukkit.plugin.ServicePriority.Normal);
         getServer().getPluginManager().registerEvents(savasManager, this);
         getServer().getPluginManager().registerEvents(prestijManager, this);
         getServer().getPluginManager().registerEvents(buyuKurallari, this);

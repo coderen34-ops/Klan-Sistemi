@@ -163,6 +163,9 @@ public class KlanManager {
         kaydet();
 
         plugin.log().yaz(a, p.getName(), "KLAN_KURULDU", "ücret " + Para.yaz(ucret));
+        try {
+            Bukkit.getPluginManager().callEvent(new me.klansistemi.olay.KlanKurulduEvent(a.isim, pId));
+        } catch (Throwable ex) { plugin.getLogger().warning("KlanKurulduEvent: " + ex); }
         plugin.etiket().guncelle(a, lider);
         m().gonder(p, "kuruldu", "&a{klan} klanı kuruldu! Artık klanın &6Lideri&a sizsiniz. ({ucret} bankanızdan çekildi)",
                 "klan", isim, "ucret", Para.yaz(ucret));
