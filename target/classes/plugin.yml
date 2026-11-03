@@ -1,0 +1,41 @@
+name: KlanSistemi
+version: '1.0'
+main: me.klansistemi.KlanSistemi
+api-version: '26.2'
+description: Klan kurma, roller, kasa, aidat ve klan sohbeti
+depend: [MeslekSistemi]
+softdepend: [TagPlugin, GriefPrevention, PlaceholderAPI]
+# Vahşi Kale verisi için SQLite JDBC - jar'a gömülmüyor, Paper sunucu açılışta Maven Central'dan indirip
+# izole bir classloader'a yükler.
+libraries:
+  - org.xerial:sqlite-jdbc:3.46.1.3
+
+commands:
+  klan:
+    description: Klan sistemi komutları
+    usage: /klan [yardim]
+    permission: klan.kullan
+  kc:
+    description: Klan sohbetine mesaj gönderir
+    usage: /kc <mesaj>
+    permission: klan.kullan
+  npczindan:
+    description: (konsol) Arena-Ligi zindan boss'u dusunce NPC klan gorevini tamamlar
+    usage: /npczindan <oyuncu> <zindanId>
+    permission: klan.admin
+  npcklan:
+    description: NPC Diplomasi Paneli ve kervan dedikodusu
+    usage: /npcklan [panel|dedikodu|hanci kur|hanci sil|patika bilgi|patika liste|patika sifirla]
+    permission: klan.kullan
+  vahsikale:
+    description: Vahşi Kale (NPC klanı) yönetim komutları
+    usage: /vahsikale <uret [seviye]|sil|hepsinisil|liste|bilgi|giris|yardim|git [isim]>
+    permission: klan.admin
+
+permissions:
+  klan.kullan:
+    description: Klan sistemini kullanma
+    default: true
+  klan.admin:
+    description: Klan yönetimi (zorla dağıtma, kasa düzeltme, ayar yenileme, Vahşi Kale kurulumu)
+    default: op
