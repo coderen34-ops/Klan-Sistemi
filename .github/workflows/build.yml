@@ -16,7 +16,7 @@ jobs:
           repository: coderen34-ops/Meslek-Sistemi
           path: meslek-sistemi
           # Meslek-Sistemi private olunca bu secret (sadece Contents: okuma yetkili token) gerekir; public iken bos olsa da calisir.
-          token: ${{ secrets.MESLEK_OKU_TOKEN }}
+          token: ${{ secrets.MESLEK_OKU_TOKEN || github.token }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
