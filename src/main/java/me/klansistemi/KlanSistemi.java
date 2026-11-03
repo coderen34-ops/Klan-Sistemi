@@ -137,6 +137,13 @@ public class KlanSistemi extends JavaPlugin {
         // Koninski-Mobil köprüsü: KlanAPI servisi (plugin kapanınca Bukkit otomatik kaldırır)
         getServer().getServicesManager().register(me.klansistemi.api.KlanAPI.class,
                 new me.klansistemi.api.KlanAPIImpl(this), this, org.bukkit.plugin.ServicePriority.Normal);
+        try {
+            java.io.File __mf = new java.io.File(getDataFolder(), "mobil.yml");
+            if (__mf.exists() && org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(__mf).getBoolean("olay-log", false)) {
+                getServer().getPluginManager().registerEvents(new me.klansistemi.olay.OlayGunlukcusu(this), this);
+                getLogger().info("Olay günlüğü AÇIK (mobil.yml: olay-log). Her olay konsola [OLAY] satırı olarak yazılır.");
+            }
+        } catch (Throwable __e) { getLogger().warning("mobil.yml okunamadı: " + __e); }
         getServer().getPluginManager().registerEvents(savasManager, this);
         getServer().getPluginManager().registerEvents(prestijManager, this);
         getServer().getPluginManager().registerEvents(buyuKurallari, this);
